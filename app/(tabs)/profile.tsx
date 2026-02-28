@@ -11,6 +11,7 @@ import {
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { C } from "@/constants/colors";
 
 const POST_IMAGES = [
@@ -128,8 +129,14 @@ export default function ProfileScreen() {
 
         {/* Posts Grid */}
         <View style={styles.postsHeader}>
-          <Text style={styles.postsTitle}>POSTS</Text>
-          <Text style={styles.postsCount}>15 TOTAL</Text>
+          <View style={styles.postsLeft}>
+            <Text style={styles.postsTitle}>POSTS</Text>
+            <Text style={styles.postsCount}>15 TOTAL</Text>
+          </View>
+          <Pressable style={styles.uploadBtn} onPress={() => router.push("/upload")}>
+            <Ionicons name="add" size={16} color="#fff" />
+            <Text style={styles.uploadBtnText}>動画を投稿</Text>
+          </Pressable>
         </View>
 
         <View style={styles.postsGrid}>
@@ -368,6 +375,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     marginBottom: 8,
+  },
+  postsLeft: {
+    gap: 2,
+  },
+  uploadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: C.accent,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  uploadBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
   },
   postsTitle: {
     color: C.text,

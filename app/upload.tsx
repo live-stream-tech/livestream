@@ -1,0 +1,649 @@
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  TextInput,
+  Platform,
+  Alert,
+} from "react-native";
+import { Image } from "expo-image";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import { C } from "@/constants/colors";
+import { COMMUNITIES } from "@/constants/data";
+
+type FeeType = "free" | "paid";
+type ScopeType = "public" | "members" | "invite";
+type PriceOption = 300 | 500 | 1000 | 2000 | 3000 | 5000;
+
+const PRICE_OPTIONS: PriceOption[] = [300, 500, 1000, 2000, 3000, 5000];
+
+export default function UploadScreen() {
+  const insets = useSafeAreaInsets();
+  const topInset = Platform.OS === "web" ? 67 : insets.top;
+  const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
+
+  const [videoUri, setVideoUri] = useState<string | null>(null);
+  const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [selectedCommunity, setSelectedCommunity] = useState(COMMUNITIES[0].id);
+  const [fee, setFee] = useState<FeeType>("paid");
+  const [price, setPrice] = useState<PriceOption>(500);
+  const [scope, setScope] = useState<ScopeType>("public");
+  const [tags, setTags] = useState("");
+
+  async function pickVideo() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("権限が必要です", "動画を選択するにはメディアライブラリへのアクセスを許可してください");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["videos"],
+      allowsEditing: true,
+      quality: 1,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setVideoUri(result.assets[0].uri);
+    }
+  }
+
+  async function pickThumbnail() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.9,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setThumbnailUri(result.assets[0].uri);
+    }
+  }
+
+  const selectedCommunityName = COMMUNITIES.find((c) => c.id === selectedCommunity)?.name ?? "";
+  const canUpload = videoUri && title.trim().length > 0;
+
+  return (
+    <View style={[styles.container]}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: topInset + 12 }]}>
+        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={22} color={C.text} />
+        </Pressable>
+        <Text style={styles.headerTitle}>動画を投稿</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* 動画選択エリア */}
+        <Pressable style={styles.videoPicker} onPress={pickVideo}>
+          {videoUri ? (
+            <View style={styles.videoPreviewContainer}>
+              {thumbnailUri ? (
+                <Image source={{ uri: thumbnailUri }} style={styles.videoPreview} contentFit="cover" />
+              ) : (
+                <View style={styles.videoPreviewPlaceholder}>
+                  <Ionicons name="film-outline" size={40} color={C.accent} />
+                  <Text style={styles.videoSelectedText}>動画を選択済み</Text>
+                </View>
+              )}
+              <View style={styles.videoSelectedBadge}>
+                <Ionicons name="checkmark-circle" size={18} color={C.green} />
+                <Text style={styles.videoSelectedLabel}>選択済み</Text>
+              </View>
+              <Pressable style={styles.rePickBtn} onPress={pickVideo}>
+                <Text style={styles.rePickText}>変更</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.videoPickerInner}>
+              <View style={styles.videoPickerIcon}>
+                <Ionicons name="cloud-upload-outline" size={36} color={C.accent} />
+              </View>
+              <Text style={styles.videoPickerTitle}>動画を選択</Text>
+              <Text style={styles.videoPickerSub}>ライブラリから選ぶ</Text>
+            </View>
+          )}
+        </Pressable>
+
+        {/* サムネイル */}
+        <View style={styles.section}>
+          <Text style={styles.label}>サムネイル</Text>
+          <Pressable style={styles.thumbnailPicker} onPress={pickThumbnail}>
+            {thumbnailUri ? (
+              <Image source={{ uri: thumbnailUri }} style={styles.thumbnailPreview} contentFit="cover" />
+            ) : (
+              <View style={styles.thumbnailPickerInner}>
+                <Ionicons name="image-outline" size={24} color={C.textMuted} />
+                <Text style={styles.thumbnailPickerText}>サムネイルを選択</Text>
+              </View>
+            )}
+          </Pressable>
+          <Text style={styles.hint}>16:9 推奨 (1280×720以上)</Text>
+        </View>
+
+        {/* タイトル */}
+        <View style={styles.section}>
+          <Text style={styles.label}>タイトル <Text style={styles.required}>*</Text></Text>
+          <TextInput
+            style={styles.input}
+            placeholder="動画のタイトルを入力..."
+            placeholderTextColor={C.textMuted}
+            value={title}
+            onChangeText={setTitle}
+            maxLength={60}
+          />
+          <Text style={styles.charCount}>{title.length}/60</Text>
+        </View>
+
+        {/* 説明 */}
+        <View style={styles.section}>
+          <Text style={styles.label}>説明</Text>
+          <TextInput
+            style={[styles.input, styles.textarea]}
+            placeholder="動画の説明を入力..."
+            placeholderTextColor={C.textMuted}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={4}
+            maxLength={500}
+          />
+          <Text style={styles.charCount}>{description.length}/500</Text>
+        </View>
+
+        {/* コミュニティ */}
+        <View style={styles.section}>
+          <Text style={styles.label}>投稿先コミュニティ</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.communityScroll}
+          >
+            {COMMUNITIES.map((community) => (
+              <Pressable
+                key={community.id}
+                style={[styles.communityPill, selectedCommunity === community.id && styles.communityPillActive]}
+                onPress={() => setSelectedCommunity(community.id)}
+              >
+                <Text
+                  style={[styles.communityPillText, selectedCommunity === community.id && styles.communityPillTextActive]}
+                  numberOfLines={1}
+                >
+                  {community.name}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* 公開範囲 */}
+        <View style={styles.section}>
+          <Text style={styles.label}>公開範囲</Text>
+          <View style={styles.scopeRow}>
+            {(["public", "members", "invite"] as ScopeType[]).map((s) => {
+              const labels: Record<ScopeType, string> = {
+                public: "一般公開",
+                members: "メンバー限定",
+                invite: "招待者のみ",
+              };
+              const icons: Record<ScopeType, string> = {
+                public: "globe-outline",
+                members: "people-outline",
+                invite: "lock-closed-outline",
+              };
+              const isActive = scope === s;
+              return (
+                <Pressable
+                  key={s}
+                  style={[styles.scopeOption, isActive && styles.scopeOptionActive]}
+                  onPress={() => setScope(s)}
+                >
+                  <Ionicons
+                    name={icons[s] as any}
+                    size={18}
+                    color={isActive ? C.accent : C.textMuted}
+                  />
+                  <Text style={[styles.scopeText, isActive && styles.scopeTextActive]}>
+                    {labels[s]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* 料金設定 */}
+        <View style={styles.section}>
+          <Text style={styles.label}>料金設定</Text>
+          <View style={styles.feeRow}>
+            <Pressable
+              style={[styles.feePill, fee === "free" && styles.feePillActive]}
+              onPress={() => setFee("free")}
+            >
+              <Ionicons name="gift-outline" size={14} color={fee === "free" ? "#fff" : C.textSec} />
+              <Text style={[styles.feePillText, fee === "free" && styles.feePillTextActive]}>無料</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.feePill, fee === "paid" && styles.feePillActive]}
+              onPress={() => setFee("paid")}
+            >
+              <Ionicons name="card-outline" size={14} color={fee === "paid" ? "#fff" : C.textSec} />
+              <Text style={[styles.feePillText, fee === "paid" && styles.feePillTextActive]}>有料</Text>
+            </Pressable>
+          </View>
+
+          {fee === "paid" && (
+            <View style={styles.priceGrid}>
+              {PRICE_OPTIONS.map((p) => (
+                <Pressable
+                  key={p}
+                  style={[styles.pricePill, price === p && styles.pricePillActive]}
+                  onPress={() => setPrice(p)}
+                >
+                  <Text style={[styles.pricePillText, price === p && styles.pricePillTextActive]}>
+                    ¥{p.toLocaleString()}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
+          {fee === "paid" && (
+            <View style={styles.pricePreview}>
+              <Text style={styles.pricePreviewLabel}>設定価格</Text>
+              <Text style={styles.pricePreviewValue}>¥{price.toLocaleString()}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* タグ */}
+        <View style={styles.section}>
+          <Text style={styles.label}>タグ</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="#音楽 #ライブ #アイドル..."
+            placeholderTextColor={C.textMuted}
+            value={tags}
+            onChangeText={setTags}
+          />
+          <Text style={styles.hint}>スペース区切りで複数入力できます</Text>
+        </View>
+
+        {/* 投稿ボタン */}
+        <View style={[styles.submitSection, { paddingBottom: bottomInset + 20 }]}>
+          <Pressable
+            style={[styles.submitBtn, !canUpload && styles.submitBtnDisabled]}
+            onPress={() => {
+              if (canUpload) {
+                Alert.alert("投稿完了", "動画が投稿されました！（デモ）", [
+                  { text: "OK", onPress: () => router.back() },
+                ]);
+              }
+            }}
+          >
+            <Ionicons name="cloud-upload" size={18} color="#fff" />
+            <Text style={styles.submitBtnText}>投稿する</Text>
+          </Pressable>
+          {!canUpload && (
+            <Text style={styles.submitHint}>動画とタイトルは必須です</Text>
+          )}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    color: C.text,
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  scroll: {
+    flex: 1,
+  },
+
+  /* 動画選択 */
+  videoPicker: {
+    marginHorizontal: 16,
+    marginBottom: 4,
+    height: 200,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: C.surface,
+    borderWidth: 2,
+    borderColor: C.border,
+    borderStyle: "dashed",
+  },
+  videoPickerInner: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  videoPickerIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "rgba(41, 182, 207, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  videoPickerTitle: {
+    color: C.text,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  videoPickerSub: {
+    color: C.textMuted,
+    fontSize: 13,
+  },
+  videoPreviewContainer: {
+    flex: 1,
+    position: "relative",
+  },
+  videoPreview: {
+    width: "100%",
+    height: "100%",
+  },
+  videoPreviewPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: C.surface2,
+  },
+  videoSelectedText: {
+    color: C.text,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  videoSelectedBadge: {
+    position: "absolute",
+    bottom: 10,
+    left: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  videoSelectedLabel: {
+    color: C.green,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  rePickBtn: {
+    position: "absolute",
+    bottom: 10,
+    right: 10,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  rePickText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  /* セクション共通 */
+  section: {
+    marginHorizontal: 16,
+    marginTop: 20,
+  },
+  label: {
+    color: C.text,
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  required: {
+    color: C.live,
+  },
+  hint: {
+    color: C.textMuted,
+    fontSize: 11,
+    marginTop: 5,
+  },
+  charCount: {
+    color: C.textMuted,
+    fontSize: 11,
+    textAlign: "right",
+    marginTop: 4,
+  },
+
+  /* サムネイル */
+  thumbnailPicker: {
+    height: 110,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: C.surface,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    borderStyle: "dashed",
+  },
+  thumbnailPickerInner: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+  },
+  thumbnailPickerText: {
+    color: C.textMuted,
+    fontSize: 13,
+  },
+  thumbnailPreview: {
+    width: "100%",
+    height: "100%",
+  },
+
+  /* 入力フィールド */
+  input: {
+    backgroundColor: C.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: C.text,
+    fontSize: 14,
+  },
+  textarea: {
+    height: 90,
+    textAlignVertical: "top",
+    paddingTop: 12,
+  },
+
+  /* コミュニティ */
+  communityScroll: {
+    gap: 8,
+  },
+  communityPill: {
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: C.surface,
+    maxWidth: 150,
+  },
+  communityPillActive: {
+    borderColor: C.accent,
+    backgroundColor: "rgba(41,182,207,0.12)",
+  },
+  communityPillText: {
+    color: C.textSec,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  communityPillTextActive: {
+    color: C.accent,
+  },
+
+  /* 公開範囲 */
+  scopeRow: {
+    gap: 8,
+  },
+  scopeOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: C.surface,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1.5,
+    borderColor: C.border,
+  },
+  scopeOptionActive: {
+    borderColor: C.accent,
+    backgroundColor: "rgba(41,182,207,0.08)",
+  },
+  scopeText: {
+    color: C.textSec,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  scopeTextActive: {
+    color: C.accent,
+  },
+
+  /* 料金 */
+  feeRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  feePill: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: C.surface,
+    borderWidth: 1.5,
+    borderColor: C.border,
+  },
+  feePillActive: {
+    backgroundColor: C.accent,
+    borderColor: C.accent,
+  },
+  feePillText: {
+    color: C.textSec,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  feePillTextActive: {
+    color: "#fff",
+  },
+  priceGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  pricePill: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+    backgroundColor: C.surface,
+    borderWidth: 1.5,
+    borderColor: C.border,
+  },
+  pricePillActive: {
+    backgroundColor: C.accent,
+    borderColor: C.accent,
+  },
+  pricePillText: {
+    color: C.textSec,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  pricePillTextActive: {
+    color: "#fff",
+  },
+  pricePreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+    backgroundColor: C.surface,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  pricePreviewLabel: {
+    color: C.textSec,
+    fontSize: 13,
+  },
+  pricePreviewValue: {
+    color: C.text,
+    fontSize: 22,
+    fontWeight: "800",
+  },
+
+  /* 投稿ボタン */
+  submitSection: {
+    marginHorizontal: 16,
+    marginTop: 28,
+    alignItems: "center",
+    gap: 10,
+  },
+  submitBtn: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: C.accent,
+    borderRadius: 14,
+    paddingVertical: 16,
+  },
+  submitBtnDisabled: {
+    backgroundColor: C.surface3,
+  },
+  submitBtnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  submitHint: {
+    color: C.textMuted,
+    fontSize: 12,
+  },
+});
