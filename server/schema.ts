@@ -156,3 +156,25 @@ export const dmMessages = pgTable("dm_messages", {
   online: boolean("online").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
 });
+
+export const twoshotBookings = pgTable("twoshot_bookings", {
+  id: serial("id").primaryKey(),
+  streamId: integer("stream_id").notNull(),
+  userId: text("user_id").notNull().default("guest"),
+  userName: text("user_name").notNull(),
+  userAvatar: text("user_avatar"),
+  stripeSessionId: text("stripe_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  price: integer("price").notNull(),
+  status: text("status").notNull().default("pending"),
+  queuePosition: integer("queue_position").notNull().default(0),
+  agreedToTerms: boolean("agreed_to_terms").notNull().default(false),
+  agreedAt: timestamp("agreed_at"),
+  notifiedAt: timestamp("notified_at"),
+  completedAt: timestamp("completed_at"),
+  cancelledAt: timestamp("cancelled_at"),
+  cancelReason: text("cancel_reason"),
+  refundable: boolean("refundable").notNull().default(false),
+  evaluationScore: integer("evaluation_score"),
+  createdAt: timestamp("created_at").defaultNow(),
+});

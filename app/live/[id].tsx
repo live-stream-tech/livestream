@@ -19,6 +19,9 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { C } from "@/constants/colors";
 import { apiRequest } from "@/lib/query-client";
 
+const MY_USER_ID = "guest-001";
+const MY_USERNAME = "あなた";
+
 type LiveStream = {
   id: number;
   title: string;
@@ -63,6 +66,14 @@ function PulseDot() {
   );
 }
 
+type TwoshotBooking = {
+  id: number;
+  queuePosition: number;
+  status: string;
+  userName: string;
+  userId: string;
+};
+
 export default function LiveStreamScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const streamId = parseInt(id ?? "1");
@@ -72,7 +83,8 @@ export default function LiveStreamScreen() {
 
   const [chatInput, setChatInput] = useState("");
   const [showGiftModal, setShowGiftModal] = useState(false);
-  const [joined, setJoined] = useState(true);
+  const [showTwoshotNotif, setShowTwoshotNotif] = useState(false);
+  const notifAnim = useRef(new Animated.Value(0)).current;
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -87,10 +99,24 @@ export default function LiveStreamScreen() {
     refetchInterval: 3000,
   });
 
+  const { data: myBooking } = useQuery<TwoshotBooking | null>({
+    queryKey: [`/api/twoshot/${streamId}/bookings`],
+    refetchInterval: 5000,
+    select: (bookings: TwoshotBooking[]) =>
+      bookings.find((b) => b.userId === MY_USER_ID) ?? null,
+  });
+
+  useEffect(() => {
+    if (myBooking?.status === "notified" && !showTwoshotNotif) {
+      setShowTwoshotNotif(true);
+      Animated.spring(notifAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 8 }).start();
+    }
+  }, [myBooking?.status]);
+
   const chatMutation = useMutation({
     mutationFn: ({ message, isGift, giftAmount }: { message: string; isGift?: boolean; giftAmount?: number }) =>
       apiRequest("POST", `/api/live-streams/${streamId}/chat`, {
-        username: "あなた",
+        username: MY_USERNAME,
         avatar: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=80&h=80&fit=crop",
         message, isGift: isGift ?? false, giftAmount: giftAmount ?? null,
       }),
@@ -177,8 +203,70 @@ export default function LiveStreamScreen() {
                 <Text style={styles.paidText}>有料 ¥{stream.price.toLocaleString()}</Text>
               </View>
             )}
+            {/* Twoshot booking button */}
+            {myBooking ? (
+              <View style={styles.twoshotBooked}>
+                <Ionicons name="camera" size={12} color={C.accent} />
+                <Text style={styles.twoshotBookedText}>ツーショット予約済み {myBooking.queuePosition}番</Text>
+              </View>
+            ) : (
+              <Pressable
+                style={styles.twoshotBtn}
+                onPress={() => router.push(`/twoshot-booking/${streamId}`)}
+              >
+                <Ionicons name="camera-outline" size={13} color="#fff" />
+                <Text style={styles.twoshotBtnText}>ツーショット予約</Text>
+              </Pressable>
+            )}
           </View>
         </View>
+
+        {/* Twoshot turn notification */}
+        {showTwoshotNotif && (
+          <Animated.View
+            style={[
+              styles.twoshotNotif,
+              {
+                transform: [{ scale: notifAnim }],
+                opacity: notifAnim,
+              },
+            ]}
+          >
+            <View style={styles.twoshotNotifInner}>
+              <View style={styles.twoshotNotifIcon}>
+                <Ionicons name="camera" size={20} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.twoshotNotifTitle}>あなたの番です！</Text>
+                <Text style={styles.twoshotNotifBody}>ツーショット撮影を開始してください</Text>
+              </View>
+              <Pressable onPress={() => setShowTwoshotNotif(false)}>
+                <Ionicons name="close" size={18} color="rgba(255,255,255,0.6)" />
+              </Pressable>
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Watermark overlay (when twoshot notified/active) */}
+        {myBooking?.status === "notified" && (
+          <View style={styles.watermarkOverlay} pointerEvents="none">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <Text
+                key={i}
+                style={[
+                  styles.watermarkText,
+                  {
+                    top: `${15 + i * 16}%` as any,
+                    left: i % 2 === 0 ? "5%" : "30%",
+                    transform: [{ rotate: "-25deg" }],
+                  },
+                ]}
+              >
+                {MY_USER_ID} • LiveStock
+              </Text>
+            ))}
+          </View>
+        )}
 
         {/* Chat area */}
         <View style={styles.chatSection}>
@@ -487,4 +575,68 @@ const styles = StyleSheet.create({
   },
   giftEmoji: { fontSize: 28 },
   giftOptionLabel: { color: C.orange, fontSize: 13, fontWeight: "700" },
+
+  twoshotBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(229,57,53,0.85)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginTop: 8,
+    alignSelf: "flex-start",
+  },
+  twoshotBtnText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  twoshotBooked: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(41,182,207,0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginTop: 8,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: C.accent + "66",
+  },
+  twoshotBookedText: { color: C.accent, fontSize: 11, fontWeight: "700" },
+  twoshotNotif: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    top: "30%",
+    zIndex: 100,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  twoshotNotifInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: C.live,
+    padding: 16,
+  },
+  twoshotNotifIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  twoshotNotifTitle: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  twoshotNotifBody: { color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 2 },
+  watermarkOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 50,
+  },
+  watermarkText: {
+    position: "absolute",
+    color: "rgba(255,255,255,0.12)",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
 });

@@ -14,8 +14,10 @@ import {
   jukeboxChat,
   liveStreamChat,
   dmConversationMessages,
+  twoshotBookings,
 } from "./schema";
-import { eq, asc, desc } from "drizzle-orm";
+import { eq, asc, desc, count, sql } from "drizzle-orm";
+import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // ── Communities ───────────────────────────────────────────────────
@@ -259,6 +261,173 @@ export async function registerRoutes(app: Express): Promise<Server> {
       communityId, username: username ?? "あなた", avatar, message,
     }).returning();
     res.json(msg);
+  });
+
+  // ── Twoshot Booking ───────────────────────────────────────────────
+
+  app.get("/api/twoshot/publishable-key", async (_req: Request, res: Response) => {
+    try {
+      const key = await getStripePublishableKey();
+      res.json({ publishableKey: key });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/twoshot/:streamId/bookings", async (req: Request, res: Response) => {
+    const streamId = parseInt(req.params.streamId);
+    const rows = await db
+      .select()
+      .from(twoshotBookings)
+      .where(eq(twoshotBookings.streamId, streamId))
+      .orderBy(asc(twoshotBookings.queuePosition));
+    res.json(rows);
+  });
+
+  app.get("/api/twoshot/:streamId/queue-count", async (req: Request, res: Response) => {
+    const streamId = parseInt(req.params.streamId);
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(twoshotBookings)
+      .where(sql`stream_id = ${streamId} AND status IN ('paid','waiting','notified')`);
+    res.json({ count: Number(total) });
+  });
+
+  app.post("/api/twoshot/:streamId/checkout", async (req: Request, res: Response) => {
+    const streamId = parseInt(req.params.streamId);
+    const { userName, userAvatar, price = 3000 } = req.body;
+
+    if (!userName) return res.status(400).json({ error: "userName required" });
+
+    try {
+      const stripe = await getUncachableStripeClient();
+
+      const [{ total }] = await db
+        .select({ total: count() })
+        .from(twoshotBookings)
+        .where(sql`stream_id = ${streamId} AND status IN ('paid','waiting','notified')`);
+      const queuePos = Number(total) + 1;
+
+      const [stream] = await db.select().from(liveStreams).where(eq(liveStreams.id, streamId));
+      const streamTitle = stream?.title ?? "ツーショット撮影";
+      const creatorName = stream?.creator ?? "クリエイター";
+
+      const baseUrl = process.env.REPLIT_DOMAINS
+        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+        : "http://localhost:8081";
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "jpy",
+              unit_amount: price,
+              product_data: {
+                name: `ツーショット撮影 with ${creatorName}`,
+                description: `${streamTitle} | 整理番号${queuePos}番`,
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        success_url: `${baseUrl}/twoshot-success?session_id={CHECKOUT_SESSION_ID}&stream=${streamId}`,
+        cancel_url: `${baseUrl}/live/${streamId}`,
+        metadata: {
+          streamId: streamId.toString(),
+          userName,
+          userAvatar: userAvatar ?? "",
+          queuePosition: queuePos.toString(),
+          price: price.toString(),
+        },
+      });
+
+      const [booking] = await db
+        .insert(twoshotBookings)
+        .values({
+          streamId,
+          userName,
+          userAvatar,
+          stripeSessionId: session.id,
+          price,
+          status: "pending",
+          queuePosition: queuePos,
+          agreedToTerms: true,
+          agreedAt: new Date(),
+          refundable: false,
+        })
+        .returning();
+
+      res.json({ checkoutUrl: session.url, bookingId: booking.id, queuePosition: queuePos });
+    } catch (e: any) {
+      console.error("Stripe checkout error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/twoshot/confirm-payment", async (req: Request, res: Response) => {
+    const { sessionId } = req.body;
+    if (!sessionId) return res.status(400).json({ error: "sessionId required" });
+
+    try {
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+      if (session.payment_status !== "paid") {
+        return res.status(400).json({ error: "Payment not completed" });
+      }
+
+      await db
+        .update(twoshotBookings)
+        .set({
+          status: "paid",
+          stripePaymentIntentId: session.payment_intent as string,
+        })
+        .where(eq(twoshotBookings.stripeSessionId, sessionId));
+
+      const [booking] = await db
+        .select()
+        .from(twoshotBookings)
+        .where(eq(twoshotBookings.stripeSessionId, sessionId));
+
+      res.json({ ok: true, booking });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/twoshot/:bookingId/notify", async (req: Request, res: Response) => {
+    const bookingId = parseInt(req.params.bookingId);
+    await db
+      .update(twoshotBookings)
+      .set({ status: "notified", notifiedAt: new Date() })
+      .where(eq(twoshotBookings.id, bookingId));
+    res.json({ ok: true });
+  });
+
+  app.post("/api/twoshot/:bookingId/complete", async (req: Request, res: Response) => {
+    const bookingId = parseInt(req.params.bookingId);
+    await db
+      .update(twoshotBookings)
+      .set({ status: "completed", completedAt: new Date() })
+      .where(eq(twoshotBookings.id, bookingId));
+    res.json({ ok: true });
+  });
+
+  app.post("/api/twoshot/:bookingId/cancel", async (req: Request, res: Response) => {
+    const bookingId = parseInt(req.params.bookingId);
+    const { reason, isSelfCancel } = req.body;
+    await db
+      .update(twoshotBookings)
+      .set({
+        status: "cancelled",
+        cancelledAt: new Date(),
+        cancelReason: reason ?? "ユーザーキャンセル",
+        refundable: !isSelfCancel,
+      })
+      .where(eq(twoshotBookings.id, bookingId));
+    res.json({ ok: true });
   });
 
   const httpServer = createServer(app);
