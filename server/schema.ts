@@ -157,6 +157,32 @@ export const dmMessages = pgTable("dm_messages", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+export const earnings = pgTable("earnings", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().default("guest-001"),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  amount: integer("amount").notNull(),
+  revenueShare: integer("revenue_share").notNull().default(80),
+  netAmount: integer("net_amount").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const withdrawals = pgTable("withdrawals", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().default("guest-001"),
+  amount: integer("amount").notNull(),
+  status: text("status").notNull().default("pending"),
+  bankName: text("bank_name").notNull(),
+  bankBranch: text("bank_branch").notNull(),
+  accountType: text("account_type").notNull().default("普通"),
+  accountNumber: text("account_number").notNull(),
+  accountName: text("account_name").notNull(),
+  note: text("note"),
+  requestedAt: timestamp("requested_at").defaultNow(),
+  processedAt: timestamp("processed_at"),
+});
+
 export const twoshotBookings = pgTable("twoshot_bookings", {
   id: serial("id").primaryKey(),
   streamId: integer("stream_id").notNull(),

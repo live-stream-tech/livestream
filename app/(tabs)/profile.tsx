@@ -322,7 +322,7 @@ export default function ProfileScreen() {
           <Text style={styles.supporterSub}>REVENUE SHARE: 50% + 15% BONUS</Text>
         </View>
 
-        <Pressable style={styles.revenueBtn}>
+        <Pressable style={styles.revenueBtn} onPress={() => router.push("/revenue")}>
           <Ionicons name="wallet-outline" size={16} color="#fff" />
           <Text style={styles.revenueBtnText}>REVENUE MANAGEMENT</Text>
         </Pressable>

@@ -15,6 +15,8 @@ import {
   liveStreamChat,
   dmConversationMessages,
   twoshotBookings,
+  earnings,
+  withdrawals,
 } from "./schema";
 import { eq, asc, desc, count, sql } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
@@ -428,6 +430,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
       })
       .where(eq(twoshotBookings.id, bookingId));
     res.json({ ok: true });
+  });
+
+  // ── Revenue ───────────────────────────────────────────────────────
+  app.get("/api/revenue/summary", async (_req: Request, res: Response) => {
+    const userId = "guest-001";
+    const earningRows = await db.select().from(earnings).where(eq(earnings.userId, userId));
+    const withdrawalRows = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId));
+
+    const totalEarned = earningRows.reduce((s, e) => s + e.netAmount, 0);
+    const totalWithdrawn = withdrawalRows
+      .filter((w) => w.status === "completed")
+      .reduce((s, w) => s + w.amount, 0);
+    const pendingWithdrawal = withdrawalRows
+      .filter((w) => w.status === "pending" || w.status === "processing")
+      .reduce((s, w) => s + w.amount, 0);
+    const available = totalEarned - totalWithdrawn - pendingWithdrawal;
+
+    // monthly breakdown (last 6 months)
+    const now = new Date();
+    const monthly: { month: string; amount: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const label = `${d.getMonth() + 1}月`;
+      const monthTotal = earningRows
+        .filter((e) => {
+          const ed = new Date(e.createdAt!);
+          return ed.getFullYear() === d.getFullYear() && ed.getMonth() === d.getMonth();
+        })
+        .reduce((s, e) => s + e.netAmount, 0);
+      monthly.push({ month: label, amount: monthTotal });
+    }
+
+    res.json({ totalEarned, totalWithdrawn, pendingWithdrawal, available, monthly });
+  });
+
+  app.get("/api/revenue/earnings", async (_req: Request, res: Response) => {
+    const userId = "guest-001";
+    const rows = await db
+      .select()
+      .from(earnings)
+      .where(eq(earnings.userId, userId))
+      .orderBy(desc(earnings.createdAt));
+    res.json(rows);
+  });
+
+  app.get("/api/revenue/withdrawals", async (_req: Request, res: Response) => {
+    const userId = "guest-001";
+    const rows = await db
+      .select()
+      .from(withdrawals)
+      .where(eq(withdrawals.userId, userId))
+      .orderBy(desc(withdrawals.requestedAt));
+    res.json(rows);
+  });
+
+  app.post("/api/revenue/withdraw", async (req: Request, res: Response) => {
+    const userId = "guest-001";
+    const { amount, bankName, bankBranch, accountType, accountNumber, accountName } = req.body;
+    if (!amount || amount < 1000) {
+      return res.status(400).json({ error: "最低引き出し額は¥1,000です" });
+    }
+    // check available balance
+    const earningRows = await db.select().from(earnings).where(eq(earnings.userId, userId));
+    const withdrawalRows = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId));
+    const totalEarned = earningRows.reduce((s, e) => s + e.netAmount, 0);
+    const totalUsed = withdrawalRows
+      .filter((w) => w.status !== "failed")
+      .reduce((s, w) => s + w.amount, 0);
+    const available = totalEarned - totalUsed;
+    if (amount > available) {
+      return res.status(400).json({ error: "引き出し可能残高を超えています" });
+    }
+    const [row] = await db
+      .insert(withdrawals)
+      .values({ userId, amount, bankName, bankBranch, accountType, accountNumber, accountName, status: "pending" })
+      .returning();
+    res.json(row);
   });
 
   const httpServer = createServer(app);
