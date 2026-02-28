@@ -245,7 +245,7 @@ export default function ProfileScreen() {
             <Ionicons name="shield-checkmark-outline" size={13} color={C.orange} />
             <Text style={styles.identityText}>IDENTITY CHECK</Text>
           </Pressable>
-          <Pressable style={styles.notifButton} onPress={() => router.push("/notifications")}>
+          <Pressable style={styles.notifButton} onPress={() => router.push("/notifications?filter=purchase")}>
             <Ionicons name="notifications-outline" size={22} color={C.text} />
             {unreadCount > 0 && (
               <View style={styles.notifBadge}>

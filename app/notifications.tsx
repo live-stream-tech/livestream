@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocalSearchParams } from "expo-router";
 import { apiRequest } from "@/lib/query-client";
 import { C } from "@/constants/colors";
 
@@ -101,7 +102,8 @@ function NotifItem({ item, onRead }: { item: Notif; onRead: (id: number) => void
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const [filter, setFilter] = useState("all");
+  const { filter: filterParam } = useLocalSearchParams<{ filter?: string }>();
+  const [filter, setFilter] = useState(filterParam ?? "all");
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;

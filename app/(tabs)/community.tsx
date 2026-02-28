@@ -67,7 +67,7 @@ export default function CommunityScreen() {
           <Text style={styles.logoLive}>Live</Text>
           <Text style={styles.logoStock}>Stock</Text>
         </Text>
-        <Pressable style={styles.notifButton} onPress={() => router.push("/notifications")}>
+        <Pressable style={styles.notifButton} onPress={() => router.push("/notifications?filter=purchase")}>
           <Ionicons name="notifications-outline" size={22} color={C.text} />
           {unreadCount > 0 && (
             <View style={styles.notifBadge}>

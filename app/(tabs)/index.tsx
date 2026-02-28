@@ -190,7 +190,7 @@ export default function HomeScreen() {
             <Ionicons name="radio-outline" size={14} color={C.accent} />
             <Text style={styles.liveButtonText}>LIVE</Text>
           </View>
-          <Pressable style={styles.notifButton} onPress={() => router.push("/notifications")}>
+          <Pressable style={styles.notifButton} onPress={() => router.push("/notifications?filter=purchase")}>
             <Ionicons name="notifications-outline" size={22} color={C.text} />
             {unreadCount > 0 && (
               <View style={styles.notifBadge}>
