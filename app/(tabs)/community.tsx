@@ -36,6 +36,7 @@ export default function CommunityScreen() {
   const insets = useSafeAreaInsets();
   const [selectedCategory, setSelectedCategory] = useState("すべて");
   const [searchText, setSearchText] = useState("");
+  const [rankingExpanded, setRankingExpanded] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
@@ -45,6 +46,7 @@ export default function CommunityScreen() {
   );
 
   const communityRanking = [...COMMUNITIES].sort((a, b) => b.members - a.members);
+  const visibleRanking = rankingExpanded ? communityRanking : communityRanking.slice(0, 3);
 
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
@@ -148,7 +150,7 @@ export default function CommunityScreen() {
         </View>
 
         <View style={styles.communityRankList}>
-          {communityRanking.map((community, index) => {
+          {visibleRanking.map((community, index) => {
             const rank = index + 1;
             const rankColor = COMMUNITY_RANK_COLORS[index] ?? C.surface3;
             return (
@@ -188,6 +190,22 @@ export default function CommunityScreen() {
             );
           })}
         </View>
+
+        {communityRanking.length > 3 && (
+          <Pressable
+            style={styles.expandBtn}
+            onPress={() => setRankingExpanded((v) => !v)}
+          >
+            <Text style={styles.expandBtnText}>
+              {rankingExpanded ? "閉じる" : `もっと見る（残り${communityRanking.length - 3}件）`}
+            </Text>
+            <Ionicons
+              name={rankingExpanded ? "chevron-up" : "chevron-down"}
+              size={14}
+              color={C.accent}
+            />
+          </Pressable>
+        )}
 
         {/* ③ 有料動画ランキング — 横スワイプ */}
         <View style={[styles.sectionHeader, { marginTop: 20 }]}>
@@ -570,5 +588,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     marginTop: 1,
+  },
+  expandBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginHorizontal: 16,
+    marginTop: 10,
+    paddingVertical: 10,
+    backgroundColor: C.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  expandBtnText: {
+    color: C.accent,
+    fontSize: 13,
+    fontWeight: "600",
   },
 });
