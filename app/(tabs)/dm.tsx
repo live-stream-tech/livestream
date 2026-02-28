@@ -11,6 +11,7 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { C } from "@/constants/colors";
 
 type DMItem = {
@@ -124,6 +125,7 @@ export default function DMScreen() {
           <Pressable
             key={item.id}
             style={[styles.dmItem, index < dmList.length - 1 && styles.dmItemBorder]}
+            onPress={() => router.push(`/dm/${item.id}`)}
           >
             <View style={styles.avatarContainer}>
               <Image source={{ uri: item.avatar }} style={styles.avatar} contentFit="cover" />

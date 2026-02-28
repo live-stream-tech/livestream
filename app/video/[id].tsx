@@ -11,8 +11,8 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
-import { VIDEOS, RANKED_VIDEOS } from "@/constants/data";
 
 const COMMENTS = [
   {
@@ -43,18 +43,32 @@ export default function VideoDetailScreen() {
   const insets = useSafeAreaInsets();
   const [purchased, setPurchased] = useState(false);
 
-  const allVideos = [...VIDEOS, ...RANKED_VIDEOS];
-  const video = allVideos.find((v) => v.id === id) ?? allVideos[0];
+  const { data: video } = useQuery<any>({
+    queryKey: [`/api/videos/${id}`],
+    enabled: !!id,
+  });
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
+
+  if (!video) {
+    return (
+      <View style={[styles.container, { paddingTop: topInset }]}>
+        <Pressable
+          style={[styles.backBtn, { top: topInset + 12 }]}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container]}>
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
-        contentInsetAdjustmentBehavior="automatic"
       >
         {/* Video Player Area */}
         <View style={styles.playerContainer}>

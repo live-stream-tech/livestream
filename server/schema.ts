@@ -91,6 +91,26 @@ export const notifications = pgTable("notifications", {
   timeAgo: text("time_ago").notNull(),
 });
 
+export const liveStreamChat = pgTable("live_stream_chat", {
+  id: serial("id").primaryKey(),
+  streamId: integer("stream_id").notNull(),
+  username: text("username").notNull(),
+  avatar: text("avatar"),
+  message: text("message").notNull(),
+  isGift: boolean("is_gift").default(false),
+  giftAmount: integer("gift_amount"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const dmConversationMessages = pgTable("dm_conversation_messages", {
+  id: serial("id").primaryKey(),
+  dmId: integer("dm_id").notNull(),
+  sender: text("sender").notNull(),
+  text: text("text").notNull(),
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const jukeboxState = pgTable("jukebox_state", {
   id: serial("id").primaryKey(),
   communityId: integer("community_id").notNull().unique(),

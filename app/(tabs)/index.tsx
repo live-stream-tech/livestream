@@ -61,7 +61,7 @@ function VideoCard({ item }: { item: any }) {
 
 function LiveCard({ item }: { item: any }) {
   return (
-    <Pressable style={styles.liveCard}>
+    <Pressable style={styles.liveCard} onPress={() => router.push(`/live/${item.id}`)}>
       <View style={styles.liveThumbContainer}>
         <Image source={{ uri: item.thumbnail }} style={styles.liveThumb} contentFit="cover" />
         <View style={styles.liveBadge}>

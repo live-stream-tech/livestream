@@ -12,6 +12,7 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { C } from "@/constants/colors";
 
 const BOOKING_CATEGORY_ICONS: Record<string, string> = {
@@ -316,7 +317,7 @@ export default function LiveScreen() {
         {activeTab === "now" ? (
           <View style={styles.liveList}>
             {liveStreams.map((stream: any) => (
-              <Pressable key={stream.id} style={styles.liveStreamCard}>
+              <Pressable key={stream.id} style={styles.liveStreamCard} onPress={() => router.push(`/live/${stream.id}`)}>
                 <Image source={{ uri: stream.thumbnail }} style={styles.liveStreamThumb} contentFit="cover" />
                 <View style={styles.liveBadge}>
                   <View style={styles.liveDot} />

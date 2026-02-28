@@ -12,6 +12,8 @@ import {
   jukeboxState,
   jukeboxQueue,
   jukeboxChat,
+  liveStreamChat,
+  dmConversationMessages,
 } from "./schema";
 import { eq, asc, desc } from "drizzle-orm";
 
@@ -154,6 +156,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .where(eq(notifications.id, id))
       .returning();
     res.json(updated);
+  });
+
+  // ── Video single ──────────────────────────────────────────────────
+  app.get("/api/videos/:id", async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const [video] = await db.select().from(videos).where(eq(videos.id, id));
+    if (!video) return res.status(404).json({ error: "Not found" });
+    res.json(video);
+  });
+
+  // ── Live Stream single + chat ─────────────────────────────────────
+  app.get("/api/live-streams/:id", async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const [stream] = await db.select().from(liveStreams).where(eq(liveStreams.id, id));
+    if (!stream) return res.status(404).json({ error: "Not found" });
+    res.json(stream);
+  });
+
+  app.get("/api/live-streams/:id/chat", async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const msgs = await db.select().from(liveStreamChat)
+      .where(eq(liveStreamChat.streamId, id))
+      .orderBy(asc(liveStreamChat.createdAt));
+    res.json(msgs);
+  });
+
+  app.post("/api/live-streams/:id/chat", async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const { username, avatar, message, isGift, giftAmount } = req.body;
+    const [msg] = await db.insert(liveStreamChat).values({
+      streamId: id, username: username ?? "あなた", avatar, message,
+      isGift: isGift ?? false, giftAmount: giftAmount ?? null,
+    }).returning();
+    res.json(msg);
+  });
+
+  // ── DM Conversations ──────────────────────────────────────────────
+  app.get("/api/dm-messages/:id/conversation", async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const msgs = await db.select().from(dmConversationMessages)
+      .where(eq(dmConversationMessages.dmId, id))
+      .orderBy(asc(dmConversationMessages.createdAt));
+    res.json(msgs);
+  });
+
+  app.post("/api/dm-messages/:id/conversation", async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const { text } = req.body;
+    const [msg] = await db.insert(dmConversationMessages).values({
+      dmId: id, sender: "me", text, isRead: true,
+    }).returning();
+    // Update last message in dm_messages
+    await db.update(dmMessages).set({ lastMessage: text, unread: 0 }).where(eq(dmMessages.id, id));
+    res.json(msg);
   });
 
   // ── Jukebox ───────────────────────────────────────────────────────
