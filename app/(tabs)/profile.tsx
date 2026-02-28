@@ -9,6 +9,8 @@ import {
   Modal,
   Platform,
   Animated,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,7 +18,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Svg, { Polygon, Circle, Line, Text as SvgText, G } from "react-native-svg";
+import Svg, { Polygon, Circle, Line, Text as SvgText } from "react-native-svg";
+import { useAuth } from "@/lib/auth";
 import { C } from "@/constants/colors";
 
 type Notif = { id: number; isRead: boolean };
@@ -177,11 +180,20 @@ export default function ProfileScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
   const unreadCount = useUnreadCount();
+  const { user, loading: authLoading, logout, updateProfile } = useAuth();
 
+  // Enneagram state
   const [scores, setScores] = useState<number[]>(DEFAULT_SCORES);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editScores, setEditScores] = useState<number[]>(DEFAULT_SCORES);
   const slideAnim = useRef(new Animated.Value(0)).current;
+
+  // Profile edit state
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [editAvatar, setEditAvatar] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
@@ -230,8 +242,49 @@ export default function ProfileScreen() {
     });
   }
 
+  function openProfileEdit() {
+    setEditName(user?.name ?? "");
+    setEditBio(user?.bio ?? "");
+    setEditAvatar(user?.avatar ?? "");
+    setShowProfileModal(true);
+  }
+
+  async function saveProfile() {
+    if (!editName.trim()) {
+      Alert.alert("エラー", "ユーザー名を入力してください");
+      return;
+    }
+    setProfileSaving(true);
+    try {
+      await updateProfile({ name: editName.trim(), bio: editBio.trim(), avatar: editAvatar.trim() || null });
+      setShowProfileModal(false);
+    } catch (e: any) {
+      Alert.alert("保存失敗", e.message ?? "エラーが発生しました");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
   const dominantIdx = scores.indexOf(Math.max(...scores));
   const dominantType = ENNEAGRAM_TYPES[dominantIdx];
+
+  // Not logged in state
+  if (!authLoading && !user) {
+    return (
+      <View style={[styles.container, styles.guestContainer, { paddingTop: topInset + 40 }]}>
+        <Ionicons name="person-circle-outline" size={80} color={C.textMuted} />
+        <Text style={styles.guestTitle}>LiveStock</Text>
+        <Text style={styles.guestSub}>ログインしてマイページを確認しよう</Text>
+        <Pressable style={styles.guestLoginBtn} onPress={() => router.push("/auth/login")}>
+          <Ionicons name="log-in-outline" size={18} color="#fff" />
+          <Text style={styles.guestLoginText}>ログイン</Text>
+        </Pressable>
+        <Pressable style={styles.guestRegisterBtn} onPress={() => router.push("/auth/register")}>
+          <Text style={styles.guestRegisterText}>新規登録はこちら</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
@@ -268,15 +321,24 @@ export default function ProfileScreen() {
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.profileHeader}>
           <View style={styles.profileLeft}>
-            <View style={styles.avatarContainer}>
-              <Image
-                source={{ uri: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop" }}
-                style={styles.avatar}
-                contentFit="cover"
-              />
-            </View>
+            <Pressable style={styles.avatarContainer} onPress={openProfileEdit}>
+              {user?.avatar ? (
+                <Image
+                  source={{ uri: user.avatar }}
+                  style={styles.avatar}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={[styles.avatar, styles.avatarFallback]}>
+                  <Text style={styles.avatarInitial}>{(user?.name ?? "?")[0].toUpperCase()}</Text>
+                </View>
+              )}
+              <View style={styles.avatarEditBadge}>
+                <Ionicons name="camera-outline" size={10} color="#fff" />
+              </View>
+            </Pressable>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>山田太郎</Text>
+              <Text style={styles.profileName}>{user?.name ?? ""}</Text>
               <View style={styles.followRow}>
                 <View style={styles.followStat}>
                   <Text style={styles.followNumber}>567</Text>
@@ -289,12 +351,28 @@ export default function ProfileScreen() {
               </View>
             </View>
           </View>
-          <Pressable style={styles.editBtn} onPress={openEdit}>
-            <Ionicons name="pencil-outline" size={18} color={C.text} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable style={styles.editBtn} onPress={openProfileEdit}>
+              <Ionicons name="pencil-outline" size={18} color={C.text} />
+            </Pressable>
+            <Pressable
+              testID="logout-button"
+              accessibilityLabel="ログアウト"
+              accessibilityRole="button"
+              style={styles.logoutBtn}
+              onPress={() => {
+                Alert.alert("ログアウト", "ログアウトしますか？", [
+                  { text: "キャンセル", style: "cancel" },
+                  { text: "ログアウト", style: "destructive", onPress: logout },
+                ]);
+              }}
+            >
+              <Ionicons name="log-out-outline" size={18} color={C.textMuted} />
+            </Pressable>
+          </View>
         </View>
 
-        <Text style={styles.bio}>音楽と旅行が大好き！</Text>
+        {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
 
         <View style={styles.tagsRow}>
           <View style={styles.tag}><Text style={styles.tagText}>男性</Text></View>
@@ -387,6 +465,84 @@ export default function ProfileScreen() {
         <Ionicons name="radio" size={16} color="#fff" />
         <Text style={styles.startFabText}>START</Text>
       </Pressable>
+
+      {/* Profile Edit Modal */}
+      <Modal visible={showProfileModal} transparent animationType="slide">
+        <View style={styles.modalBg}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowProfileModal(false)} />
+          <View style={[styles.modalSheet, { paddingBottom: (Platform.OS === "web" ? 34 : insets.bottom) + 16 }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalTitleRow}>
+              <Ionicons name="person-circle-outline" size={20} color={C.accent} />
+              <Text style={styles.modalTitle}>プロフィール編集</Text>
+            </View>
+
+            <Text style={styles.profileFieldLabel}>ユーザー名</Text>
+            <View style={styles.profileInputWrap}>
+              <Ionicons name="person-outline" size={16} color={C.textMuted} />
+              <TextInput
+                style={styles.profileInput}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="表示名"
+                placeholderTextColor={C.textMuted}
+                maxLength={30}
+              />
+            </View>
+
+            <Text style={styles.profileFieldLabel}>自己紹介</Text>
+            <View style={[styles.profileInputWrap, { alignItems: "flex-start", paddingTop: 12, paddingBottom: 12 }]}>
+              <Ionicons name="text-outline" size={16} color={C.textMuted} style={{ marginTop: 2 }} />
+              <TextInput
+                style={[styles.profileInput, { height: 72, textAlignVertical: "top" }]}
+                value={editBio}
+                onChangeText={setEditBio}
+                placeholder="自己紹介を入力"
+                placeholderTextColor={C.textMuted}
+                multiline
+                maxLength={200}
+              />
+            </View>
+
+            <Text style={styles.profileFieldLabel}>アイコン画像URL（任意）</Text>
+            <View style={styles.profileInputWrap}>
+              <Ionicons name="image-outline" size={16} color={C.textMuted} />
+              <TextInput
+                style={styles.profileInput}
+                value={editAvatar}
+                onChangeText={setEditAvatar}
+                placeholder="https://..."
+                placeholderTextColor={C.textMuted}
+                autoCapitalize="none"
+                keyboardType="url"
+              />
+            </View>
+            {editAvatar ? (
+              <Image source={{ uri: editAvatar }} style={styles.avatarPreview} contentFit="cover" />
+            ) : null}
+
+            <View style={styles.modalActions}>
+              <Pressable style={styles.cancelBtn} onPress={() => setShowProfileModal(false)}>
+                <Text style={styles.cancelBtnText}>キャンセル</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.saveBtn, profileSaving && { opacity: 0.6 }]}
+                onPress={saveProfile}
+                disabled={profileSaving}
+              >
+                {profileSaving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark" size={16} color="#fff" />
+                    <Text style={styles.saveBtnText}>保存する</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Enneagram Edit Modal */}
       <Modal visible={showEditModal} transparent animationType="none">
@@ -768,4 +924,78 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   saveBtnText: { color: "#fff", fontSize: 14, fontWeight: "800" },
+
+  // Guest / not logged in
+  guestContainer: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 40 },
+  guestTitle: { color: C.text, fontSize: 28, fontWeight: "800" },
+  guestSub: { color: C.textMuted, fontSize: 14, textAlign: "center" },
+  guestLoginBtn: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: C.accent,
+    borderRadius: 14,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+  },
+  guestLoginText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  guestRegisterBtn: { paddingVertical: 8 },
+  guestRegisterText: { color: C.accent, fontSize: 14, fontWeight: "600" },
+
+  // Header actions (edit + logout)
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  logoutBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Avatar fallback + edit badge
+  avatarFallback: {
+    backgroundColor: C.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitial: { color: C.accent, fontSize: 28, fontWeight: "800" },
+  avatarEditBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: C.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: C.bg,
+  },
+
+  // Profile edit modal fields
+  profileFieldLabel: { color: C.textSec, fontSize: 12, fontWeight: "600", marginBottom: 8, marginTop: 14 },
+  profileInputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.surface2,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  profileInput: { flex: 1, color: C.text, fontSize: 14, paddingVertical: 12 },
+  avatarPreview: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginTop: 10,
+    borderWidth: 2,
+    borderColor: C.accent,
+    alignSelf: "center",
+  },
 });

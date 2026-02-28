@@ -17,11 +17,74 @@ import {
   twoshotBookings,
   earnings,
   withdrawals,
+  userAccounts,
 } from "./schema";
 import { eq, asc, desc, count, sql } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.SESSION_SECRET ?? "livestock-dev-secret";
+
+function makeToken(userId: number) {
+  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "90d" });
+}
+
+async function getAuthUser(req: Request): Promise<{ id: number; email: string; name: string; bio: string; avatar: string | null } | null> {
+  const auth = (req as any).headers?.authorization ?? "";
+  if (!auth.startsWith("Bearer ")) return null;
+  try {
+    const payload = jwt.verify(auth.slice(7), JWT_SECRET) as { sub: number };
+    const [user] = await db.select().from(userAccounts).where(eq(userAccounts.id, payload.sub));
+    return user ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // ── Auth ──────────────────────────────────────────────────────────
+  app.post("/api/auth/register", async (req: Request, res: Response) => {
+    const { email, password, name } = req.body;
+    if (!email || !password || !name) return res.status(400).json({ error: "必須項目を入力してください" });
+    if (password.length < 6) return res.status(400).json({ error: "パスワードは6文字以上で設定してください" });
+    const existing = await db.select().from(userAccounts).where(eq(userAccounts.email, email.toLowerCase()));
+    if (existing.length > 0) return res.status(409).json({ error: "このメールアドレスはすでに登録されています" });
+    const passwordHash = await bcrypt.hash(password, 10);
+    const [user] = await db.insert(userAccounts).values({ email: email.toLowerCase(), passwordHash, name }).returning();
+    const token = makeToken(user.id);
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, bio: user.bio, avatar: user.avatar } });
+  });
+
+  app.post("/api/auth/login", async (req: Request, res: Response) => {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "メールアドレスとパスワードを入力してください" });
+    const [user] = await db.select().from(userAccounts).where(eq(userAccounts.email, email.toLowerCase()));
+    if (!user) return res.status(401).json({ error: "メールアドレスまたはパスワードが正しくありません" });
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return res.status(401).json({ error: "メールアドレスまたはパスワードが正しくありません" });
+    const token = makeToken(user.id);
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, bio: user.bio, avatar: user.avatar } });
+  });
+
+  app.get("/api/auth/me", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    res.json({ id: user.id, email: user.email, name: user.name, bio: user.bio, avatar: user.avatar });
+  });
+
+  app.put("/api/auth/profile", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const { name, bio, avatar } = req.body;
+    const [updated] = await db
+      .update(userAccounts)
+      .set({ name: name ?? user.name, bio: bio ?? user.bio, avatar: avatar !== undefined ? avatar : user.avatar, updatedAt: new Date() })
+      .where(eq(userAccounts.id, user.id))
+      .returning();
+    res.json({ id: updated.id, email: updated.email, name: updated.name, bio: updated.bio, avatar: updated.avatar });
+  });
+
   // ── Communities ───────────────────────────────────────────────────
   app.get("/api/communities", async (_req: Request, res: Response) => {
     const rows = await db.select().from(communities).orderBy(desc(communities.members));

@@ -157,6 +157,17 @@ export const dmMessages = pgTable("dm_messages", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
+export const userAccounts = pgTable("user_accounts", {
+  id: serial("id").primaryKey(),
+  email: text("email").unique().notNull(),
+  passwordHash: text("password_hash").notNull(),
+  name: text("name").notNull().default("ユーザー"),
+  bio: text("bio").notNull().default(""),
+  avatar: text("avatar"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const earnings = pgTable("earnings", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull().default("guest-001"),
