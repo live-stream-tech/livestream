@@ -44,9 +44,9 @@ const TERMS = [
   },
   {
     id: "no_contact",
-    icon: "hand-left" as const,
-    title: "身体接触・不適切言動の禁止",
-    body: "無断の身体接触、ハラスメント行為、不適切な発言・要求は即時退出の対象となります。",
+    icon: "warning" as const,
+    title: "不適切言動・ハラスメントの禁止",
+    body: "性的発言・露出行為・ハラスメント・誹謗中傷・過度な要求は即時強制退出となります。",
   },
   {
     id: "no_refund",
