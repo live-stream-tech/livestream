@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Pressable,
   Platform,
+  TouchableOpacity,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +14,65 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { C } from "@/constants/colors";
 import { COMMUNITIES, VIDEOS, CREATORS } from "@/constants/data";
+
+type AdData = { title: string; sub: string; cta: string; bg: string; accent: string; thumb: string };
+
+const COMMUNITY_ADS: Record<string, AdData> = {
+  "地下アイドル": {
+    title: "チェキ撮影会 開催中！",
+    sub: "3/15 渋谷WWW • 先着50名限定",
+    cta: "予約する",
+    bg: "#2a0a18",
+    accent: "#FF4081",
+    thumb: "https://images.unsplash.com/photo-1524503033411-c9566986fc8f?w=120&h=80&fit=crop",
+  },
+  "キャバ": {
+    title: "VIPナイトイベント開催",
+    sub: "今月限定 特別ご招待プラン",
+    cta: "詳細を見る",
+    bg: "#1a0830",
+    accent: "#CE93D8",
+    thumb: "https://images.unsplash.com/photo-1566737236500-c8ac43014a67?w=120&h=80&fit=crop",
+  },
+  "VTuber": {
+    title: "3Dライブ配信チケット",
+    sub: "4/1 超次元ライブ • 先行販売中",
+    cta: "購入する",
+    bg: "#08122a",
+    accent: "#29B6CF",
+    thumb: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120&h=80&fit=crop",
+  },
+  "インフル": {
+    title: "コラボ限定グッズ販売",
+    sub: "今だけ送料無料 • 数量限定品",
+    cta: "ショップへ",
+    bg: "#0a1f10",
+    accent: "#69F0AE",
+    thumb: "https://images.unsplash.com/photo-1522682078546-47888fe04e81?w=120&h=80&fit=crop",
+  },
+  "アニソン": {
+    title: "アニソンフェス2026",
+    sub: "5/3 幕張メッセ • S席好評発売",
+    cta: "チケット",
+    bg: "#1a0828",
+    accent: "#E040FB",
+    thumb: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=120&h=80&fit=crop",
+  },
+};
+
+const DEFAULT_AD: AdData = {
+  title: "プレミアム配信チケット発売中",
+  sub: "今すぐ購入で会員10%OFF",
+  cta: "購入する",
+  bg: "#0a1520",
+  accent: C.accent,
+  thumb: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=120&h=80&fit=crop",
+};
+
+function getAd(name: string): AdData {
+  const key = Object.keys(COMMUNITY_ADS).find((k) => name.includes(k));
+  return key ? COMMUNITY_ADS[key] : DEFAULT_AD;
+}
 
 const TABS = ["新着順", "クリエイター", "掲示板"] as const;
 type Tab = typeof TABS[number];
@@ -24,6 +84,7 @@ export default function CommunityDetailScreen() {
   const [following, setFollowing] = useState(false);
 
   const community = COMMUNITIES.find((c) => c.id === id) ?? COMMUNITIES[0];
+  const ad = getAd(community.name);
 
   const bottomInset = Platform.OS === "web" ? 34 : 0;
 
@@ -32,9 +93,8 @@ export default function CommunityDetailScreen() {
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
-        contentInsetAdjustmentBehavior="automatic"
       >
-        {/* Cover Image */}
+        {/* Cover Image — shorter */}
         <View style={styles.coverContainer}>
           <Image source={{ uri: community.thumbnail }} style={styles.coverImage} contentFit="cover" />
           <View style={styles.coverOverlay} />
@@ -45,6 +105,21 @@ export default function CommunityDetailScreen() {
             <Ionicons name="chevron-back" size={22} color="#fff" />
           </Pressable>
         </View>
+
+        {/* Ad Banner */}
+        <TouchableOpacity activeOpacity={0.85} style={[styles.adBanner, { backgroundColor: ad.bg }]}>
+          <View style={styles.adPrBadge}>
+            <Text style={styles.adPrText}>PR</Text>
+          </View>
+          <Image source={{ uri: ad.thumb }} style={styles.adThumb} contentFit="cover" />
+          <View style={styles.adBody}>
+            <Text style={styles.adTitle} numberOfLines={1}>{ad.title}</Text>
+            <Text style={styles.adSub} numberOfLines={1}>{ad.sub}</Text>
+          </View>
+          <View style={[styles.adCtaBtn, { backgroundColor: ad.accent }]}>
+            <Text style={styles.adCtaText}>{ad.cta}</Text>
+          </View>
+        </TouchableOpacity>
 
         {/* Profile */}
         <View style={styles.profileSection}>
@@ -193,8 +268,60 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   coverContainer: {
-    height: 200,
+    height: 130,
     position: "relative",
+  },
+  adBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 76,
+    paddingHorizontal: 12,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+    overflow: "hidden",
+  },
+  adPrBadge: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    alignSelf: "flex-start",
+    marginTop: 4,
+  },
+  adPrText: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  adThumb: {
+    width: 80,
+    height: 54,
+    borderRadius: 6,
+  },
+  adBody: {
+    flex: 1,
+    gap: 4,
+  },
+  adTitle: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  adSub: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 11,
+  },
+  adCtaBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 6,
+  },
+  adCtaText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "800",
   },
   coverImage: {
     width: "100%",
