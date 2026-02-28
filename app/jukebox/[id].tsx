@@ -1,0 +1,709 @@
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  FlatList,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  TextInput,
+  Modal,
+  Platform,
+  Animated,
+} from "react-native";
+import { Image } from "expo-image";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useLocalSearchParams } from "expo-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { C } from "@/constants/colors";
+import { apiRequest } from "@/lib/query-client";
+
+type JukeboxState = {
+  communityId: number;
+  currentVideoTitle: string | null;
+  currentVideoThumbnail: string | null;
+  currentVideoDurationSecs: number;
+  startedAt: string;
+  isPlaying: boolean;
+  watchersCount: number;
+};
+
+type QueueItem = {
+  id: number;
+  videoTitle: string;
+  videoThumbnail: string;
+  videoDurationSecs: number;
+  addedBy: string;
+  addedByAvatar: string | null;
+  isPlayed: boolean;
+};
+
+type ChatMsg = {
+  id: number;
+  username: string;
+  avatar: string | null;
+  message: string;
+  createdAt: string;
+};
+
+type JukeboxData = {
+  state: JukeboxState | null;
+  queue: QueueItem[];
+  chat: ChatMsg[];
+};
+
+type Video = {
+  id: number;
+  title: string;
+  thumbnail: string;
+  duration: string;
+  category: string;
+};
+
+function fmtSecs(s: number): string {
+  if (!s || s <= 0) return "0:00";
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
+function calcProgress(startedAt: string, durationSecs: number): number {
+  const elapsed = (Date.now() - new Date(startedAt).getTime()) / 1000;
+  if (durationSecs <= 0) return 0;
+  return Math.min(elapsed / durationSecs, 1);
+}
+
+function NowPlaying({
+  state,
+  onNext,
+}: {
+  state: JukeboxState | null;
+  onNext: () => void;
+}) {
+  const [progress, setProgress] = useState(0);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!state?.isPlaying) return;
+    const iv = setInterval(() => {
+      setProgress(calcProgress(state.startedAt, state.currentVideoDurationSecs));
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [state?.startedAt, state?.currentVideoDurationSecs, state?.isPlaying]);
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.15, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
+
+  if (!state) {
+    return (
+      <View style={styles.nowPlayingEmpty}>
+        <Ionicons name="musical-notes-outline" size={40} color={C.textMuted} />
+        <Text style={styles.emptyText}>再生中の動画はありません</Text>
+      </View>
+    );
+  }
+
+  const elapsed = Math.min(
+    (Date.now() - new Date(state.startedAt).getTime()) / 1000,
+    state.currentVideoDurationSecs
+  );
+
+  return (
+    <View style={styles.nowPlaying}>
+      {state.currentVideoThumbnail ? (
+        <Image
+          source={{ uri: state.currentVideoThumbnail }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+        />
+      ) : null}
+      <View style={styles.nowPlayingOverlay} />
+
+      <View style={styles.nowPlayingTop}>
+        <View style={styles.liveChip}>
+          <Animated.View style={[styles.liveChipDot, { transform: [{ scale: pulseAnim }] }]} />
+          <Text style={styles.liveChipText}>同時視聴中</Text>
+        </View>
+        <View style={styles.watchersChip}>
+          <Ionicons name="people" size={12} color="#fff" />
+          <Text style={styles.watchersText}>{state.watchersCount}</Text>
+        </View>
+      </View>
+
+      <View style={styles.nowPlayingBottom}>
+        <View style={styles.nowPlayingCenter}>
+          <Pressable style={styles.playIcon}>
+            <Ionicons name="play" size={28} color="rgba(255,255,255,0.9)" />
+          </Pressable>
+        </View>
+
+        <Text style={styles.nowPlayingTitle} numberOfLines={2}>
+          {state.currentVideoTitle ?? ""}
+        </Text>
+
+        <View style={styles.progressRow}>
+          <Text style={styles.progressTime}>{fmtSecs(elapsed)}</Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${progress * 100}%` as any }]} />
+            <View style={[styles.progressThumb, { left: `${progress * 100}%` as any }]} />
+          </View>
+          <Text style={styles.progressTime}>{fmtSecs(state.currentVideoDurationSecs)}</Text>
+        </View>
+
+        <Pressable style={styles.nextBtn} onPress={onNext}>
+          <Ionicons name="play-skip-forward" size={14} color={C.textMuted} />
+          <Text style={styles.nextBtnText}>次へスキップ</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function QueueRow({
+  items,
+  onAdd,
+}: {
+  items: QueueItem[];
+  onAdd: () => void;
+}) {
+  const upcoming = items.filter((q) => !q.isPlayed);
+  return (
+    <View style={styles.queueSection}>
+      <View style={styles.queueHeader}>
+        <Ionicons name="list" size={14} color={C.accent} />
+        <Text style={styles.queueHeaderText}>UP NEXT</Text>
+        <Text style={styles.queueCount}>{upcoming.length}件</Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.queueScroll}
+      >
+        {upcoming.map((item) => (
+          <View key={item.id} style={styles.queueItem}>
+            <Image
+              source={{ uri: item.videoThumbnail }}
+              style={styles.queueThumb}
+              contentFit="cover"
+            />
+            <View style={styles.queueItemOverlay} />
+            <Text style={styles.queueItemTitle} numberOfLines={2}>
+              {item.videoTitle}
+            </Text>
+            <View style={styles.queueItemByRow}>
+              {item.addedByAvatar ? (
+                <Image source={{ uri: item.addedByAvatar }} style={styles.queueItemAvatar} contentFit="cover" />
+              ) : null}
+              <Text style={styles.queueItemBy}>{item.addedBy}</Text>
+            </View>
+          </View>
+        ))}
+        <Pressable style={styles.addQueueBtn} onPress={onAdd}>
+          <Ionicons name="add" size={24} color={C.accent} />
+          <Text style={styles.addQueueText}>動画を追加</Text>
+        </Pressable>
+      </ScrollView>
+    </View>
+  );
+}
+
+export default function JukeboxScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const communityId = parseInt(id ?? "1");
+  const insets = useSafeAreaInsets();
+  const qc = useQueryClient();
+  const flatListRef = useRef<FlatList>(null);
+
+  const [chatInput, setChatInput] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  const topInset = Platform.OS === "web" ? 67 : insets.top;
+  const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
+
+  const { data } = useQuery<JukeboxData>({
+    queryKey: [`/api/jukebox/${communityId}`],
+    refetchInterval: 3000,
+  });
+
+  const { data: allVideos = [] } = useQuery<Video[]>({ queryKey: ["/api/videos"] });
+
+  const state = data?.state ?? null;
+  const queue = data?.queue ?? [];
+  const chat = data?.chat ?? [];
+
+  const chatMutation = useMutation({
+    mutationFn: (msg: string) =>
+      apiRequest("POST", `/api/jukebox/${communityId}/chat`, {
+        username: "あなた",
+        avatar: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=80&h=80&fit=crop",
+        message: msg,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/jukebox", communityId] }),
+  });
+
+  const nextMutation = useMutation({
+    mutationFn: () => apiRequest("POST", `/api/jukebox/${communityId}/next`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/jukebox", communityId] }),
+  });
+
+  const addMutation = useMutation({
+    mutationFn: (video: Video) =>
+      apiRequest("POST", `/api/jukebox/${communityId}/add`, {
+        videoId: video.id,
+        videoTitle: video.title,
+        videoThumbnail: video.thumbnail,
+        videoDurationSecs: 900,
+        addedBy: "あなた",
+        addedByAvatar: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=80&h=80&fit=crop",
+      }),
+    onSuccess: () => {
+      setShowAddModal(false);
+      qc.invalidateQueries({ queryKey: ["/api/jukebox", communityId] });
+    },
+  });
+
+  const sendChat = useCallback(() => {
+    const msg = chatInput.trim();
+    if (!msg) return;
+    setChatInput("");
+    chatMutation.mutate(msg);
+  }, [chatInput]);
+
+  useEffect(() => {
+    if (chat.length > 0) {
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [chat.length]);
+
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: C.bg }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={0}
+    >
+      <View style={[styles.container]}>
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: topInset + 8 }]}>
+          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={22} color="#fff" />
+          </Pressable>
+          <View style={styles.headerCenter}>
+            <View style={styles.jukeboxBadge}>
+              <Ionicons name="musical-notes" size={11} color="#fff" />
+              <Text style={styles.jukeboxBadgeText}>JUKEBOX</Text>
+            </View>
+            <Text style={styles.headerTitle}>コミュニティ同時視聴</Text>
+          </View>
+          <View style={{ width: 36 }} />
+        </View>
+
+        {/* Now Playing */}
+        <NowPlaying state={state} onNext={() => nextMutation.mutate()} />
+
+        {/* Queue */}
+        <QueueRow items={queue} onAdd={() => setShowAddModal(true)} />
+
+        {/* Chat */}
+        <View style={styles.chatSection}>
+          <View style={styles.chatHeader}>
+            <Ionicons name="chatbubbles" size={14} color={C.accent} />
+            <Text style={styles.chatHeaderText}>みんなのコメント</Text>
+          </View>
+          <FlatList
+            ref={flatListRef}
+            data={chat}
+            keyExtractor={(item) => item.id.toString()}
+            style={styles.chatList}
+            contentContainerStyle={styles.chatListContent}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item }) => (
+              <View style={[styles.chatMsg, item.username === "あなた" && styles.chatMsgMine]}>
+                {item.username !== "あなた" && (
+                  item.avatar ? (
+                    <Image source={{ uri: item.avatar }} style={styles.chatAvatar} contentFit="cover" />
+                  ) : (
+                    <View style={[styles.chatAvatar, { backgroundColor: C.surface3, alignItems: "center", justifyContent: "center" }]}>
+                      <Ionicons name="person" size={12} color={C.textMuted} />
+                    </View>
+                  )
+                )}
+                <View style={[styles.chatBubble, item.username === "あなた" && styles.chatBubbleMine]}>
+                  {item.username !== "あなた" && (
+                    <Text style={styles.chatUsername}>{item.username}</Text>
+                  )}
+                  <Text style={[styles.chatText, item.username === "あなた" && styles.chatTextMine]}>
+                    {item.message}
+                  </Text>
+                </View>
+              </View>
+            )}
+          />
+        </View>
+
+        {/* Input */}
+        <View style={[styles.inputRow, { paddingBottom: bottomInset + 8 }]}>
+          <TextInput
+            style={styles.input}
+            placeholder="コメントを入力..."
+            placeholderTextColor={C.textMuted}
+            value={chatInput}
+            onChangeText={setChatInput}
+            onSubmitEditing={sendChat}
+            returnKeyType="send"
+          />
+          <Pressable style={[styles.sendBtn, !chatInput.trim() && styles.sendBtnDisabled]} onPress={sendChat}>
+            <Ionicons name="send" size={16} color="#fff" />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Add Video Modal */}
+      <Modal visible={showAddModal} animationType="slide" transparent>
+        <Pressable style={styles.modalBg} onPress={() => setShowAddModal(false)}>
+          <Pressable style={styles.modalSheet} onPress={() => {}}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>購入済み動画をキューに追加</Text>
+            <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
+              {allVideos.map((video) => (
+                <Pressable
+                  key={video.id}
+                  style={styles.modalItem}
+                  onPress={() => addMutation.mutate(video)}
+                >
+                  <Image source={{ uri: video.thumbnail }} style={styles.modalThumb} contentFit="cover" />
+                  <View style={styles.modalItemInfo}>
+                    <Text style={styles.modalItemTitle} numberOfLines={2}>{video.title}</Text>
+                    <View style={styles.modalItemMeta}>
+                      <Ionicons name="checkmark-circle" size={12} color={C.green} />
+                      <Text style={styles.modalItemMetaText}>購入済み · {video.category}</Text>
+                    </View>
+                  </View>
+                  <Ionicons name="add-circle" size={24} color={C.accent} />
+                </Pressable>
+              ))}
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  headerCenter: { alignItems: "center", gap: 2 },
+  jukeboxBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: C.accent,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  jukeboxBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
+  headerTitle: { color: C.textSec, fontSize: 12 },
+
+  nowPlaying: {
+    height: 200,
+    position: "relative",
+    overflow: "hidden",
+    justifyContent: "space-between",
+  },
+  nowPlayingEmpty: {
+    height: 200,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.surface,
+    gap: 8,
+  },
+  emptyText: { color: C.textMuted, fontSize: 13 },
+  nowPlayingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(10,18,28,0.55)",
+  },
+  nowPlayingTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+  },
+  liveChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  liveChipDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: C.live,
+  },
+  liveChipText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  watchersChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  watchersText: { color: "#fff", fontSize: 11, fontWeight: "600" },
+  nowPlayingCenter: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nowPlayingBottom: {
+    padding: 12,
+    gap: 6,
+  },
+  nowPlayingTitle: { color: "#fff", fontSize: 14, fontWeight: "700", lineHeight: 19 },
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  progressTime: { color: "rgba(255,255,255,0.6)", fontSize: 10, width: 32 },
+  progressTrack: {
+    flex: 1,
+    height: 3,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderRadius: 2,
+    position: "relative",
+    overflow: "visible",
+  },
+  progressFill: {
+    height: 3,
+    backgroundColor: C.accent,
+    borderRadius: 2,
+  },
+  progressThumb: {
+    position: "absolute",
+    top: -4,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: C.accent,
+    marginLeft: -5,
+  },
+  nextBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-end",
+  },
+  nextBtnText: { color: C.textMuted, fontSize: 11 },
+
+  queueSection: {
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    paddingTop: 8,
+  },
+  queueHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  queueHeaderText: { color: C.accent, fontSize: 11, fontWeight: "800", flex: 1 },
+  queueCount: { color: C.textMuted, fontSize: 11 },
+  queueScroll: { paddingHorizontal: 16, gap: 8, paddingBottom: 10 },
+  queueItem: {
+    width: 110,
+    height: 90,
+    borderRadius: 8,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: C.surface,
+  },
+  queueThumb: { ...StyleSheet.absoluteFillObject as any },
+  queueItemOverlay: {
+    ...StyleSheet.absoluteFillObject as any,
+    backgroundColor: "rgba(10,18,28,0.5)",
+  },
+  queueItemTitle: {
+    position: "absolute",
+    bottom: 18,
+    left: 6,
+    right: 6,
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "600",
+    lineHeight: 13,
+  },
+  queueItemByRow: {
+    position: "absolute",
+    bottom: 5,
+    left: 6,
+    right: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  queueItemAvatar: { width: 12, height: 12, borderRadius: 6 },
+  queueItemBy: { color: "rgba(255,255,255,0.6)", fontSize: 9 },
+  addQueueBtn: {
+    width: 90,
+    height: 90,
+    borderRadius: 8,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.accent + "66",
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  addQueueText: { color: C.accent, fontSize: 10, fontWeight: "600" },
+
+  chatSection: {
+    flex: 1,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    paddingTop: 6,
+  },
+  chatHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    marginBottom: 4,
+  },
+  chatHeaderText: { color: C.accent, fontSize: 11, fontWeight: "700" },
+  chatList: { flex: 1 },
+  chatListContent: { paddingHorizontal: 12, gap: 8, paddingVertical: 6 },
+  chatMsg: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 6,
+    maxWidth: "85%",
+  },
+  chatMsgMine: { alignSelf: "flex-end", flexDirection: "row-reverse" },
+  chatAvatar: { width: 24, height: 24, borderRadius: 12, flexShrink: 0 },
+  chatBubble: {
+    backgroundColor: C.surface2,
+    borderRadius: 12,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    gap: 1,
+  },
+  chatBubbleMine: {
+    backgroundColor: C.accentDark,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 4,
+  },
+  chatUsername: { color: C.accent, fontSize: 10, fontWeight: "700" },
+  chatText: { color: C.text, fontSize: 13, lineHeight: 18 },
+  chatTextMine: { color: "#fff" },
+
+  inputRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    backgroundColor: C.bg,
+  },
+  input: {
+    flex: 1,
+    height: 40,
+    backgroundColor: C.surface,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    color: C.text,
+    fontSize: 14,
+  },
+  sendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: C.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sendBtnDisabled: { backgroundColor: C.surface2 },
+
+  modalBg: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: C.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 12,
+    maxHeight: "75%",
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: C.border,
+    alignSelf: "center",
+    marginBottom: 14,
+  },
+  modalTitle: {
+    color: C.text,
+    fontSize: 16,
+    fontWeight: "800",
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  modalList: { paddingHorizontal: 16 },
+  modalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  modalThumb: { width: 64, height: 40, borderRadius: 6 },
+  modalItemInfo: { flex: 1, gap: 3 },
+  modalItemTitle: { color: C.text, fontSize: 13, fontWeight: "600", lineHeight: 17 },
+  modalItemMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
+  modalItemMetaText: { color: C.textMuted, fontSize: 11 },
+});

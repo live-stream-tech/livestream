@@ -9,6 +9,9 @@ import {
   bookingSessions,
   dmMessages,
   notifications,
+  jukeboxState,
+  jukeboxQueue,
+  jukeboxChat,
 } from "./schema";
 import { eq, asc, desc } from "drizzle-orm";
 
@@ -151,6 +154,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .where(eq(notifications.id, id))
       .returning();
     res.json(updated);
+  });
+
+  // ── Jukebox ───────────────────────────────────────────────────────
+  app.get("/api/jukebox/:communityId", async (req: Request, res: Response) => {
+    const communityId = parseInt(req.params.communityId);
+    const [state] = await db.select().from(jukeboxState).where(eq(jukeboxState.communityId, communityId));
+    const queue = await db.select().from(jukeboxQueue)
+      .where(eq(jukeboxQueue.communityId, communityId))
+      .orderBy(asc(jukeboxQueue.position));
+    const chat = await db.select().from(jukeboxChat)
+      .where(eq(jukeboxChat.communityId, communityId))
+      .orderBy(asc(jukeboxChat.createdAt));
+    res.json({ state: state ?? null, queue, chat });
+  });
+
+  app.post("/api/jukebox/:communityId/add", async (req: Request, res: Response) => {
+    const communityId = parseInt(req.params.communityId);
+    const { videoId, videoTitle, videoThumbnail, videoDurationSecs, addedBy, addedByAvatar } = req.body;
+    const existing = await db.select().from(jukeboxQueue)
+      .where(eq(jukeboxQueue.communityId, communityId))
+      .orderBy(desc(jukeboxQueue.position));
+    const nextPos = existing.length > 0 ? existing[0].position + 1 : 1;
+    const [item] = await db.insert(jukeboxQueue).values({
+      communityId, videoId, videoTitle, videoThumbnail, videoDurationSecs: videoDurationSecs ?? 0,
+      addedBy: addedBy ?? "あなた", addedByAvatar, position: nextPos, isPlayed: false,
+    }).returning();
+    res.json(item);
+  });
+
+  app.post("/api/jukebox/:communityId/next", async (req: Request, res: Response) => {
+    const communityId = parseInt(req.params.communityId);
+    const queue = await db.select().from(jukeboxQueue)
+      .where(eq(jukeboxQueue.communityId, communityId))
+      .orderBy(asc(jukeboxQueue.position));
+    const next = queue.find((q) => !q.isPlayed);
+    if (next) {
+      await db.update(jukeboxQueue).set({ isPlayed: true }).where(eq(jukeboxQueue.id, next.id));
+      await db.update(jukeboxState).set({
+        currentVideoId: next.videoId,
+        currentVideoTitle: next.videoTitle,
+        currentVideoThumbnail: next.videoThumbnail,
+        currentVideoDurationSecs: next.videoDurationSecs ?? 0,
+        startedAt: new Date(),
+        isPlaying: true,
+        watchersCount: Math.floor(Math.random() * 80) + 20,
+      }).where(eq(jukeboxState.communityId, communityId));
+    }
+    res.json({ ok: true });
+  });
+
+  app.post("/api/jukebox/:communityId/chat", async (req: Request, res: Response) => {
+    const communityId = parseInt(req.params.communityId);
+    const { username, avatar, message } = req.body;
+    const [msg] = await db.insert(jukeboxChat).values({
+      communityId, username: username ?? "あなた", avatar, message,
+    }).returning();
+    res.json(msg);
   });
 
   const httpServer = createServer(app);

@@ -78,14 +78,23 @@ export default function CommunityDetailScreen() {
             </Text>
           </View>
 
-          <Pressable
-            style={[styles.followBtn, following && styles.followBtnActive]}
-            onPress={() => setFollowing(!following)}
-          >
-            <Text style={styles.followBtnText}>
-              {following ? "フォロー中" : "コミュニティをフォロー"}
-            </Text>
-          </Pressable>
+          <View style={styles.actionRow}>
+            <Pressable
+              style={[styles.followBtn, following && styles.followBtnActive]}
+              onPress={() => setFollowing(!following)}
+            >
+              <Text style={styles.followBtnText}>
+                {following ? "フォロー中" : "フォロー"}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={styles.jukeboxBtn}
+              onPress={() => router.push(`/jukebox/${id}`)}
+            >
+              <Ionicons name="musical-notes" size={14} color={C.orange} />
+              <Text style={styles.jukeboxBtnText}>ジュークボックス</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Tabs */}
@@ -286,7 +295,12 @@ const styles = StyleSheet.create({
   statDivider: {
     color: C.textMuted,
   },
+  actionRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
   followBtn: {
+    flex: 1,
     backgroundColor: C.accent,
     borderRadius: 10,
     paddingVertical: 12,
@@ -300,6 +314,22 @@ const styles = StyleSheet.create({
   followBtnText: {
     color: "#fff",
     fontSize: 14,
+    fontWeight: "700",
+  },
+  jukeboxBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: C.surface2,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: C.orange + "55",
+  },
+  jukeboxBtnText: {
+    color: C.orange,
+    fontSize: 13,
     fontWeight: "700",
   },
   tabRow: {

@@ -91,6 +91,41 @@ export const notifications = pgTable("notifications", {
   timeAgo: text("time_ago").notNull(),
 });
 
+export const jukeboxState = pgTable("jukebox_state", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull().unique(),
+  currentVideoId: integer("current_video_id"),
+  currentVideoTitle: text("current_video_title"),
+  currentVideoThumbnail: text("current_video_thumbnail"),
+  currentVideoDurationSecs: integer("current_video_duration_secs").default(0),
+  startedAt: timestamp("started_at").defaultNow(),
+  isPlaying: boolean("is_playing").default(true),
+  watchersCount: integer("watchers_count").default(1),
+});
+
+export const jukeboxQueue = pgTable("jukebox_queue", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  videoId: integer("video_id"),
+  videoTitle: text("video_title").notNull(),
+  videoThumbnail: text("video_thumbnail").notNull(),
+  videoDurationSecs: integer("video_duration_secs").default(0),
+  addedBy: text("added_by").notNull().default("あなた"),
+  addedByAvatar: text("added_by_avatar"),
+  position: integer("position").notNull().default(0),
+  isPlayed: boolean("is_played").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const jukeboxChat = pgTable("jukebox_chat", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  username: text("username").notNull(),
+  avatar: text("avatar"),
+  message: text("message").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const dmMessages = pgTable("dm_messages", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
