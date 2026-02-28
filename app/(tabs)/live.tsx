@@ -1,0 +1,662 @@
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  Modal,
+  Platform,
+} from "react-native";
+import { Image } from "expo-image";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { C } from "@/constants/colors";
+import { LIVE_STREAMS } from "@/constants/data";
+
+function formatNumber(n: number): string {
+  if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+  return n.toLocaleString();
+}
+
+type PublicScope = "public" | "invite" | "twoshot";
+type FeeType = "free" | "paid";
+type PriceOption = 500 | 1000 | 3000 | 5000;
+
+function LiveStartModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const insets = useSafeAreaInsets();
+  const [scope, setScope] = useState<PublicScope>("public");
+  const [fee, setFee] = useState<FeeType>("paid");
+  const [price, setPrice] = useState<PriceOption>(500);
+
+  const prices: PriceOption[] = [500, 1000, 3000, 5000];
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable style={[styles.modalContainer, { paddingBottom: insets.bottom + 20 }]} onPress={() => {}}>
+          {/* Handle */}
+          <View style={styles.modalHandle} />
+
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>ライブ配信を開始</Text>
+              <Text style={styles.modalSub}>配信設定を選択してください</Text>
+            </View>
+            <Pressable onPress={onClose} style={styles.closeBtn}>
+              <Ionicons name="close" size={20} color={C.textSec} />
+            </Pressable>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* 公開範囲 */}
+            <Text style={styles.settingLabel}>公開範囲</Text>
+            <View style={styles.scopeOptions}>
+              <Pressable
+                style={[styles.scopeOption, scope === "public" && styles.scopeOptionActive]}
+                onPress={() => setScope("public")}
+              >
+                <Ionicons name="globe-outline" size={22} color={scope === "public" ? C.accent : C.textSec} />
+                <View style={styles.scopeText}>
+                  <Text style={[styles.scopeTitle, scope === "public" && styles.scopeTitleActive]}>一般公開</Text>
+                  <Text style={styles.scopeDesc}>誰でも視聴可能</Text>
+                </View>
+              </Pressable>
+              <Pressable
+                style={[styles.scopeOption, scope === "invite" && styles.scopeOptionActive]}
+                onPress={() => setScope("invite")}
+              >
+                <Ionicons name="lock-closed-outline" size={22} color={scope === "invite" ? C.accent : C.textSec} />
+                <View style={styles.scopeText}>
+                  <Text style={[styles.scopeTitle, scope === "invite" && styles.scopeTitleActive]}>招待者限定</Text>
+                  <Text style={styles.scopeDesc}>招待した人のみ視聴可能</Text>
+                </View>
+              </Pressable>
+              <Pressable
+                style={[styles.scopeOption, scope === "twoshot" && styles.scopeOptionActive]}
+                onPress={() => setScope("twoshot")}
+              >
+                <Ionicons name="people-outline" size={22} color={scope === "twoshot" ? C.accent : C.textSec} />
+                <View style={styles.scopeText}>
+                  <Text style={[styles.scopeTitle, scope === "twoshot" && styles.scopeTitleActive]}>ツーショット</Text>
+                  <Text style={styles.scopeDesc}>1対1のプライベート配信</Text>
+                </View>
+              </Pressable>
+            </View>
+
+            {/* 配信料金 */}
+            <Text style={[styles.settingLabel, { marginTop: 16 }]}>配信料金</Text>
+            <View style={styles.feeRow}>
+              <Pressable
+                style={[styles.feePill, fee === "free" && styles.feePillActive]}
+                onPress={() => setFee("free")}
+              >
+                <Text style={[styles.feePillText, fee === "free" && styles.feePillTextActive]}>無料</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.feePill, fee === "paid" && styles.feePillActive]}
+                onPress={() => setFee("paid")}
+              >
+                <Text style={[styles.feePillText, fee === "paid" && styles.feePillTextActive]}>有料</Text>
+              </Pressable>
+            </View>
+
+            {fee === "paid" && (
+              <>
+                <Text style={[styles.settingLabel, { marginTop: 16 }]}>視聴料金</Text>
+                <View style={styles.priceOptions}>
+                  {prices.map((p) => (
+                    <Pressable
+                      key={p}
+                      style={[styles.pricePill, price === p && styles.pricePillActive]}
+                      onPress={() => setPrice(p)}
+                    >
+                      <Text style={[styles.pricePillText, price === p && styles.pricePillTextActive]}>
+                        ¥{p.toLocaleString()}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.priceDisplay}>
+                  <Text style={styles.priceDisplayCurrency}>¥</Text>
+                  <Text style={styles.priceDisplayValue}>{price.toLocaleString()}</Text>
+                </View>
+                <View style={styles.revenueRow}>
+                  <Text style={styles.revenueLabel}>あなたの取り分 (80%)</Text>
+                  <Text style={styles.revenueValue}>¥{(price * 0.8).toLocaleString()}</Text>
+                </View>
+              </>
+            )}
+
+            {/* Preview */}
+            <View style={styles.previewContainer}>
+              <View style={styles.previewCamera}>
+                <Ionicons name="videocam" size={40} color={C.accent} />
+                <View style={styles.previewRedDot} />
+              </View>
+              <View style={styles.previewStats}>
+                <View style={styles.previewStat}>
+                  <Ionicons name="people-outline" size={16} color={C.textSec} />
+                  <Text style={styles.previewStatLabel}>推定視聴者</Text>
+                </View>
+                <Text style={styles.previewStatValue}>500-800人</Text>
+                <View style={[styles.previewStat, { marginTop: 8 }]}>
+                  <Ionicons name="time-outline" size={16} color={C.textSec} />
+                  <Text style={styles.previewStatLabel}>配信時間</Text>
+                </View>
+                <Text style={styles.previewStatValue}>無制限</Text>
+              </View>
+            </View>
+
+            <Pressable style={styles.startBtn}>
+              <View style={styles.startDot} />
+              <Text style={styles.startBtnText}>ライブ配信を開始</Text>
+            </Pressable>
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+export default function LiveScreen() {
+  const insets = useSafeAreaInsets();
+  const [activeTab, setActiveTab] = useState<"now" | "booking">("now");
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const topInset = Platform.OS === "web" ? 67 : insets.top;
+  const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
+
+  return (
+    <View style={[styles.container]}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: topInset + 12 }]}>
+        <Pressable style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={22} color={C.text} />
+        </Pressable>
+        <Text style={styles.headerTitle}>LIVE & RESERVE</Text>
+        <Pressable style={styles.bookingBtn}>
+          <Ionicons name="calendar-outline" size={14} color={C.textSec} />
+          <Text style={styles.bookingText}>BOOKING</Text>
+        </Pressable>
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.tabRow}>
+        <Pressable
+          style={[styles.tabItem, activeTab === "now" && styles.tabItemActive]}
+          onPress={() => setActiveTab("now")}
+        >
+          <Ionicons name="radio-outline" size={13} color={activeTab === "now" ? C.accent : C.textMuted} />
+          <Text style={[styles.tabText, activeTab === "now" && styles.tabTextActive]}>LIVE NOW</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tabItem, activeTab === "booking" && styles.tabItemActive]}
+          onPress={() => setActiveTab("booking")}
+        >
+          <Ionicons name="calendar-outline" size={13} color={activeTab === "booking" ? C.accent : C.textMuted} />
+          <Text style={[styles.tabText, activeTab === "booking" && styles.tabTextActive]}>BOOKING</Text>
+        </Pressable>
+      </View>
+
+      <ScrollView
+        style={styles.scroll}
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+      >
+        {activeTab === "now" ? (
+          <View style={styles.liveList}>
+            {LIVE_STREAMS.map((stream) => (
+              <Pressable key={stream.id} style={styles.liveStreamCard}>
+                <Image source={{ uri: stream.thumbnail }} style={styles.liveStreamThumb} contentFit="cover" />
+                <View style={styles.liveBadge}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.liveBadgeText}>LIVE</Text>
+                </View>
+                <View style={styles.viewersBadge}>
+                  <Ionicons name="people-outline" size={12} color="#fff" />
+                  <Text style={styles.viewersText}>{stream.viewers.toLocaleString()}</Text>
+                </View>
+                <View style={styles.streamInfo}>
+                  <Text style={styles.streamTitle} numberOfLines={2}>{stream.title}</Text>
+                  <View style={styles.streamCreatorRow}>
+                    <Image source={{ uri: stream.avatar }} style={styles.streamAvatar} contentFit="cover" />
+                    <Text style={styles.streamCreator}>{stream.creator}</Text>
+                  </View>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Ionicons name="calendar-outline" size={48} color={C.textMuted} />
+            <Text style={styles.emptyText}>予約配信はありません</Text>
+            <Text style={styles.emptySubText}>配信者の予約をチェックしてください</Text>
+          </View>
+        )}
+        <View style={{ height: 100 + bottomInset }} />
+      </ScrollView>
+
+      {/* Floating Start Button */}
+      <Pressable
+        style={[styles.startFab, { bottom: bottomInset + 80 }]}
+        onPress={() => setModalVisible(true)}
+      >
+        <Ionicons name="radio" size={16} color="#fff" />
+        <Text style={styles.startFabText}>START</Text>
+      </Pressable>
+
+      <LiveStartModal visible={modalVisible} onClose={() => setModalVisible(false)} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: C.bg,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 12,
+  },
+  backBtn: {
+    width: 32,
+    alignItems: "center",
+  },
+  headerTitle: {
+    color: C.text,
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 1,
+    flex: 1,
+  },
+  bookingBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  bookingText: {
+    color: C.textSec,
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  tabRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  tabItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  tabItemActive: {
+    borderBottomColor: C.accent,
+  },
+  tabText: {
+    color: C.textMuted,
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  tabTextActive: {
+    color: C.accent,
+  },
+  scroll: {
+    flex: 1,
+  },
+  liveList: {
+    gap: 2,
+    paddingTop: 2,
+  },
+  liveStreamCard: {
+    position: "relative",
+    backgroundColor: C.surface,
+  },
+  liveStreamThumb: {
+    width: "100%",
+    height: 220,
+  },
+  liveBadge: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: C.live,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#fff",
+  },
+  liveBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  viewersBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  viewersText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  streamInfo: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  streamTitle: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  streamCreatorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  streamAvatar: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: C.accent,
+  },
+  streamCreator: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 80,
+    gap: 12,
+  },
+  emptyText: {
+    color: C.textSec,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  emptySubText: {
+    color: C.textMuted,
+    fontSize: 13,
+  },
+  startFab: {
+    position: "absolute",
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: C.accent,
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    shadowColor: C.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  startFabText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
+  },
+  modalContainer: {
+    backgroundColor: C.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: "90%",
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: C.border,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    color: C.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  modalSub: {
+    color: C.textSec,
+    fontSize: 12,
+    marginTop: 3,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  settingLabel: {
+    color: C.textSec,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  scopeOptions: {
+    gap: 8,
+  },
+  scopeOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: C.surface2,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+  },
+  scopeOptionActive: {
+    borderColor: C.accent,
+  },
+  scopeText: {
+    gap: 2,
+  },
+  scopeTitle: {
+    color: C.textSec,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  scopeTitleActive: {
+    color: C.text,
+  },
+  scopeDesc: {
+    color: C.textMuted,
+    fontSize: 12,
+  },
+  feeRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  feePill: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    backgroundColor: C.surface2,
+  },
+  feePillActive: {
+    borderColor: C.accent,
+    backgroundColor: "rgba(41, 182, 207, 0.1)",
+  },
+  feePillText: {
+    color: C.textSec,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  feePillTextActive: {
+    color: C.text,
+  },
+  priceOptions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  pricePill: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: C.surface2,
+  },
+  pricePillActive: {
+    backgroundColor: C.accent,
+  },
+  pricePillText: {
+    color: C.textSec,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  pricePillTextActive: {
+    color: "#fff",
+  },
+  priceDisplay: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 4,
+    backgroundColor: C.surface2,
+    borderRadius: 10,
+    padding: 16,
+    marginTop: 10,
+  },
+  priceDisplayCurrency: {
+    color: C.text,
+    fontSize: 22,
+    fontWeight: "700",
+  },
+  priceDisplayValue: {
+    color: C.text,
+    fontSize: 36,
+    fontWeight: "800",
+  },
+  revenueRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 6,
+    paddingHorizontal: 2,
+  },
+  revenueLabel: {
+    color: C.textMuted,
+    fontSize: 12,
+  },
+  revenueValue: {
+    color: C.accent,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  previewContainer: {
+    flexDirection: "row",
+    backgroundColor: C.surface2,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    alignItems: "center",
+    gap: 16,
+  },
+  previewCamera: {
+    flex: 1,
+    backgroundColor: C.surface3,
+    borderRadius: 10,
+    height: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  previewRedDot: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: C.live,
+  },
+  previewStats: {
+    gap: 4,
+  },
+  previewStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  previewStatLabel: {
+    color: C.textSec,
+    fontSize: 11,
+  },
+  previewStatValue: {
+    color: C.text,
+    fontSize: 15,
+    fontWeight: "700",
+    marginLeft: 22,
+  },
+  startBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: C.accent,
+    borderRadius: 12,
+    paddingVertical: 16,
+    marginTop: 16,
+  },
+  startDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: C.live,
+  },
+  startBtnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+});
