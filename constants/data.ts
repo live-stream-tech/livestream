@@ -32,6 +32,150 @@ export type Community = {
   category: string;
 };
 
+export type BookingSession = {
+  id: string;
+  creator: string;
+  category: string;
+  categoryLabel: string;
+  title: string;
+  avatar: string;
+  thumbnail: string;
+  date: string;
+  time: string;
+  duration: string;
+  price: number;
+  spotsTotal: number;
+  spotsLeft: number;
+  rating: number;
+  reviewCount: number;
+  tag?: string;
+};
+
+export const BOOKING_SESSIONS: BookingSession[] = [
+  {
+    id: "b1",
+    creator: "エミリー先生",
+    category: "english",
+    categoryLabel: "英会話",
+    title: "ビジネス英語 マンツーマンレッスン",
+    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
+    thumbnail: "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=400&h=225&fit=crop",
+    date: "3/2 (日)",
+    time: "19:00",
+    duration: "60分",
+    price: 3000,
+    spotsTotal: 1,
+    spotsLeft: 1,
+    rating: 4.9,
+    reviewCount: 328,
+    tag: "人気No.1",
+  },
+  {
+    id: "b2",
+    creator: "心理士 みく",
+    category: "counselor",
+    categoryLabel: "カウンセラー",
+    title: "お悩み相談・メンタルケアセッション",
+    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop",
+    thumbnail: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&h=225&fit=crop",
+    date: "3/1 (土)",
+    time: "21:00",
+    duration: "45分",
+    price: 5000,
+    spotsTotal: 3,
+    spotsLeft: 1,
+    rating: 4.8,
+    reviewCount: 215,
+  },
+  {
+    id: "b3",
+    creator: "星空りん",
+    category: "fortune",
+    categoryLabel: "占い",
+    title: "タロット＆西洋占星術 鑑定ライブ",
+    avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=100&h=100&fit=crop",
+    thumbnail: "https://images.unsplash.com/photo-1518611012118-696072aa579a?w=400&h=225&fit=crop",
+    date: "2/28 (金)",
+    time: "22:00",
+    duration: "30分",
+    price: 2000,
+    spotsTotal: 10,
+    spotsLeft: 3,
+    rating: 4.7,
+    reviewCount: 891,
+    tag: "残りわずか",
+  },
+  {
+    id: "b4",
+    creator: "桜花アリス",
+    category: "idol",
+    categoryLabel: "アイドル",
+    title: "プレミアムツーショット & ミニライブ",
+    avatar: "https://images.unsplash.com/photo-1521119989659-a83eee488004?w=100&h=100&fit=crop",
+    thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=225&fit=crop",
+    date: "3/3 (月)",
+    time: "20:00",
+    duration: "20分",
+    price: 8000,
+    spotsTotal: 5,
+    spotsLeft: 2,
+    rating: 5.0,
+    reviewCount: 143,
+    tag: "限定",
+  },
+  {
+    id: "b5",
+    creator: "料理家 はるか",
+    category: "cooking",
+    categoryLabel: "料理教室",
+    title: "一緒に作る！本格和食ライブクッキング",
+    avatar: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=100&h=100&fit=crop",
+    thumbnail: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=225&fit=crop",
+    date: "3/2 (日)",
+    time: "11:00",
+    duration: "90分",
+    price: 1500,
+    spotsTotal: 20,
+    spotsLeft: 8,
+    rating: 4.6,
+    reviewCount: 74,
+  },
+  {
+    id: "b6",
+    creator: "ライフコーチ けんじ",
+    category: "coaching",
+    categoryLabel: "コーチング",
+    title: "目標達成・キャリア相談セッション",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
+    thumbnail: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400&h=225&fit=crop",
+    date: "3/4 (火)",
+    time: "20:30",
+    duration: "60分",
+    price: 4000,
+    spotsTotal: 1,
+    spotsLeft: 1,
+    rating: 4.9,
+    reviewCount: 56,
+  },
+  {
+    id: "b7",
+    creator: "ヨガ講師 なな",
+    category: "yoga",
+    categoryLabel: "ヨガ",
+    title: "朝ヨガ＆瞑想 グループクラス",
+    avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop",
+    thumbnail: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=225&fit=crop",
+    date: "3/1 (土)",
+    time: "07:30",
+    duration: "45分",
+    price: 800,
+    spotsTotal: 30,
+    spotsLeft: 14,
+    rating: 4.8,
+    reviewCount: 203,
+  },
+];
+
 export type Creator = {
   id: string;
   name: string;

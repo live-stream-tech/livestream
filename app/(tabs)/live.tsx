@@ -12,7 +12,109 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "@/constants/colors";
-import { LIVE_STREAMS } from "@/constants/data";
+import { LIVE_STREAMS, BOOKING_SESSIONS, BookingSession } from "@/constants/data";
+
+const BOOKING_CATEGORY_ICONS: Record<string, string> = {
+  english: "language-outline",
+  counselor: "heart-outline",
+  fortune: "star-outline",
+  idol: "musical-notes-outline",
+  cooking: "restaurant-outline",
+  coaching: "trophy-outline",
+  yoga: "flower-outline",
+};
+
+const BOOKING_CATEGORY_COLORS: Record<string, string> = {
+  english: "#29B6CF",
+  counselor: "#EC407A",
+  fortune: "#7C4DFF",
+  idol: "#FF4081",
+  cooking: "#FF7043",
+  coaching: "#00BCD4",
+  yoga: "#66BB6A",
+};
+
+const BOOKING_CATEGORIES = [
+  { id: "all", label: "すべて" },
+  { id: "idol", label: "アイドル" },
+  { id: "english", label: "英会話" },
+  { id: "fortune", label: "占い" },
+  { id: "counselor", label: "カウンセラー" },
+  { id: "cooking", label: "料理教室" },
+  { id: "coaching", label: "コーチング" },
+  { id: "yoga", label: "ヨガ" },
+];
+
+function BookingCard({ session }: { session: BookingSession }) {
+  const categoryColor = BOOKING_CATEGORY_COLORS[session.category] ?? C.accent;
+  const spotsPercent = ((session.spotsTotal - session.spotsLeft) / session.spotsTotal) * 100;
+  const isAlmostFull = session.spotsLeft <= 2;
+
+  return (
+    <Pressable style={styles.bookingCard}>
+      <View style={styles.bookingThumbContainer}>
+        <Image source={{ uri: session.thumbnail }} style={styles.bookingThumb} contentFit="cover" />
+        <View style={[styles.bookingCategoryBadge, { backgroundColor: categoryColor }]}>
+          <Ionicons name={BOOKING_CATEGORY_ICONS[session.category] as any} size={10} color="#fff" />
+          <Text style={styles.bookingCategoryText}>{session.categoryLabel}</Text>
+        </View>
+        {session.tag && (
+          <View style={styles.bookingTagBadge}>
+            <Text style={styles.bookingTagText}>{session.tag}</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.bookingCardBody}>
+        <View style={styles.bookingCreatorRow}>
+          <Image source={{ uri: session.avatar }} style={styles.bookingAvatar} contentFit="cover" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bookingCreatorName}>{session.creator}</Text>
+            <View style={styles.bookingRatingRow}>
+              <Ionicons name="star" size={11} color={C.orange} />
+              <Text style={styles.bookingRating}>{session.rating.toFixed(1)}</Text>
+              <Text style={styles.bookingReviewCount}>({session.reviewCount})</Text>
+            </View>
+          </View>
+          <View style={styles.bookingPriceBox}>
+            <Text style={styles.bookingPrice}>¥{session.price.toLocaleString()}</Text>
+            <Text style={styles.bookingPriceSub}>/{session.duration}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.bookingTitle} numberOfLines={2}>{session.title}</Text>
+
+        <View style={styles.bookingMetaRow}>
+          <View style={styles.bookingMeta}>
+            <Ionicons name="calendar-outline" size={12} color={C.textMuted} />
+            <Text style={styles.bookingMetaText}>{session.date} {session.time}</Text>
+          </View>
+          <View style={styles.bookingMeta}>
+            <Ionicons name="time-outline" size={12} color={C.textMuted} />
+            <Text style={styles.bookingMetaText}>{session.duration}</Text>
+          </View>
+        </View>
+
+        <View style={styles.bookingFooter}>
+          <View style={{ flex: 1 }}>
+            <View style={styles.bookingSpotsRow}>
+              <Text style={[styles.bookingSpotsText, isAlmostFull && { color: C.live }]}>
+                残り{session.spotsLeft}枠
+              </Text>
+              <Text style={styles.bookingSpotsSub}>/ {session.spotsTotal}枠</Text>
+            </View>
+            <View style={styles.bookingProgressBg}>
+              <View style={[styles.bookingProgressFill, { width: `${spotsPercent}%` as any, backgroundColor: isAlmostFull ? C.live : categoryColor }]} />
+            </View>
+          </View>
+          <Pressable style={[styles.bookingBtn, { backgroundColor: categoryColor }]}>
+            <Text style={styles.bookingBtnText}>予約する</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
 
 function formatNumber(n: number): string {
   if (n >= 1000) return (n / 1000).toFixed(1) + "K";
@@ -163,6 +265,11 @@ export default function LiveScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<"now" | "booking">("now");
   const [modalVisible, setModalVisible] = useState(false);
+  const [bookingCategory, setBookingCategory] = useState("all");
+
+  const filteredBookings = bookingCategory === "all"
+    ? BOOKING_SESSIONS
+    : BOOKING_SESSIONS.filter((s) => s.category === bookingCategory);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -228,10 +335,44 @@ export default function LiveScreen() {
             ))}
           </View>
         ) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="calendar-outline" size={48} color={C.textMuted} />
-            <Text style={styles.emptyText}>予約配信はありません</Text>
-            <Text style={styles.emptySubText}>配信者の予約をチェックしてください</Text>
+          <View>
+            {/* カテゴリフィルター */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.bookingCatScroll}
+              style={{ marginBottom: 12 }}
+            >
+              {BOOKING_CATEGORIES.map((cat) => {
+                const isActive = bookingCategory === cat.id;
+                const color = cat.id === "all" ? C.accent : (BOOKING_CATEGORY_COLORS[cat.id] ?? C.accent);
+                return (
+                  <Pressable
+                    key={cat.id}
+                    style={[styles.bookingCatPill, isActive && { backgroundColor: color, borderColor: color }]}
+                    onPress={() => setBookingCategory(cat.id)}
+                  >
+                    {cat.id !== "all" && (
+                      <Ionicons
+                        name={BOOKING_CATEGORY_ICONS[cat.id] as any}
+                        size={12}
+                        color={isActive ? "#fff" : C.textSec}
+                      />
+                    )}
+                    <Text style={[styles.bookingCatText, isActive && styles.bookingCatTextActive]}>
+                      {cat.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {/* 予約カード一覧 */}
+            <View style={styles.bookingList}>
+              {filteredBookings.map((session) => (
+                <BookingCard key={session.id} session={session} />
+              ))}
+            </View>
           </View>
         )}
         <View style={{ height: 100 + bottomInset }} />
@@ -658,5 +799,185 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "800",
+  },
+
+  /* Booking category filter */
+  bookingCatScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  bookingCatPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: C.surface,
+    borderRadius: 20,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  bookingCatText: {
+    color: C.textSec,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  bookingCatTextActive: {
+    color: "#fff",
+  },
+
+  /* Booking list */
+  bookingList: {
+    paddingHorizontal: 16,
+    gap: 14,
+  },
+  bookingCard: {
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  bookingThumbContainer: {
+    position: "relative",
+  },
+  bookingThumb: {
+    width: "100%",
+    height: 150,
+  },
+  bookingCategoryBadge: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  bookingCategoryText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  bookingTagBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    backgroundColor: C.orange,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  bookingTagText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  bookingCardBody: {
+    padding: 12,
+    gap: 8,
+  },
+  bookingCreatorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  bookingAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  bookingCreatorName: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  bookingRatingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    marginTop: 2,
+  },
+  bookingRating: {
+    color: C.orange,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  bookingReviewCount: {
+    color: C.textMuted,
+    fontSize: 11,
+  },
+  bookingPriceBox: {
+    alignItems: "flex-end",
+  },
+  bookingPrice: {
+    color: C.text,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  bookingPriceSub: {
+    color: C.textMuted,
+    fontSize: 10,
+  },
+  bookingTitle: {
+    color: C.text,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 20,
+  },
+  bookingMetaRow: {
+    flexDirection: "row",
+    gap: 14,
+  },
+  bookingMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  bookingMetaText: {
+    color: C.textMuted,
+    fontSize: 12,
+  },
+  bookingFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 4,
+  },
+  bookingSpotsRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 3,
+    marginBottom: 5,
+  },
+  bookingSpotsText: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  bookingSpotsSub: {
+    color: C.textMuted,
+    fontSize: 11,
+  },
+  bookingProgressBg: {
+    height: 4,
+    backgroundColor: C.surface3,
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  bookingProgressFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  bookingBtn: {
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    flexShrink: 0,
+  },
+  bookingBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });
