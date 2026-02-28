@@ -62,7 +62,6 @@ export default function ProfileScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
         {/* Profile Header */}

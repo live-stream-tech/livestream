@@ -193,7 +193,6 @@ export default function HomeScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
         {/* Premium Banner */}

@@ -112,7 +112,6 @@ export default function CommunityScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
         {/* ① マイコミュニティ — 1行横スワイプ */}

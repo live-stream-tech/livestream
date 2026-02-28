@@ -311,7 +311,6 @@ export default function LiveScreen() {
 
       <ScrollView
         style={styles.scroll}
-        contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
         {activeTab === "now" ? (

@@ -21,8 +21,11 @@ export default function Root({ children }: PropsWithChildren) {
         <style>{`
           html, body, #root {
             height: 100%;
+            max-height: 100%;
+            overflow: hidden;
             background-color: #1B2838;
           }
+          * { box-sizing: border-box; }
         `}</style>
       </head>
       <body>{children}</body>
