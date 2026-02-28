@@ -12,8 +12,8 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
-import { COMMUNITIES, RANKED_VIDEOS } from "@/constants/data";
 
 const CATEGORIES = ["すべて", "音楽", "アート", "スポーツ", "ゲーム", "ライフスタイル"];
 const CATEGORY_ICONS: Record<string, string> = {
@@ -38,14 +38,17 @@ export default function CommunityScreen() {
   const [searchText, setSearchText] = useState("");
   const [rankingExpanded, setRankingExpanded] = useState(false);
 
+  const { data: allCommunities = [] } = useQuery<any[]>({ queryKey: ["/api/communities"] });
+  const { data: rankedVideos = [] } = useQuery<any[]>({ queryKey: ["/api/videos/ranked"] });
+
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
 
-  const myCommunities = COMMUNITIES.filter((c) =>
+  const myCommunities = allCommunities.filter((c: any) =>
     selectedCategory === "すべて" ? true : c.category === selectedCategory
   );
 
-  const communityRanking = [...COMMUNITIES].sort((a, b) => b.members - a.members);
+  const communityRanking = [...allCommunities].sort((a: any, b: any) => b.members - a.members);
   const visibleRanking = rankingExpanded ? communityRanking : communityRanking.slice(0, 3);
 
   return (
@@ -218,7 +221,7 @@ export default function CommunityScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.videoRankScroll}
         >
-          {RANKED_VIDEOS.map((video) => (
+          {rankedVideos.map((video: any) => (
             <Pressable
               key={video.id}
               style={styles.videoRankCard}

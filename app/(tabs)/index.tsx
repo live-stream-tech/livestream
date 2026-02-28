@@ -11,15 +11,15 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
-import { VIDEOS, LIVE_STREAMS, RANKED_VIDEOS, CREATORS } from "@/constants/data";
 
 function formatNumber(n: number): string {
   if (n >= 10000) return (n / 10000).toFixed(1) + "万";
   return n.toLocaleString();
 }
 
-function VideoCard({ item }: { item: typeof VIDEOS[0] }) {
+function VideoCard({ item }: { item: any }) {
   return (
     <Pressable style={styles.videoCard} onPress={() => router.push(`/video/${item.id}`)}>
       <View style={styles.videoThumbContainer}>
@@ -52,7 +52,7 @@ function VideoCard({ item }: { item: typeof VIDEOS[0] }) {
   );
 }
 
-function LiveCard({ item }: { item: typeof LIVE_STREAMS[0] }) {
+function LiveCard({ item }: { item: any }) {
   return (
     <Pressable style={styles.liveCard}>
       <View style={styles.liveThumbContainer}>
@@ -78,7 +78,7 @@ function LiveCard({ item }: { item: typeof LIVE_STREAMS[0] }) {
   );
 }
 
-function RankedVideoCard({ item }: { item: typeof RANKED_VIDEOS[0] }) {
+function RankedVideoCard({ item }: { item: any }) {
   return (
     <Pressable style={styles.rankedCard} onPress={() => router.push(`/video/${item.id}`)}>
       <View style={styles.videoThumbContainer}>
@@ -106,7 +106,7 @@ function RankedVideoCard({ item }: { item: typeof RANKED_VIDEOS[0] }) {
   );
 }
 
-function CreatorRankCard({ item }: { item: typeof CREATORS[0] }) {
+function CreatorRankCard({ item }: { item: any }) {
   const borderColor =
     item.rank === 1 ? C.orange : item.rank === 2 ? C.textSec : item.rank === 3 ? C.orangeLight : C.border;
   return (
@@ -161,6 +161,11 @@ export default function HomeScreen() {
   const [rankFilter, setRankFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("ALL");
   const [creatorFilter, setCreatorFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("MONTHLY");
 
+  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/videos"] });
+  const { data: liveStreams = [] } = useQuery<any[]>({ queryKey: ["/api/live-streams"] });
+  const { data: rankedVideos = [] } = useQuery<any[]>({ queryKey: ["/api/videos/ranked"] });
+  const { data: creators = [] } = useQuery<any[]>({ queryKey: ["/api/creators"] });
+
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
 
@@ -213,7 +218,7 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>新着動画</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-          {VIDEOS.map((v) => <VideoCard key={v.id} item={v} />)}
+          {videos.map((v) => <VideoCard key={v.id} item={v} />)}
         </ScrollView>
 
         {/* 現在ライブ中 */}
@@ -225,7 +230,7 @@ export default function HomeScreen() {
           </Pressable>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-          {LIVE_STREAMS.map((s) => <LiveCard key={s.id} item={s} />)}
+          {liveStreams.map((s) => <LiveCard key={s.id} item={s} />)}
         </ScrollView>
 
         {/* 有料動画ランキング */}
@@ -249,7 +254,7 @@ export default function HomeScreen() {
           </View>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-          {RANKED_VIDEOS.map((v) => <RankedVideoCard key={v.id} item={v} />)}
+          {rankedVideos.map((v) => <RankedVideoCard key={v.id} item={v} />)}
         </ScrollView>
 
         {/* 配信者ランキング */}
@@ -273,7 +278,7 @@ export default function HomeScreen() {
           </View>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-          {CREATORS.map((c) => <CreatorRankCard key={c.id} item={c} />)}
+          {creators.map((c) => <CreatorRankCard key={c.id} item={c} />)}
         </ScrollView>
 
         <View style={{ height: 100 }} />

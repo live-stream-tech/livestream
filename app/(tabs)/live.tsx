@@ -11,8 +11,8 @@ import {
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
-import { LIVE_STREAMS, BOOKING_SESSIONS, BookingSession } from "@/constants/data";
 
 const BOOKING_CATEGORY_ICONS: Record<string, string> = {
   english: "language-outline",
@@ -267,9 +267,12 @@ export default function LiveScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [bookingCategory, setBookingCategory] = useState("all");
 
+  const { data: liveStreams = [] } = useQuery<any[]>({ queryKey: ["/api/live-streams"] });
+  const { data: bookingSessions = [] } = useQuery<any[]>({ queryKey: ["/api/booking-sessions"] });
+
   const filteredBookings = bookingCategory === "all"
-    ? BOOKING_SESSIONS
-    : BOOKING_SESSIONS.filter((s) => s.category === bookingCategory);
+    ? bookingSessions
+    : bookingSessions.filter((s: any) => s.category === bookingCategory);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -313,7 +316,7 @@ export default function LiveScreen() {
       >
         {activeTab === "now" ? (
           <View style={styles.liveList}>
-            {LIVE_STREAMS.map((stream) => (
+            {liveStreams.map((stream: any) => (
               <Pressable key={stream.id} style={styles.liveStreamCard}>
                 <Image source={{ uri: stream.thumbnail }} style={styles.liveStreamThumb} contentFit="cover" />
                 <View style={styles.liveBadge}>

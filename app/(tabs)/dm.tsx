@@ -9,11 +9,12 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "@/constants/colors";
 
 type DMItem = {
-  id: string;
+  id: number;
   name: string;
   avatar: string;
   lastMessage: string;
@@ -22,7 +23,7 @@ type DMItem = {
   online: boolean;
 };
 
-const DM_LIST: DMItem[] = [
+const PLACEHOLDER = [
   {
     id: "1",
     name: "桜花アリス",
@@ -102,6 +103,10 @@ export default function DMScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
 
+  const { data: dmList = [] } = useQuery<DMItem[]>({
+    queryKey: ["/api/dm-messages"],
+  });
+
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
@@ -115,10 +120,10 @@ export default function DMScreen() {
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {DM_LIST.map((item, index) => (
+        {dmList.map((item, index) => (
           <Pressable
             key={item.id}
-            style={[styles.dmItem, index < DM_LIST.length - 1 && styles.dmItemBorder]}
+            style={[styles.dmItem, index < dmList.length - 1 && styles.dmItemBorder]}
           >
             <View style={styles.avatarContainer}>
               <Image source={{ uri: item.avatar }} style={styles.avatar} contentFit="cover" />
