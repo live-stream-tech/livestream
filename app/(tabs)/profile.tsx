@@ -306,40 +306,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Enneagram Card */}
-        <View style={styles.enneagramCard}>
-          <View style={styles.enneagramHeader}>
-            <Ionicons name="analytics-outline" size={15} color={C.accent} />
-            <Text style={styles.enneagramTitle}>ENNEAGRAM</Text>
-            <Pressable style={styles.enneagramEditBtn} onPress={openEdit}>
-              <Ionicons name="create-outline" size={14} color={C.textMuted} />
-              <Text style={styles.enneagramEditText}>編集</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.enneagramBody}>
-            <EnneagramChart scores={scores} />
-            <View style={styles.enneagramLegend}>
-              {ENNEAGRAM_TYPES.map((t, i) => (
-                <View key={i} style={styles.legendRow}>
-                  <View style={[styles.legendDot, { backgroundColor: t.color }]} />
-                  <Text style={styles.legendNum}>{t.num}</Text>
-                  <Text style={styles.legendLabel}>{t.label}</Text>
-                  <View style={styles.legendBarBg}>
-                    <View
-                      style={[
-                        styles.legendBarFill,
-                        { width: `${scores[i] * 10}%` as any, backgroundColor: t.color },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.legendScore}>{scores[i]}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </View>
-
         {/* Supporter Level */}
         <View style={styles.supporterCard}>
           <View style={styles.supporterHeader}>
@@ -378,6 +344,40 @@ export default function ProfileScreen() {
               <Image source={{ uri }} style={styles.postThumb} contentFit="cover" />
             </Pressable>
           ))}
+        </View>
+
+        {/* Enneagram Card */}
+        <View style={styles.enneagramCard}>
+          <View style={styles.enneagramHeader}>
+            <Ionicons name="analytics-outline" size={15} color={C.accent} />
+            <Text style={styles.enneagramTitle}>ENNEAGRAM</Text>
+            <Pressable style={styles.enneagramEditBtn} onPress={openEdit}>
+              <Ionicons name="create-outline" size={14} color={C.textMuted} />
+              <Text style={styles.enneagramEditText}>編集</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.enneagramBody}>
+            <EnneagramChart scores={scores} />
+            <View style={styles.enneagramLegend}>
+              {ENNEAGRAM_TYPES.map((t, i) => (
+                <View key={i} style={styles.legendRow}>
+                  <View style={[styles.legendDot, { backgroundColor: t.color }]} />
+                  <Text style={styles.legendNum}>{t.num}</Text>
+                  <Text style={styles.legendLabel}>{t.label}</Text>
+                  <View style={styles.legendBarBg}>
+                    <View
+                      style={[
+                        styles.legendBarFill,
+                        { width: `${scores[i] * 10}%` as any, backgroundColor: t.color },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.legendScore}>{scores[i]}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
         </View>
 
         <View style={{ height: 120 }} />
