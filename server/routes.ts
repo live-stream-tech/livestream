@@ -158,14 +158,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(updated);
   });
 
-  // ── Video single ──────────────────────────────────────────────────
-  app.get("/api/videos/:id", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
-    const [video] = await db.select().from(videos).where(eq(videos.id, id));
-    if (!video) return res.status(404).json({ error: "Not found" });
-    res.json(video);
-  });
-
   // ── Live Stream single + chat ─────────────────────────────────────
   app.get("/api/live-streams/:id", async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);

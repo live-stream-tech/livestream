@@ -8,14 +8,16 @@ import {
   TextInput,
   Platform,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/query-client";
 import { C } from "@/constants/colors";
-import { COMMUNITIES } from "@/constants/data";
 
 type FeeType = "free" | "paid";
 type ScopeType = "public" | "members" | "invite";
@@ -23,20 +25,29 @@ type PriceOption = 300 | 500 | 1000 | 2000 | 3000 | 5000;
 
 const PRICE_OPTIONS: PriceOption[] = [300, 500, 1000, 2000, 3000, 5000];
 
+type Community = { id: number; name: string; thumbnail: string };
+
 export default function UploadScreen() {
   const insets = useSafeAreaInsets();
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
+  const queryClient = useQueryClient();
+
+  const { data: communities = [] } = useQuery<Community[]>({ queryKey: ["/api/communities"] });
 
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedCommunity, setSelectedCommunity] = useState(COMMUNITIES[0].id);
+  const [selectedCommunityId, setSelectedCommunityId] = useState<number | null>(null);
   const [fee, setFee] = useState<FeeType>("paid");
   const [price, setPrice] = useState<PriceOption>(500);
   const [scope, setScope] = useState<ScopeType>("public");
   const [tags, setTags] = useState("");
+  const [uploading, setUploading] = useState(false);
+
+  const activeCommunityId = selectedCommunityId ?? communities[0]?.id ?? null;
+  const selectedCommunity = communities.find((c) => c.id === activeCommunityId);
 
   async function pickVideo() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -68,7 +79,36 @@ export default function UploadScreen() {
     }
   }
 
-  const selectedCommunityName = COMMUNITIES.find((c) => c.id === selectedCommunity)?.name ?? "";
+  async function handleSubmit() {
+    if (!canUpload) return;
+    setUploading(true);
+    try {
+      const communityName = selectedCommunity?.name ?? "一般";
+      const thumbUrl = thumbnailUri
+        ?? selectedCommunity?.thumbnail
+        ?? "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=400&fit=crop";
+      const avatarUrl = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop";
+      const newVideo = await apiRequest("POST", "/api/videos", {
+        title: title.trim(),
+        creator: communityName,
+        community: communityName,
+        duration: "00:00",
+        price: fee === "paid" ? price : null,
+        thumbnail: thumbUrl,
+        avatar: avatarUrl,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
+      Alert.alert("投稿完了！", "動画が投稿されました", [
+        { text: "確認する", onPress: () => router.replace(`/video/${newVideo.id}`) },
+        { text: "ホームへ", onPress: () => router.replace("/") },
+      ]);
+    } catch (e) {
+      Alert.alert("エラー", "投稿に失敗しました。もう一度お試しください。");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   const canUpload = videoUri && title.trim().length > 0;
 
   return (
@@ -172,14 +212,14 @@ export default function UploadScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.communityScroll}
           >
-            {COMMUNITIES.map((community) => (
+            {communities.map((community) => (
               <Pressable
                 key={community.id}
-                style={[styles.communityPill, selectedCommunity === community.id && styles.communityPillActive]}
-                onPress={() => setSelectedCommunity(community.id)}
+                style={[styles.communityPill, activeCommunityId === community.id && styles.communityPillActive]}
+                onPress={() => setSelectedCommunityId(community.id)}
               >
                 <Text
-                  style={[styles.communityPillText, selectedCommunity === community.id && styles.communityPillTextActive]}
+                  style={[styles.communityPillText, activeCommunityId === community.id && styles.communityPillTextActive]}
                   numberOfLines={1}
                 >
                   {community.name}
@@ -285,17 +325,16 @@ export default function UploadScreen() {
         {/* 投稿ボタン */}
         <View style={[styles.submitSection, { paddingBottom: bottomInset + 20 }]}>
           <Pressable
-            style={[styles.submitBtn, !canUpload && styles.submitBtnDisabled]}
-            onPress={() => {
-              if (canUpload) {
-                Alert.alert("投稿完了", "動画が投稿されました！（デモ）", [
-                  { text: "OK", onPress: () => router.back() },
-                ]);
-              }
-            }}
+            style={[styles.submitBtn, (!canUpload || uploading) && styles.submitBtnDisabled]}
+            onPress={handleSubmit}
+            disabled={uploading}
           >
-            <Ionicons name="cloud-upload" size={18} color="#fff" />
-            <Text style={styles.submitBtnText}>投稿する</Text>
+            {uploading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="cloud-upload" size={18} color="#fff" />
+            )}
+            <Text style={styles.submitBtnText}>{uploading ? "投稿中..." : "投稿する"}</Text>
           </Pressable>
           {!canUpload && (
             <Text style={styles.submitHint}>動画とタイトルは必須です</Text>
