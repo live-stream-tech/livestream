@@ -200,6 +200,18 @@ function configureExpoAndLanding(app: express.Application) {
 
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
+  app.use(express.static(path.resolve(process.cwd(), "public"), {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith("sw.js")) {
+        res.setHeader("Content-Type", "application/javascript");
+        res.setHeader("Service-Worker-Allowed", "/");
+        res.setHeader("Cache-Control", "no-cache");
+      }
+      if (filePath.endsWith("manifest.json")) {
+        res.setHeader("Content-Type", "application/manifest+json");
+      }
+    },
+  }));
 
   log("Expo routing: Checking expo-platform header on / and /manifest");
 }
