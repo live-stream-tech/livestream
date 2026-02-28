@@ -14,6 +14,13 @@ import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
 
+type Notif = { id: number; isRead: boolean };
+
+function useUnreadCount() {
+  const { data = [] } = useQuery<Notif[]>({ queryKey: ["/api/notifications"] });
+  return (data as Notif[]).filter((n) => !n.isRead).length;
+}
+
 function formatNumber(n: number): string {
   if (n >= 10000) return (n / 10000).toFixed(1) + "万";
   return n.toLocaleString();
@@ -165,6 +172,7 @@ export default function HomeScreen() {
   const { data: liveStreams = [] } = useQuery<any[]>({ queryKey: ["/api/live-streams"] });
   const { data: rankedVideos = [] } = useQuery<any[]>({ queryKey: ["/api/videos/ranked"] });
   const { data: creators = [] } = useQuery<any[]>({ queryKey: ["/api/creators"] });
+  const unreadCount = useUnreadCount();
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
@@ -182,12 +190,14 @@ export default function HomeScreen() {
             <Ionicons name="radio-outline" size={14} color={C.accent} />
             <Text style={styles.liveButtonText}>LIVE</Text>
           </View>
-          <View style={styles.notifButton}>
+          <Pressable style={styles.notifButton} onPress={() => router.push("/notifications")}>
             <Ionicons name="notifications-outline" size={22} color={C.text} />
-            <View style={styles.notifBadge}>
-              <Text style={styles.notifBadgeText}>3</Text>
-            </View>
-          </View>
+            {unreadCount > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+              </View>
+            )}
+          </Pressable>
         </View>
       </View>
 

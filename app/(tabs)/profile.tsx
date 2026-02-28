@@ -12,7 +12,14 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
+
+type Notif = { id: number; isRead: boolean };
+function useUnreadCount() {
+  const { data = [] } = useQuery<Notif[]>({ queryKey: ["/api/notifications"] });
+  return (data as Notif[]).filter((n) => !n.isRead).length;
+}
 
 const POST_IMAGES = [
   "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&h=300&fit=crop",
@@ -30,6 +37,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
+  const unreadCount = useUnreadCount();
 
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
@@ -44,9 +52,14 @@ export default function ProfileScreen() {
             <Ionicons name="shield-checkmark-outline" size={13} color={C.orange} />
             <Text style={styles.identityText}>IDENTITY CHECK</Text>
           </Pressable>
-          <View style={styles.notifButton}>
+          <Pressable style={styles.notifButton} onPress={() => router.push("/notifications")}>
             <Ionicons name="notifications-outline" size={22} color={C.text} />
-          </View>
+            {unreadCount > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+              </View>
+            )}
+          </Pressable>
         </View>
       </View>
 
@@ -196,6 +209,19 @@ const styles = StyleSheet.create({
   notifButton: {
     position: "relative",
   },
+  notifBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: C.live,
+    borderRadius: 7,
+    minWidth: 14,
+    height: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  notifBadgeText: { color: "#fff", fontSize: 9, fontWeight: "700" },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",

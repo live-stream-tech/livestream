@@ -8,6 +8,7 @@ import {
   creators,
   bookingSessions,
   dmMessages,
+  notifications,
 } from "./schema";
 import { eq, asc, desc } from "drizzle-orm";
 
@@ -124,6 +125,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .update(dmMessages)
       .set({ unread: 0 })
       .where(eq(dmMessages.id, id))
+      .returning();
+    res.json(updated);
+  });
+
+  // ── Notifications ─────────────────────────────────────────────────
+  app.get("/api/notifications", async (req: Request, res: Response) => {
+    const { type } = req.query;
+    const rows = type && type !== "all"
+      ? await db.select().from(notifications).where(eq(notifications.type, type as string)).orderBy(desc(notifications.createdAt))
+      : await db.select().from(notifications).orderBy(desc(notifications.createdAt));
+    res.json(rows);
+  });
+
+  app.post("/api/notifications/read-all", async (_req: Request, res: Response) => {
+    await db.update(notifications).set({ isRead: true });
+    res.json({ ok: true });
+  });
+
+  app.post("/api/notifications/:id/read", async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const [updated] = await db
+      .update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.id, id))
       .returning();
     res.json(updated);
   });

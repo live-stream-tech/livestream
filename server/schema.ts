@@ -78,6 +78,19 @@ export const bookingSessions = pgTable("booking_sessions", {
   tag: text("tag"),
 });
 
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  amount: integer("amount"),
+  avatar: text("avatar"),
+  thumbnail: text("thumbnail"),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  timeAgo: text("time_ago").notNull(),
+});
+
 export const dmMessages = pgTable("dm_messages", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),

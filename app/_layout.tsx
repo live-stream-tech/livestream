@@ -23,6 +23,7 @@ function RootLayoutNav() {
       <Stack.Screen name="community/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="video/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="upload" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ headerShown: false }} />
     </Stack>
   );
 }
