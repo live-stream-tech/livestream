@@ -26,9 +26,11 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 function formatNumber(n: number): string {
-  if (n >= 10000) return (n / 10000).toFixed(0) + "万";
+  if (n >= 10000) return (n / 10000).toFixed(1) + "万";
   return n.toLocaleString();
 }
+
+const COMMUNITY_RANK_COLORS = [C.orange, C.textSec, "#CD7F32", C.surface3, C.surface3, C.surface3];
 
 export default function CommunityScreen() {
   const insets = useSafeAreaInsets();
@@ -38,9 +40,11 @@ export default function CommunityScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
 
-  const filtered = COMMUNITIES.filter((c) =>
+  const myCommunities = COMMUNITIES.filter((c) =>
     selectedCategory === "すべて" ? true : c.category === selectedCategory
   );
+
+  const communityRanking = [...COMMUNITIES].sort((a, b) => b.members - a.members);
 
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
@@ -106,77 +110,129 @@ export default function CommunityScreen() {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
-        {/* マイコミュニティ */}
+        {/* ① マイコミュニティ — 1行横スワイプ */}
         <View style={styles.sectionHeader}>
           <View style={styles.sectionAccent} />
           <Text style={styles.sectionTitle}>マイコミュニティ</Text>
         </View>
 
-        <View style={styles.communityGrid}>
-          {filtered.map((community) => (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.myCommunityScroll}
+        >
+          {myCommunities.map((community) => (
             <Pressable
               key={community.id}
-              style={styles.communityCard}
+              style={styles.myCommunityCard}
               onPress={() => router.push(`/community/${community.id}`)}
             >
-              <View style={styles.communityThumbContainer}>
+              <View style={styles.myCommunityThumbContainer}>
                 <Image
                   source={{ uri: community.thumbnail }}
-                  style={styles.communityThumb}
+                  style={styles.myCommunityThumb}
                   contentFit="cover"
                 />
                 {community.online && <View style={styles.onlineDot} />}
-                <View style={styles.communityOverlay}>
-                  <Text style={styles.communityName} numberOfLines={1}>{community.name}</Text>
-                  <Text style={styles.communityMembers}>{formatNumber(community.members)}</Text>
-                </View>
               </View>
+              <Text style={styles.myCommunityName} numberOfLines={2}>{community.name}</Text>
+              <Text style={styles.myCommunityMembers}>{formatNumber(community.members)}</Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
 
-        {/* 動画視聴ランキング */}
-        <View style={[styles.sectionHeader, { marginTop: 16 }]}>
+        {/* ② コミュニティ人数ランキング */}
+        <View style={[styles.sectionHeader, { marginTop: 20 }]}>
           <View style={styles.sectionAccent} />
-          <Text style={styles.sectionTitle}>動画視聴ランキング</Text>
+          <Text style={styles.sectionTitle}>コミュニティ人数ランキング</Text>
         </View>
 
-        <View style={styles.rankList}>
+        <View style={styles.communityRankList}>
+          {communityRanking.map((community, index) => {
+            const rank = index + 1;
+            const rankColor = COMMUNITY_RANK_COLORS[index] ?? C.surface3;
+            return (
+              <Pressable
+                key={community.id}
+                style={styles.communityRankItem}
+                onPress={() => router.push(`/community/${community.id}`)}
+              >
+                <View style={[styles.communityRankCircle, { backgroundColor: rankColor }]}>
+                  <Text style={styles.communityRankNumber}>{rank}</Text>
+                </View>
+
+                <Image
+                  source={{ uri: community.thumbnail }}
+                  style={styles.communityRankThumb}
+                  contentFit="cover"
+                />
+
+                <View style={styles.communityRankInfo}>
+                  <Text style={styles.communityRankName} numberOfLines={1}>{community.name}</Text>
+                  <View style={styles.communityRankMeta}>
+                    <Text style={styles.communityRankCategory}>{community.category}</Text>
+                    {community.online && (
+                      <View style={styles.communityOnlineBadge}>
+                        <View style={styles.communityOnlineDot} />
+                        <Text style={styles.communityOnlineText}>配信中</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.communityRankRight}>
+                  <Ionicons name="people" size={13} color={C.textMuted} />
+                  <Text style={styles.communityRankMembers}>{formatNumber(community.members)}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* ③ 有料動画ランキング — 横スワイプ */}
+        <View style={[styles.sectionHeader, { marginTop: 20 }]}>
+          <View style={styles.sectionAccent} />
+          <Text style={styles.sectionTitle}>有料動画ランキング</Text>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.videoRankScroll}
+        >
           {RANKED_VIDEOS.map((video) => (
             <Pressable
               key={video.id}
-              style={styles.rankListItem}
+              style={styles.videoRankCard}
               onPress={() => router.push(`/video/${video.id}`)}
             >
-              <View style={styles.rankNumberContainer}>
-                <View style={[styles.rankCircle, { backgroundColor: video.rank === 1 ? C.orange : video.rank === 2 ? C.surface3 : C.surface3 }]}>
-                  <Text style={styles.rankNumber}>{video.rank}</Text>
+              <View style={styles.videoRankThumbContainer}>
+                <Image source={{ uri: video.thumbnail }} style={styles.videoRankThumb} contentFit="cover" />
+                <View style={styles.rankBadge}>
+                  <Text style={styles.rankBadgeText}>{video.rank}</Text>
                 </View>
-              </View>
-              {video.price && (
-                <View style={styles.priceBadgeSmall}>
-                  <Text style={styles.priceBadgeText}>¥{video.price}</Text>
-                </View>
-              )}
-              <View style={styles.rankThumbContainer}>
-                <Image source={{ uri: video.thumbnail }} style={styles.rankThumb} contentFit="cover" />
                 <View style={styles.durationBadge}>
                   <Text style={styles.durationText}>{video.duration}</Text>
                 </View>
               </View>
-              <View style={styles.rankItemInfo}>
-                <Text style={styles.rankItemTitle} numberOfLines={2}>{video.title}</Text>
-                <View style={styles.rankCreatorRow}>
+
+              <View style={styles.videoRankInfo}>
+                <View style={styles.videoRankCreatorRow}>
                   <Image source={{ uri: video.avatar }} style={styles.tinyAvatar} contentFit="cover" />
-                  <Text style={styles.rankCreatorName}>{video.creator}</Text>
+                  <Text style={styles.videoRankCommunity} numberOfLines={1}>{video.community}</Text>
                 </View>
-                <Text style={styles.rankMeta}>
-                  {video.views.toLocaleString()}視聴 · {video.timeAgo} · {video.community}
-                </Text>
+                <Text style={styles.videoRankTitle} numberOfLines={2}>{video.title}</Text>
+                <View style={styles.videoRankMeta}>
+                  <Ionicons name="eye-outline" size={11} color={C.textMuted} />
+                  <Text style={styles.videoMetaText}>{formatNumber(video.views)}</Text>
+                  <Ionicons name="time-outline" size={11} color={C.textMuted} />
+                  <Text style={styles.videoMetaText}>{video.timeAgo}</Text>
+                </View>
+                <Text style={styles.videoRankPrice}>¥{video.price?.toLocaleString()}</Text>
               </View>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -296,131 +352,189 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
   },
-  communityGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+
+  /* マイコミュニティ — 横1行スクロール */
+  myCommunityScroll: {
     paddingHorizontal: 16,
-    gap: 8,
+    gap: 12,
+    paddingBottom: 4,
   },
-  communityCard: {
-    width: "31%",
-    aspectRatio: 0.85,
+  myCommunityCard: {
+    width: 90,
+    alignItems: "center",
+    gap: 6,
   },
-  communityThumbContainer: {
-    flex: 1,
-    borderRadius: 10,
-    overflow: "hidden",
+  myCommunityThumbContainer: {
     position: "relative",
+    width: 90,
+    height: 90,
+    borderRadius: 12,
+    overflow: "hidden",
   },
-  communityThumb: {
+  myCommunityThumb: {
     width: "100%",
     height: "100%",
   },
   onlineDot: {
     position: "absolute",
-    bottom: 8,
-    right: 8,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    bottom: 6,
+    right: 6,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
     backgroundColor: C.green,
     borderWidth: 2,
-    borderColor: C.bg,
+    borderColor: "#1B2838",
   },
-  communityOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    padding: 6,
-  },
-  communityName: {
-    color: "#fff",
+  myCommunityName: {
+    color: C.text,
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "600",
+    textAlign: "center",
+    lineHeight: 15,
   },
-  communityMembers: {
-    color: "rgba(255,255,255,0.7)",
+  myCommunityMembers: {
+    color: C.textMuted,
     fontSize: 10,
-    marginTop: 1,
+    textAlign: "center",
   },
-  rankList: {
+
+  /* コミュニティ人数ランキング */
+  communityRankList: {
     paddingHorizontal: 16,
-    gap: 12,
+    gap: 8,
   },
-  rankListItem: {
+  communityRankItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
     backgroundColor: C.surface,
     borderRadius: 10,
     padding: 10,
   },
-  rankNumberContainer: {
-    width: 28,
-    alignItems: "center",
-  },
-  rankCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  communityRankCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
-  rankNumber: {
+  communityRankNumber: {
     color: "#fff",
     fontSize: 13,
     fontWeight: "800",
   },
-  priceBadgeSmall: {
-    position: "absolute",
-    top: 10,
-    left: 48,
-    backgroundColor: C.accent,
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    zIndex: 1,
+  communityRankThumb: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    flexShrink: 0,
   },
-  priceBadgeText: {
-    color: "#fff",
-    fontSize: 9,
-    fontWeight: "700",
-  },
-  rankThumbContainer: {
-    position: "relative",
-  },
-  rankThumb: {
-    width: 80,
-    height: 52,
-    borderRadius: 6,
-  },
-  durationBadge: {
-    position: "absolute",
-    bottom: 4,
-    right: 4,
-    backgroundColor: "rgba(0,0,0,0.75)",
-    borderRadius: 3,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-  },
-  durationText: {
-    color: "#fff",
-    fontSize: 9,
-    fontWeight: "600",
-  },
-  rankItemInfo: {
+  communityRankInfo: {
     flex: 1,
     gap: 4,
   },
-  rankItemTitle: {
+  communityRankName: {
     color: C.text,
     fontSize: 13,
-    fontWeight: "600",
-    lineHeight: 18,
+    fontWeight: "700",
   },
-  rankCreatorRow: {
+  communityRankMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  communityRankCategory: {
+    color: C.textMuted,
+    fontSize: 11,
+  },
+  communityOnlineBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0, 200, 83, 0.15)",
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  communityOnlineDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: C.green,
+  },
+  communityOnlineText: {
+    color: C.green,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  communityRankRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flexShrink: 0,
+  },
+  communityRankMembers: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  /* 有料動画ランキング — 横スクロール */
+  videoRankScroll: {
+    paddingHorizontal: 16,
+    gap: 12,
+    paddingBottom: 4,
+  },
+  videoRankCard: {
+    width: 180,
+  },
+  videoRankThumbContainer: {
+    position: "relative",
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  videoRankThumb: {
+    width: 180,
+    height: 101,
+    borderRadius: 8,
+  },
+  rankBadge: {
+    position: "absolute",
+    top: 7,
+    left: 7,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: C.orange,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rankBadgeText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  durationBadge: {
+    position: "absolute",
+    bottom: 5,
+    right: 5,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  durationText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  videoRankInfo: {
+    marginTop: 8,
+    gap: 3,
+  },
+  videoRankCreatorRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
@@ -430,12 +544,31 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 8,
   },
-  rankCreatorName: {
+  videoRankCommunity: {
     color: C.textSec,
     fontSize: 11,
+    flex: 1,
   },
-  rankMeta: {
+  videoRankTitle: {
+    color: C.text,
+    fontSize: 12,
+    fontWeight: "600",
+    lineHeight: 17,
+  },
+  videoRankMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  videoMetaText: {
     color: C.textMuted,
     fontSize: 10,
+    marginRight: 4,
+  },
+  videoRankPrice: {
+    color: C.accent,
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 1,
   },
 });
