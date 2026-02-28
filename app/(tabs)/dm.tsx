@@ -10,9 +10,92 @@ import {
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
 import { C } from "@/constants/colors";
-import { FOLLOWING_FEED, COMMUNITIES } from "@/constants/data";
+
+type DMItem = {
+  id: string;
+  name: string;
+  avatar: string;
+  lastMessage: string;
+  time: string;
+  unread: number;
+  online: boolean;
+};
+
+const DM_LIST: DMItem[] = [
+  {
+    id: "1",
+    name: "桜花アリス",
+    avatar: "https://images.unsplash.com/photo-1521119989659-a83eee488004?w=100&h=100&fit=crop",
+    lastMessage: "ありがとうございます！次の配信もよろしくお願いします",
+    time: "たった今",
+    unread: 2,
+    online: true,
+  },
+  {
+    id: "2",
+    name: "エミリー先生",
+    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
+    lastMessage: "次のレッスンは3/2の19:00からです。お楽しみに！",
+    time: "5分前",
+    unread: 1,
+    online: true,
+  },
+  {
+    id: "3",
+    name: "星空りん",
+    avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=100&h=100&fit=crop",
+    lastMessage: "鑑定の結果をDMでお送りしますね",
+    time: "12分前",
+    unread: 0,
+    online: false,
+  },
+  {
+    id: "4",
+    name: "心理士 みく",
+    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop",
+    lastMessage: "お気持ちを聞かせていただいてありがとうございます",
+    time: "1時間前",
+    unread: 0,
+    online: true,
+  },
+  {
+    id: "5",
+    name: "料理家 はるか",
+    avatar: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=100&h=100&fit=crop",
+    lastMessage: "レシピを送りました！ぜひ作ってみてください🍳",
+    time: "3時間前",
+    unread: 0,
+    online: false,
+  },
+  {
+    id: "6",
+    name: "ライフコーチ けんじ",
+    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
+    lastMessage: "目標設定シートを確認しました。素晴らしい進捗です！",
+    time: "昨日",
+    unread: 0,
+    online: false,
+  },
+  {
+    id: "7",
+    name: "ヨガ講師 なな",
+    avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop",
+    lastMessage: "明日のクラスもお待ちしています",
+    time: "昨日",
+    unread: 0,
+    online: false,
+  },
+  {
+    id: "8",
+    name: "地下アイドル界隈",
+    avatar: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=100&h=100&fit=crop",
+    lastMessage: "【お知らせ】本日21:00からライブ配信があります",
+    time: "2日前",
+    unread: 0,
+    online: false,
+  },
+];
 
 export default function DMScreen() {
   const insets = useSafeAreaInsets();
@@ -21,66 +104,50 @@ export default function DMScreen() {
 
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
+      <View style={[styles.header, { paddingTop: topInset + 12 }]}>
+        <Text style={styles.headerTitle}>メッセージ</Text>
+        <Pressable>
+          <Ionicons name="create-outline" size={22} color={C.text} />
+        </Pressable>
+      </View>
+
       <ScrollView
         style={styles.scroll}
-        contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ height: topInset + 16 }} />
+        {DM_LIST.map((item, index) => (
+          <Pressable
+            key={item.id}
+            style={[styles.dmItem, index < DM_LIST.length - 1 && styles.dmItemBorder]}
+          >
+            <View style={styles.avatarContainer}>
+              <Image source={{ uri: item.avatar }} style={styles.avatar} contentFit="cover" />
+              {item.online && <View style={styles.onlineDot} />}
+            </View>
 
-        {/* Following Feed */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>FOLLOWING FEED</Text>
-          <View style={styles.hotBadge}>
-            <Text style={styles.hotText}>HOT</Text>
-          </View>
-        </View>
-
-        <View style={styles.feedList}>
-          {FOLLOWING_FEED.map((item) => (
-            <Pressable key={item.id} style={styles.feedItem}>
-              <Image source={{ uri: item.avatar }} style={styles.feedAvatar} contentFit="cover" />
-              <View style={styles.feedContent}>
-                <View style={styles.feedHeader}>
-                  <Text style={styles.feedCreator}>{item.creator}</Text>
-                  <Text style={styles.feedTime}>{item.timeAgo}</Text>
-                </View>
-                <Text style={styles.feedText} numberOfLines={2}>{item.content}</Text>
+            <View style={styles.content}>
+              <View style={styles.topRow}>
+                <Text style={[styles.name, item.unread > 0 && styles.nameUnread]}>{item.name}</Text>
+                <Text style={[styles.time, item.unread > 0 && styles.timeUnread]}>{item.time}</Text>
               </View>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* Joined Communities */}
-        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-          <Text style={styles.sectionTitle}>JOINED COMMUNITIES</Text>
-        </View>
-
-        <View style={styles.communityGrid}>
-          {COMMUNITIES.map((community) => (
-            <Pressable
-              key={community.id}
-              style={styles.communityCard}
-              onPress={() => router.push(`/community/${community.id}`)}
-            >
-              <Image source={{ uri: community.thumbnail }} style={styles.communityThumb} contentFit="cover" />
-              {community.online && <View style={styles.onlineDot} />}
-              <View style={styles.communityOverlay}>
-                <Text style={styles.communityName} numberOfLines={1}>{community.name}</Text>
-                <Text style={styles.communityMembers}>{(community.members / 1000).toFixed(0)}千人</Text>
+              <View style={styles.bottomRow}>
+                <Text
+                  style={[styles.lastMessage, item.unread > 0 && styles.lastMessageUnread]}
+                  numberOfLines={1}
+                >
+                  {item.lastMessage}
+                </Text>
+                {item.unread > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadText}>{item.unread}</Text>
+                  </View>
+                )}
               </View>
-            </Pressable>
-          ))}
-        </View>
-
+            </View>
+          </Pressable>
+        ))}
         <View style={{ height: 100 }} />
       </ScrollView>
-
-      {/* Floating Start */}
-      <Pressable style={[styles.startFab, { bottom: (Platform.OS === "web" ? 34 : insets.bottom) + 80 }]}>
-        <Ionicons name="radio" size={16} color="#fff" />
-        <Text style={styles.startFabText}>START</Text>
-      </Pressable>
     </View>
   );
 }
@@ -90,142 +157,103 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: C.bg,
   },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  headerTitle: {
+    color: C.text,
+    fontSize: 20,
+    fontWeight: "800",
+  },
   scroll: {
     flex: 1,
   },
-  sectionHeader: {
+  dmItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 14,
-  },
-  sectionTitle: {
-    color: C.text,
-    fontSize: 13,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  hotBadge: {
-    backgroundColor: C.live,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  hotText: {
-    color: "#fff",
-    fontSize: 9,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  feedList: {
-    paddingHorizontal: 16,
-    gap: 2,
-  },
-  feedItem: {
-    flexDirection: "row",
     gap: 12,
-    backgroundColor: C.surface,
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 8,
-  },
-  feedAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 2,
-    borderColor: C.accent,
-  },
-  feedContent: {
-    flex: 1,
-    gap: 5,
-  },
-  feedHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  feedCreator: {
-    color: C.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  feedTime: {
-    color: C.textMuted,
-    fontSize: 11,
-  },
-  feedText: {
-    color: C.textSec,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  communityGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     paddingHorizontal: 16,
-    gap: 4,
+    paddingVertical: 14,
   },
-  communityCard: {
-    width: "48.5%",
-    aspectRatio: 1,
-    borderRadius: 10,
-    overflow: "hidden",
+  dmItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  avatarContainer: {
     position: "relative",
   },
-  communityThumb: {
-    width: "100%",
-    height: "100%",
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
   },
   onlineDot: {
     position: "absolute",
-    bottom: 10,
-    right: 10,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    bottom: 1,
+    right: 1,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
     backgroundColor: C.green,
     borderWidth: 2,
     borderColor: C.bg,
   },
-  communityOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    padding: 10,
+  content: {
+    flex: 1,
+    gap: 4,
   },
-  communityName: {
-    color: "#fff",
-    fontSize: 13,
+  topRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  name: {
+    color: C.textSec,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  nameUnread: {
+    color: C.text,
     fontWeight: "700",
   },
-  communityMembers: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 11,
-    marginTop: 2,
+  time: {
+    color: C.textMuted,
+    fontSize: 12,
   },
-  startFab: {
-    position: "absolute",
-    right: 16,
+  timeUnread: {
+    color: C.accent,
+    fontWeight: "600",
+  },
+  bottomRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: C.accent,
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    shadowColor: C.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
+    gap: 8,
   },
-  startFabText: {
-    color: "#fff",
+  lastMessage: {
+    flex: 1,
+    color: C.textMuted,
     fontSize: 13,
+  },
+  lastMessageUnread: {
+    color: C.textSec,
+    fontWeight: "500",
+  },
+  unreadBadge: {
+    backgroundColor: C.accent,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+  },
+  unreadText: {
+    color: "#fff",
+    fontSize: 11,
     fontWeight: "800",
-    letterSpacing: 0.5,
   },
 });
