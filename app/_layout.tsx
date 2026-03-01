@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { Platform } from "react-native";
@@ -7,7 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider, useAuth } from "@/lib/auth";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -15,6 +15,28 @@ if (Platform.OS === "web" && typeof window !== "undefined" && "serviceWorker" in
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   });
+}
+
+function LineTokenHandler() {
+  const { line_token, line_error } = useLocalSearchParams<{ line_token?: string; line_error?: string }>();
+  const { loginWithToken } = useAuth();
+
+  useEffect(() => {
+    if (line_token) {
+      loginWithToken(line_token as string)
+        .then(() => {
+          if (Platform.OS === "web" && typeof window !== "undefined") {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("line_token");
+            window.history.replaceState({}, "", url.toString());
+          }
+          router.replace("/(tabs)/profile");
+        })
+        .catch(() => {});
+    }
+  }, [line_token]);
+
+  return null;
 }
 
 function RootLayoutNav() {
@@ -48,6 +70,7 @@ export default function RootLayout() {
         <AuthProvider>
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
+              <LineTokenHandler />
               <RootLayoutNav />
             </KeyboardProvider>
           </GestureHandlerRootView>

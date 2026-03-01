@@ -85,6 +85,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ id: updated.id, email: updated.email, name: updated.name, bio: updated.bio, avatar: updated.avatar });
   });
 
+  // ── LINE OAuth ────────────────────────────────────────────────────
+  const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID ?? "";
+  const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET ?? "";
+  const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "https://livestock.replit.app/api/auth/callback/line";
+  const LINE_STATE = "livestock-line-state";
+
+  app.get("/api/auth/line", (_req: Request, res: Response) => {
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: LINE_CHANNEL_ID,
+      redirect_uri: LINE_CALLBACK_URL,
+      state: LINE_STATE,
+      scope: "profile openid email",
+    });
+    res.redirect(`https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`);
+  });
+
+  app.get("/api/auth/callback/line", async (req: Request, res: Response) => {
+    const { code, state } = req.query as { code?: string; state?: string };
+    if (!code || state !== LINE_STATE) {
+      return res.redirect("/?line_error=invalid_state");
+    }
+    try {
+      const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: LINE_CALLBACK_URL,
+          client_id: LINE_CHANNEL_ID,
+          client_secret: LINE_CHANNEL_SECRET,
+        }).toString(),
+      });
+      const tokenData = await tokenRes.json() as { access_token?: string; error?: string };
+      if (!tokenData.access_token) {
+        return res.redirect("/?line_error=token_failed");
+      }
+
+      const profileRes = await fetch("https://api.line.me/v2/profile", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const profile = await profileRes.json() as { userId?: string; displayName?: string; pictureUrl?: string };
+      if (!profile.userId) {
+        return res.redirect("/?line_error=profile_failed");
+      }
+
+      const lineId = profile.userId;
+      const lineName = profile.displayName ?? "LINEユーザー";
+      const lineAvatar = profile.pictureUrl ?? null;
+      const lineEmail = `line_${lineId}@line.local`;
+
+      let [existing] = await db.select().from(userAccounts).where(eq(userAccounts.lineId, lineId));
+      if (!existing) {
+        [existing] = await db
+          .insert(userAccounts)
+          .values({ email: lineEmail, passwordHash: "line-oauth", name: lineName, avatar: lineAvatar, lineId })
+          .onConflictDoUpdate({ target: userAccounts.email, set: { lineId, name: lineName, avatar: lineAvatar, updatedAt: new Date() } })
+          .returning();
+      } else {
+        [existing] = await db
+          .update(userAccounts)
+          .set({ name: lineName, avatar: lineAvatar, updatedAt: new Date() })
+          .where(eq(userAccounts.id, existing.id))
+          .returning();
+      }
+
+      const jwtToken = makeToken(existing.id);
+      res.redirect(`/?line_token=${encodeURIComponent(jwtToken)}`);
+    } catch (err) {
+      console.error("LINE callback error:", err);
+      res.redirect("/?line_error=server_error");
+    }
+  });
+
   // ── Communities ───────────────────────────────────────────────────
   app.get("/api/communities", async (_req: Request, res: Response) => {
     const rows = await db.select().from(communities).orderBy(desc(communities.members));

@@ -270,17 +270,23 @@ export default function ProfileScreen() {
 
   // Not logged in state
   if (!authLoading && !user) {
+    function handleLineLogin() {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.location.href = "/api/auth/line";
+      }
+    }
+
     return (
       <View style={[styles.container, styles.guestContainer, { paddingTop: topInset + 40 }]}>
         <Ionicons name="person-circle-outline" size={80} color={C.textMuted} />
         <Text style={styles.guestTitle}>LiveStock</Text>
         <Text style={styles.guestSub}>ログインしてマイページを確認しよう</Text>
-        <Pressable style={styles.guestLoginBtn} onPress={() => router.push("/auth/login")}>
-          <Ionicons name="log-in-outline" size={18} color="#fff" />
-          <Text style={styles.guestLoginText}>ログイン</Text>
+        <Pressable style={styles.lineLoginBtn} onPress={handleLineLogin}>
+          <Image source={{ uri: "https://upload.wikimedia.org/wikipedia/commons/4/41/LINE_logo.svg" }} style={styles.lineIcon} contentFit="contain" />
+          <Text style={styles.lineLoginText}>LINEでログイン</Text>
         </Pressable>
-        <Pressable style={styles.guestRegisterBtn} onPress={() => router.push("/auth/register")}>
-          <Text style={styles.guestRegisterText}>新規登録はこちら</Text>
+        <Pressable style={styles.guestRegisterBtn} onPress={() => router.push("/auth/login")}>
+          <Text style={styles.guestRegisterText}>メールアドレスでログイン</Text>
         </Pressable>
       </View>
     );
@@ -942,6 +948,18 @@ const styles = StyleSheet.create({
   guestLoginText: { color: "#fff", fontSize: 16, fontWeight: "800" },
   guestRegisterBtn: { paddingVertical: 8 },
   guestRegisterText: { color: C.accent, fontSize: 14, fontWeight: "600" },
+  lineLoginBtn: {
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#06C755",
+    borderRadius: 14,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+  },
+  lineIcon: { width: 22, height: 22 },
+  lineLoginText: { color: "#fff", fontSize: 16, fontWeight: "800" },
 
   // Header actions (edit + logout)
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },

@@ -164,6 +164,7 @@ export const userAccounts = pgTable("user_accounts", {
   name: text("name").notNull().default("ユーザー"),
   bio: text("bio").notNull().default(""),
   avatar: text("avatar"),
+  lineId: text("line_id").unique(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

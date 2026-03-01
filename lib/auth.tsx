@@ -15,6 +15,7 @@ type AuthCtx = {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithToken: (token: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
   updateProfile: (data: Partial<Pick<User, "name" | "bio" | "avatar">>) => Promise<void>;
@@ -25,6 +26,7 @@ const AuthContext = createContext<AuthCtx>({
   token: null,
   loading: true,
   login: async () => {},
+  loginWithToken: async () => {},
   register: async () => {},
   logout: () => {},
   updateProfile: async () => {},
@@ -76,6 +78,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
   }, []);
 
+  const loginWithToken = useCallback(async (t: string) => {
+    const me = await apiFetch("/api/auth/me", {
+      headers: { Authorization: `Bearer ${t}` },
+    });
+    await AsyncStorage.setItem(TOKEN_KEY, t);
+    setToken(t);
+    setUser(me);
+  }, []);
+
   const register = useCallback(async (email: string, password: string, name: string) => {
     const data = await apiFetch("/api/auth/register", {
       method: "POST",
@@ -103,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginWithToken, register, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
