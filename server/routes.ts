@@ -18,6 +18,8 @@ import {
   earnings,
   withdrawals,
   userAccounts,
+  liverReviews,
+  liverAvailability,
 } from "./schema";
 import { eq, asc, desc, count, sql } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
@@ -645,6 +647,300 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .values({ userId, amount, bankName, bankBranch, accountType, accountNumber, accountName, status: "pending" })
       .returning();
     res.json(row);
+  });
+
+  // ── Livers (Creators extended) ────────────────────────────────────
+  app.get("/api/livers", async (req: Request, res: Response) => {
+    const { name, minScore, category, date } = req.query;
+    let rows = await db.select().from(creators).orderBy(asc(creators.rank));
+    if (name) {
+      const q = (name as string).toLowerCase();
+      rows = rows.filter((r) => r.name.toLowerCase().includes(q));
+    }
+    if (category && category !== "all") {
+      rows = rows.filter((r) => r.category === category);
+    }
+    if (minScore) {
+      const ms = parseFloat(minScore as string);
+      rows = rows.filter((r) => r.satisfactionScore >= ms);
+    }
+    if (date) {
+      const avail = await db.select().from(liverAvailability).where(eq(liverAvailability.date, date as string));
+      const availIds = new Set(avail.map((a) => a.liverId));
+      rows = rows.filter((r) => availIds.has(r.id));
+    }
+    res.json(rows);
+  });
+
+  app.get("/api/livers/:id", async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const [liver] = await db.select().from(creators).where(eq(creators.id, id));
+    if (!liver) return res.status(404).json({ error: "Not found" });
+    res.json(liver);
+  });
+
+  // ── Liver Reviews ─────────────────────────────────────────────────
+  app.get("/api/livers/:id/reviews", async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const rows = await db.select().from(liverReviews)
+      .where(eq(liverReviews.liverId, id))
+      .orderBy(desc(liverReviews.createdAt));
+    res.json(rows);
+  });
+
+  app.post("/api/livers/:id/reviews", async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const { userId, userName, userAvatar, satisfactionScore, streamCountScore, attendanceScore, comment, sessionDate } = req.body;
+    if (!userName || !comment) return res.status(400).json({ error: "必須項目を入力してください" });
+    const overall = ((satisfactionScore ?? 5) + (streamCountScore ?? 5) + (attendanceScore ?? 5)) / 3;
+    const [row] = await db.insert(liverReviews).values({
+      liverId: id,
+      userId: userId ?? "guest",
+      userName,
+      userAvatar: userAvatar ?? null,
+      satisfactionScore: satisfactionScore ?? 5,
+      streamCountScore: streamCountScore ?? 5,
+      attendanceScore: attendanceScore ?? 5,
+      overallScore: parseFloat(overall.toFixed(1)),
+      comment,
+      sessionDate: sessionDate ?? new Date().toISOString().slice(0, 10),
+    }).returning();
+    const allReviews = await db.select().from(liverReviews).where(eq(liverReviews.liverId, id));
+    const avgOverall = allReviews.reduce((s, r) => s + r.overallScore, 0) / allReviews.length;
+    const avgSatisfaction = allReviews.reduce((s, r) => s + r.satisfactionScore, 0) / allReviews.length;
+    const avgAttendance = allReviews.reduce((s, r) => s + r.attendanceScore, 0) / allReviews.length;
+    await db.update(creators).set({
+      heatScore: parseFloat(avgOverall.toFixed(1)),
+      satisfactionScore: parseFloat(avgSatisfaction.toFixed(1)),
+      attendanceRate: parseFloat(avgAttendance.toFixed(1)),
+    }).where(eq(creators.id, id));
+    res.status(201).json(row);
+  });
+
+  // ── Liver Availability ────────────────────────────────────────────
+  app.get("/api/livers/:id/availability", async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const rows = await db.select().from(liverAvailability)
+      .where(eq(liverAvailability.liverId, id))
+      .orderBy(asc(liverAvailability.date), asc(liverAvailability.startTime));
+    res.json(rows);
+  });
+
+  app.post("/api/livers/:id/availability", async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const { date, startTime, endTime, maxSlots, note } = req.body;
+    if (!date || !startTime || !endTime) return res.status(400).json({ error: "日付と時間を入力してください" });
+    const [row] = await db.insert(liverAvailability).values({
+      liverId: id,
+      date,
+      startTime,
+      endTime,
+      maxSlots: maxSlots ?? 3,
+      bookedSlots: 0,
+      note: note ?? "",
+    }).returning();
+    res.status(201).json(row);
+  });
+
+  app.delete("/api/livers/:id/availability/:slotId", async (req: Request, res: Response) => {
+    const slotId = parseInt(req.params.slotId);
+    await db.delete(liverAvailability).where(eq(liverAvailability.id, slotId));
+    res.json({ ok: true });
+  });
+
+  // ── Seed Demo Data ────────────────────────────────────────────────
+  app.post("/api/seed", async (_req: Request, res: Response) => {
+    const existingCreators = await db.select().from(creators);
+    if (existingCreators.length >= 5) {
+      return res.json({ ok: true, message: "Already seeded" });
+    }
+
+    const demoCreators = [
+      {
+        name: "桜井 みなみ",
+        community: "アイドル部",
+        avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
+        rank: 1,
+        heatScore: 4.8,
+        totalViews: 125000,
+        revenue: 980000,
+        streamCount: 87,
+        followers: 15200,
+        revenueShare: 80,
+        satisfactionScore: 4.9,
+        attendanceRate: 4.7,
+        bio: "毎日元気に配信中！みんなと一緒に楽しい時間を過ごしたいです♪",
+        category: "idol",
+      },
+      {
+        name: "田中 ゆうき",
+        community: "英会話クラブ",
+        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
+        rank: 2,
+        heatScore: 4.6,
+        totalViews: 89000,
+        revenue: 650000,
+        streamCount: 62,
+        followers: 9800,
+        revenueShare: 80,
+        satisfactionScore: 4.7,
+        attendanceRate: 4.5,
+        bio: "TOEIC 990点取得。ビジネス英語から日常会話まで丁寧に教えます！",
+        category: "english",
+      },
+      {
+        name: "神崎 リナ",
+        community: "占いサロン",
+        avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop",
+        rank: 3,
+        heatScore: 4.5,
+        totalViews: 73000,
+        revenue: 520000,
+        streamCount: 45,
+        followers: 7600,
+        revenueShare: 80,
+        satisfactionScore: 4.6,
+        attendanceRate: 4.3,
+        bio: "タロット・西洋占星術・数秘術を組み合わせた独自のリーディングで、あなたの未来を照らします。",
+        category: "fortune",
+      },
+      {
+        name: "松本 こうた",
+        community: "フィットネス部",
+        avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",
+        rank: 4,
+        heatScore: 4.3,
+        totalViews: 58000,
+        revenue: 420000,
+        streamCount: 38,
+        followers: 5400,
+        revenueShare: 80,
+        satisfactionScore: 4.4,
+        attendanceRate: 4.8,
+        bio: "元プロサッカー選手。ダイエット・筋トレ・メンタルコーチングを専門とするパーソナルトレーナー。",
+        category: "coaching",
+      },
+      {
+        name: "伊藤 さやか",
+        community: "カウンセリングルーム",
+        avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop",
+        rank: 5,
+        heatScore: 4.7,
+        totalViews: 41000,
+        revenue: 380000,
+        streamCount: 29,
+        followers: 4200,
+        revenueShare: 80,
+        satisfactionScore: 4.8,
+        attendanceRate: 4.9,
+        bio: "臨床心理士・公認心理師。悩みを抱えた方の話を丁寧に聴き、一緒に解決策を探します。",
+        category: "counselor",
+      },
+      {
+        name: "中村 あおい",
+        community: "料理教室",
+        avatar: "https://images.unsplash.com/photo-1502767089025-6572583495b9?w=150&h=150&fit=crop",
+        rank: 6,
+        heatScore: 4.4,
+        totalViews: 33000,
+        revenue: 290000,
+        streamCount: 24,
+        followers: 3100,
+        revenueShare: 80,
+        satisfactionScore: 4.5,
+        attendanceRate: 4.6,
+        bio: "フランス料理学校卒業。家庭で本格的なレシピを楽しく学べる料理教室を開催中。",
+        category: "cooking",
+      },
+    ];
+
+    const insertedCreators = await db.insert(creators).values(demoCreators).returning();
+
+    const today = new Date();
+    const availData: { liverId: number; date: string; startTime: string; endTime: string; maxSlots: number; bookedSlots: number; note: string }[] = [];
+    for (const c of insertedCreators) {
+      for (let d = 0; d < 7; d++) {
+        const dt = new Date(today);
+        dt.setDate(today.getDate() + d);
+        const dateStr = dt.toISOString().slice(0, 10);
+        availData.push({ liverId: c.id, date: dateStr, startTime: "19:00", endTime: "21:00", maxSlots: 3, bookedSlots: Math.floor(Math.random() * 2), note: "" });
+        if (d % 2 === 0) {
+          availData.push({ liverId: c.id, date: dateStr, startTime: "13:00", endTime: "15:00", maxSlots: 2, bookedSlots: 0, note: "午後の部" });
+        }
+      }
+    }
+    await db.insert(liverAvailability).values(availData);
+
+    const reviewAuthors = [
+      { name: "ゆき", avatar: "https://images.unsplash.com/photo-1552374196-c4e7ffc6e126?w=80&h=80&fit=crop" },
+      { name: "たかし", avatar: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=80&h=80&fit=crop" },
+      { name: "はるか", avatar: "https://images.unsplash.com/photo-1554151228-14d9def656e4?w=80&h=80&fit=crop" },
+      { name: "けんじ", avatar: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=80&h=80&fit=crop" },
+    ];
+    const comments = [
+      "とても楽しい時間でした！また予約したいです。",
+      "丁寧な対応で大満足です。スケジュール通りに進んでくれました。",
+      "素晴らしい配信でした。また参加したいと思います！",
+      "期待以上の内容でした。毎回来るのが楽しみです。",
+      "時間を守ってくれて信頼できます。次回も予約します！",
+    ];
+    const reviewData: { liverId: number; userId: string; userName: string; userAvatar: string; satisfactionScore: number; streamCountScore: number; attendanceScore: number; overallScore: number; comment: string; sessionDate: string }[] = [];
+    for (const c of insertedCreators) {
+      for (let i = 0; i < 4; i++) {
+        const author = reviewAuthors[i % reviewAuthors.length];
+        const sat = 4 + Math.floor(Math.random() * 2);
+        const str = 4 + Math.floor(Math.random() * 2);
+        const att = 4 + Math.floor(Math.random() * 2);
+        const overall = parseFloat(((sat + str + att) / 3).toFixed(1));
+        const dt = new Date(today);
+        dt.setDate(today.getDate() - (i + 1) * 7);
+        reviewData.push({
+          liverId: c.id,
+          userId: `user-${i}`,
+          userName: author.name,
+          userAvatar: author.avatar,
+          satisfactionScore: sat,
+          streamCountScore: str,
+          attendanceScore: att,
+          overallScore: overall,
+          comment: comments[i % comments.length],
+          sessionDate: dt.toISOString().slice(0, 10),
+        });
+      }
+    }
+    await db.insert(liverReviews).values(reviewData);
+
+    const existingBookings = await db.select().from(bookingSessions);
+    if (existingBookings.length === 0) {
+      const bookingData = insertedCreators.slice(0, 5).map((c, i) => {
+        const dt = new Date(today);
+        dt.setDate(today.getDate() + i + 1);
+        const categories = ["idol", "english", "fortune", "coaching", "counselor"];
+        const labels = ["アイドル", "英会話", "占い", "コーチング", "カウンセラー"];
+        const prices = [3000, 5000, 4000, 6000, 4500];
+        const cat = categories[i % categories.length];
+        return {
+          creator: c.name,
+          category: cat,
+          categoryLabel: labels[i % labels.length],
+          title: `${c.name}との1対1セッション`,
+          avatar: c.avatar,
+          thumbnail: `https://images.unsplash.com/photo-151645036045${i}-9312f5e86fc7?w=400&h=250&fit=crop`,
+          date: dt.toISOString().slice(0, 10),
+          time: "19:00",
+          duration: "30分",
+          price: prices[i % prices.length],
+          spotsTotal: 5,
+          spotsLeft: 2 + i,
+          rating: parseFloat((4.3 + Math.random() * 0.7).toFixed(1)),
+          reviewCount: 10 + i * 5,
+          tag: i === 0 ? "人気" : null,
+        };
+      });
+      await db.insert(bookingSessions).values(bookingData);
+    }
+
+    res.json({ ok: true, created: insertedCreators.length });
   });
 
   const httpServer = createServer(app);

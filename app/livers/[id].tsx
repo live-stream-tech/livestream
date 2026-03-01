@@ -1,0 +1,623 @@
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Pressable,
+  TextInput,
+  Platform,
+  Alert,
+  ActivityIndicator,
+  Modal,
+} from "react-native";
+import { Image } from "expo-image";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useLocalSearchParams } from "expo-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/query-client";
+import { C } from "@/constants/colors";
+
+type Liver = {
+  id: number;
+  name: string;
+  community: string;
+  avatar: string;
+  rank: number;
+  heatScore: number;
+  streamCount: number;
+  followers: number;
+  satisfactionScore: number;
+  attendanceRate: number;
+  bio: string;
+  category: string;
+};
+
+type Review = {
+  id: number;
+  liverId: number;
+  userId: string;
+  userName: string;
+  userAvatar: string | null;
+  satisfactionScore: number;
+  streamCountScore: number;
+  attendanceScore: number;
+  overallScore: number;
+  comment: string;
+  sessionDate: string;
+  createdAt: string;
+};
+
+type Slot = {
+  id: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  maxSlots: number;
+  bookedSlots: number;
+  note: string;
+};
+
+function StarRow({ score, max = 5 }: { score: number; max?: number }) {
+  return (
+    <View style={{ flexDirection: "row", gap: 2 }}>
+      {Array.from({ length: max }, (_, i) => (
+        <Ionicons
+          key={i}
+          name={i < Math.round(score) ? "star" : "star-outline"}
+          size={12}
+          color={C.orange}
+        />
+      ))}
+    </View>
+  );
+}
+
+function ScoreBar({ label, score, color }: { label: string; score: number; color: string }) {
+  return (
+    <View style={styles.scoreBarRow}>
+      <Text style={styles.scoreBarLabel}>{label}</Text>
+      <View style={styles.scoreBarBg}>
+        <View style={[styles.scoreBarFill, { width: `${(score / 5) * 100}%` as any, backgroundColor: color }]} />
+      </View>
+      <Text style={[styles.scoreBarValue, { color }]}>{score.toFixed(1)}</Text>
+    </View>
+  );
+}
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+function formatSlotDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+  return `${d.getMonth() + 1}/${d.getDate()}（${weekdays[d.getDay()]}）`;
+}
+
+export default function LiverDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const liverId = parseInt(id ?? "1");
+  const insets = useSafeAreaInsets();
+  const topInset = Platform.OS === "web" ? 67 : insets.top;
+  const queryClient = useQueryClient();
+
+  const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "schedule">("overview");
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [myName, setMyName] = useState("ゲスト");
+  const [mySatisfaction, setMySatisfaction] = useState(5);
+  const [myStreamCount, setMyStreamCount] = useState(5);
+  const [myAttendance, setMyAttendance] = useState(5);
+  const [myComment, setMyComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const { data: liver, isLoading: liverLoading } = useQuery<Liver>({
+    queryKey: [`/api/livers/${liverId}`],
+  });
+
+  const { data: reviews = [], isLoading: reviewsLoading } = useQuery<Review[]>({
+    queryKey: [`/api/livers/${liverId}/reviews`],
+  });
+
+  const { data: slots = [] } = useQuery<Slot[]>({
+    queryKey: [`/api/livers/${liverId}/availability`],
+  });
+
+  const reviewMutation = useMutation({
+    mutationFn: async (data: any) => apiRequest("POST", `/api/livers/${liverId}/reviews`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/livers/${liverId}/reviews`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/livers/${liverId}`] });
+      setShowReviewModal(false);
+      setMyComment("");
+      Alert.alert("投稿完了", "レビューを投稿しました");
+    },
+    onError: () => Alert.alert("エラー", "レビューの投稿に失敗しました"),
+  });
+
+  function handleReviewSubmit() {
+    if (!myComment.trim()) {
+      Alert.alert("入力エラー", "コメントを入力してください");
+      return;
+    }
+    reviewMutation.mutate({
+      userName: myName,
+      satisfactionScore: mySatisfaction,
+      streamCountScore: myStreamCount,
+      attendanceScore: myAttendance,
+      comment: myComment,
+      sessionDate: new Date().toISOString().slice(0, 10),
+    });
+  }
+
+  if (liverLoading) {
+    return (
+      <View style={[styles.container, { paddingTop: topInset, alignItems: "center", justifyContent: "center" }]}>
+        <ActivityIndicator color={C.accent} />
+      </View>
+    );
+  }
+
+  if (!liver) {
+    return (
+      <View style={[styles.container, { paddingTop: topInset }]}>
+        <Text style={{ color: C.text, margin: 20 }}>ライバーが見つかりません</Text>
+      </View>
+    );
+  }
+
+  const avgOverall = reviews.length > 0
+    ? (reviews.reduce((s, r) => s + r.overallScore, 0) / reviews.length)
+    : liver.heatScore;
+
+  const upcomingSlots = slots
+    .filter((s) => s.date >= new Date().toISOString().slice(0, 10))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
+    .slice(0, 10);
+
+  function ScoreSelector({ value, onChange, max = 5 }: { value: number; onChange: (v: number) => void; max?: number }) {
+    return (
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
+          <Pressable
+            key={n}
+            onPress={() => onChange(n)}
+            style={[styles.scoreStar, n <= value && styles.scoreStarActive]}
+          >
+            <Ionicons name="star" size={20} color={n <= value ? C.orange : C.textMuted} />
+          </Pressable>
+        ))}
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { paddingTop: topInset }]}>
+      <View style={styles.header}>
+        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={22} color={C.text} />
+        </Pressable>
+        <Text style={styles.headerTitle} numberOfLines={1}>{liver.name}</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.profileCard}>
+          <Image source={{ uri: liver.avatar }} style={styles.avatar} contentFit="cover" />
+          <View style={styles.profileInfo}>
+            <View style={styles.nameRankRow}>
+              <Text style={styles.name}>{liver.name}</Text>
+              <View style={styles.rankBadge}>
+                <Ionicons name="trophy" size={11} color={C.orange} />
+                <Text style={styles.rankText}>#{liver.rank}</Text>
+              </View>
+            </View>
+            <Text style={styles.community}>{liver.community}</Text>
+            <Text style={styles.bio}>{liver.bio}</Text>
+            <View style={styles.statRow}>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{liver.followers.toLocaleString()}</Text>
+                <Text style={styles.statLabel}>フォロワー</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{liver.streamCount}</Text>
+                <Text style={styles.statLabel}>配信回数</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{avgOverall.toFixed(1)}</Text>
+                <Text style={styles.statLabel}>総合評価</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.tabs}>
+          {(["overview", "reviews", "schedule"] as const).map((tab) => {
+            const labels = { overview: "スコア", reviews: `レビュー (${reviews.length})`, schedule: "空き状況" };
+            return (
+              <Pressable
+                key={tab}
+                style={[styles.tab, activeTab === tab && styles.tabActive]}
+                onPress={() => setActiveTab(tab)}
+              >
+                <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+                  {labels[tab]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {activeTab === "overview" && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>3軸評価スコア</Text>
+            <View style={styles.scoreCard}>
+              <View style={styles.overallRow}>
+                <Text style={styles.overallScore}>{avgOverall.toFixed(1)}</Text>
+                <View>
+                  <StarRow score={avgOverall} />
+                  <Text style={styles.overallSub}>{reviews.length}件のレビューより</Text>
+                </View>
+              </View>
+              <View style={{ gap: 10, marginTop: 16 }}>
+                <ScoreBar label="① アンケート満足度" score={liver.satisfactionScore} color={C.accent} />
+                <ScoreBar label="② 配信回数スコア" score={Math.min(liver.streamCount / 20, 5.0)} color={C.orange} />
+                <ScoreBar label="③ 約束遵守（出席率）" score={liver.attendanceRate} color={C.green} />
+              </View>
+            </View>
+
+            <Text style={[styles.sectionTitle, { marginTop: 16 }]}>配信実績</Text>
+            <View style={styles.metricsGrid}>
+              <View style={styles.metricCard}>
+                <Ionicons name="radio-outline" size={20} color={C.accent} />
+                <Text style={styles.metricValue}>{liver.streamCount}</Text>
+                <Text style={styles.metricLabel}>総配信回数</Text>
+              </View>
+              <View style={styles.metricCard}>
+                <Ionicons name="people-outline" size={20} color={C.orange} />
+                <Text style={styles.metricValue}>{(liver.followers / 1000).toFixed(1)}K</Text>
+                <Text style={styles.metricLabel}>フォロワー</Text>
+              </View>
+              <View style={styles.metricCard}>
+                <Ionicons name="star-outline" size={20} color={C.green} />
+                <Text style={styles.metricValue}>{liver.attendanceRate.toFixed(1)}</Text>
+                <Text style={styles.metricLabel}>出席スコア</Text>
+              </View>
+            </View>
+
+            <Pressable
+              style={styles.bookBtn}
+              onPress={() => setActiveTab("schedule")}
+            >
+              <Ionicons name="calendar-outline" size={16} color="#fff" />
+              <Text style={styles.bookBtnText}>予約可能日時を確認する</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {activeTab === "reviews" && (
+          <View style={styles.section}>
+            <View style={styles.reviewsHeader}>
+              <Text style={styles.sectionTitle}>ユーザーレビュー</Text>
+              <Pressable style={styles.addReviewBtn} onPress={() => setShowReviewModal(true)}>
+                <Ionicons name="create-outline" size={14} color={C.accent} />
+                <Text style={styles.addReviewBtnText}>レビューを書く</Text>
+              </Pressable>
+            </View>
+
+            {reviewsLoading ? (
+              <ActivityIndicator color={C.accent} style={{ margin: 20 }} />
+            ) : reviews.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="chatbubble-outline" size={32} color={C.textMuted} />
+                <Text style={styles.emptyText}>まだレビューがありません</Text>
+                <Pressable style={styles.firstReviewBtn} onPress={() => setShowReviewModal(true)}>
+                  <Text style={styles.firstReviewBtnText}>最初のレビューを書く</Text>
+                </Pressable>
+              </View>
+            ) : (
+              reviews.map((review) => (
+                <View key={review.id} style={styles.reviewCard}>
+                  <View style={styles.reviewHeader}>
+                    <View style={styles.reviewerInfo}>
+                      {review.userAvatar ? (
+                        <Image source={{ uri: review.userAvatar }} style={styles.reviewerAvatar} contentFit="cover" />
+                      ) : (
+                        <View style={[styles.reviewerAvatar, styles.reviewerAvatarFallback]}>
+                          <Text style={styles.reviewerInitial}>{review.userName[0]}</Text>
+                        </View>
+                      )}
+                      <View>
+                        <Text style={styles.reviewerName}>{review.userName}</Text>
+                        <Text style={styles.reviewDate}>{formatDate(review.sessionDate)}に参加</Text>
+                      </View>
+                    </View>
+                    <View style={styles.reviewOverallBadge}>
+                      <Ionicons name="star" size={12} color={C.orange} />
+                      <Text style={styles.reviewOverallText}>{review.overallScore.toFixed(1)}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.reviewScores}>
+                    <View style={styles.reviewScoreItem}>
+                      <Text style={styles.reviewScoreLabel}>満足度</Text>
+                      <StarRow score={review.satisfactionScore} />
+                    </View>
+                    <View style={styles.reviewScoreItem}>
+                      <Text style={styles.reviewScoreLabel}>配信</Text>
+                      <StarRow score={review.streamCountScore} />
+                    </View>
+                    <View style={styles.reviewScoreItem}>
+                      <Text style={styles.reviewScoreLabel}>遵守</Text>
+                      <StarRow score={review.attendanceScore} />
+                    </View>
+                  </View>
+
+                  <Text style={styles.reviewComment}>{review.comment}</Text>
+                </View>
+              ))
+            )}
+          </View>
+        )}
+
+        {activeTab === "schedule" && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>予約可能な日時</Text>
+            {upcomingSlots.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="calendar-outline" size={32} color={C.textMuted} />
+                <Text style={styles.emptyText}>現在予約可能な枠がありません</Text>
+              </View>
+            ) : (
+              upcomingSlots.map((slot) => {
+                const isFull = slot.bookedSlots >= slot.maxSlots;
+                const remaining = slot.maxSlots - slot.bookedSlots;
+                return (
+                  <View key={slot.id} style={styles.slotCard}>
+                    <View style={styles.slotLeft}>
+                      <View style={styles.slotDateBlock}>
+                        <Text style={styles.slotDate}>{formatSlotDate(slot.date)}</Text>
+                        <Text style={styles.slotTime}>{slot.startTime} 〜 {slot.endTime}</Text>
+                      </View>
+                      {slot.note ? <Text style={styles.slotNote}>{slot.note}</Text> : null}
+                    </View>
+                    <View style={styles.slotRight}>
+                      <View style={[styles.slotStatusBadge, isFull && styles.slotStatusFull]}>
+                        <Text style={[styles.slotStatusText, isFull && { color: C.live }]}>
+                          {isFull ? "満枠" : `残${remaining}枠`}
+                        </Text>
+                      </View>
+                      {!isFull && (
+                        <Pressable
+                          style={styles.slotBookBtn}
+                          onPress={() => Alert.alert("予約", `${slot.date} ${slot.startTime}〜${slot.endTime} を予約しますか？`)}
+                        >
+                          <Text style={styles.slotBookBtnText}>予約</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        )}
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+
+      <Modal visible={showReviewModal} transparent animationType="slide">
+        <Pressable style={styles.modalOverlay} onPress={() => setShowReviewModal(false)}>
+          <Pressable
+            style={[styles.modalSheet, { paddingBottom: (Platform.OS === "web" ? 34 : insets.bottom) + 16 }]}
+            onPress={() => {}}
+          >
+            <View style={styles.modalHandle} />
+            <View style={styles.modalTitleRow}>
+              <Ionicons name="star-outline" size={18} color={C.orange} />
+              <Text style={styles.modalTitle}>レビューを投稿</Text>
+            </View>
+
+            <Text style={styles.modalFieldLabel}>お名前</Text>
+            <View style={styles.modalInput}>
+              <TextInput
+                style={styles.modalInputText}
+                value={myName}
+                onChangeText={setMyName}
+                placeholder="表示名"
+                placeholderTextColor={C.textMuted}
+              />
+            </View>
+
+            <Text style={styles.modalFieldLabel}>① アンケート満足度</Text>
+            <ScoreSelector value={mySatisfaction} onChange={setMySatisfaction} />
+
+            <Text style={[styles.modalFieldLabel, { marginTop: 12 }]}>② 配信回数スコア</Text>
+            <ScoreSelector value={myStreamCount} onChange={setMyStreamCount} />
+
+            <Text style={[styles.modalFieldLabel, { marginTop: 12 }]}>③ 約束遵守（出席率）</Text>
+            <ScoreSelector value={myAttendance} onChange={setMyAttendance} />
+
+            <Text style={[styles.modalFieldLabel, { marginTop: 12 }]}>コメント</Text>
+            <View style={[styles.modalInput, { height: 80 }]}>
+              <TextInput
+                style={[styles.modalInputText, { textAlignVertical: "top" }]}
+                value={myComment}
+                onChangeText={setMyComment}
+                placeholder="体験を共有してください"
+                placeholderTextColor={C.textMuted}
+                multiline
+                maxLength={300}
+              />
+            </View>
+
+            <Pressable
+              style={[styles.submitBtn, reviewMutation.isPending && { opacity: 0.6 }]}
+              onPress={handleReviewSubmit}
+              disabled={reviewMutation.isPending}
+            >
+              {reviewMutation.isPending ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark" size={18} color="#fff" />
+                  <Text style={styles.submitBtnText}>投稿する</Text>
+                </>
+              )}
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  header: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 16, paddingBottom: 12,
+  },
+  backBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: C.surface, alignItems: "center", justifyContent: "center",
+  },
+  headerTitle: { fontSize: 16, fontWeight: "700", color: C.text, flex: 1, textAlign: "center" },
+  scroll: { flex: 1 },
+  profileCard: {
+    flexDirection: "row", gap: 14, marginHorizontal: 16, marginBottom: 16,
+    backgroundColor: C.surface, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: C.border,
+  },
+  avatar: { width: 80, height: 80, borderRadius: 40 },
+  profileInfo: { flex: 1 },
+  nameRankRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 },
+  name: { fontSize: 18, fontWeight: "800", color: C.text },
+  rankBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: C.surface3, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3,
+  },
+  rankText: { fontSize: 11, fontWeight: "700", color: C.orange },
+  community: { fontSize: 12, color: C.textMuted, marginBottom: 4 },
+  bio: { fontSize: 12, color: C.textSec, lineHeight: 17, marginBottom: 10 },
+  statRow: { flexDirection: "row", alignItems: "center" },
+  statItem: { flex: 1, alignItems: "center" },
+  statValue: { fontSize: 16, fontWeight: "800", color: C.text },
+  statLabel: { fontSize: 10, color: C.textMuted, marginTop: 2 },
+  statDivider: { width: 1, height: 28, backgroundColor: C.border },
+  tabs: {
+    flexDirection: "row", marginHorizontal: 16, marginBottom: 12,
+    backgroundColor: C.surface, borderRadius: 10, padding: 4,
+    borderWidth: 1, borderColor: C.border,
+  },
+  tab: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center" },
+  tabActive: { backgroundColor: C.accent },
+  tabText: { fontSize: 12, fontWeight: "600", color: C.textSec },
+  tabTextActive: { color: "#fff" },
+  section: { marginHorizontal: 16 },
+  sectionTitle: { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 12 },
+  scoreCard: {
+    backgroundColor: C.surface, borderRadius: 12, padding: 16,
+    borderWidth: 1, borderColor: C.border, marginBottom: 8,
+  },
+  overallRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  overallScore: { fontSize: 40, fontWeight: "900", color: C.text },
+  overallSub: { fontSize: 11, color: C.textMuted, marginTop: 4 },
+  scoreBarRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  scoreBarLabel: { fontSize: 12, color: C.textSec, width: 130 },
+  scoreBarBg: { flex: 1, height: 8, backgroundColor: C.surface2, borderRadius: 4, overflow: "hidden" },
+  scoreBarFill: { height: "100%", borderRadius: 4 },
+  scoreBarValue: { fontSize: 13, fontWeight: "700", width: 30, textAlign: "right" },
+  metricsGrid: { flexDirection: "row", gap: 8, marginBottom: 16 },
+  metricCard: {
+    flex: 1, backgroundColor: C.surface, borderRadius: 12, padding: 14,
+    alignItems: "center", gap: 6, borderWidth: 1, borderColor: C.border,
+  },
+  metricValue: { fontSize: 18, fontWeight: "800", color: C.text },
+  metricLabel: { fontSize: 10, color: C.textMuted },
+  bookBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: C.accent, borderRadius: 12, paddingVertical: 13, marginBottom: 8,
+  },
+  bookBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
+  reviewsHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  addReviewBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: C.surface, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6,
+    borderWidth: 1, borderColor: C.accent,
+  },
+  addReviewBtnText: { fontSize: 12, fontWeight: "600", color: C.accent },
+  emptyState: { alignItems: "center", paddingVertical: 40, gap: 12 },
+  emptyText: { fontSize: 14, color: C.textMuted },
+  firstReviewBtn: {
+    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: C.accent,
+  },
+  firstReviewBtnText: { fontSize: 13, fontWeight: "600", color: "#fff" },
+  reviewCard: {
+    backgroundColor: C.surface, borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: C.border, marginBottom: 10,
+  },
+  reviewHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  reviewerInfo: { flexDirection: "row", alignItems: "center", gap: 10 },
+  reviewerAvatar: { width: 36, height: 36, borderRadius: 18 },
+  reviewerAvatarFallback: { backgroundColor: C.surface3, alignItems: "center", justifyContent: "center" },
+  reviewerInitial: { fontSize: 14, fontWeight: "700", color: C.text },
+  reviewerName: { fontSize: 13, fontWeight: "700", color: C.text },
+  reviewDate: { fontSize: 11, color: C.textMuted },
+  reviewOverallBadge: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    backgroundColor: "#2A1F00", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4,
+  },
+  reviewOverallText: { fontSize: 12, fontWeight: "700", color: C.orange },
+  reviewScores: { flexDirection: "row", gap: 12, marginBottom: 10 },
+  reviewScoreItem: { gap: 4 },
+  reviewScoreLabel: { fontSize: 10, color: C.textMuted },
+  reviewComment: { fontSize: 13, color: C.textSec, lineHeight: 19 },
+  slotCard: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: C.surface, borderRadius: 10, padding: 14,
+    borderWidth: 1, borderColor: C.border, marginBottom: 8,
+  },
+  slotLeft: { flex: 1 },
+  slotDateBlock: {},
+  slotDate: { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 2 },
+  slotTime: { fontSize: 12, color: C.textMuted },
+  slotNote: { fontSize: 11, color: C.textMuted, marginTop: 4 },
+  slotRight: { alignItems: "flex-end", gap: 6 },
+  slotStatusBadge: {
+    backgroundColor: "#0D2330", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4,
+  },
+  slotStatusFull: { backgroundColor: "#2A0F0F" },
+  slotStatusText: { fontSize: 11, fontWeight: "600", color: C.accent },
+  slotBookBtn: {
+    backgroundColor: C.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 6,
+  },
+  slotBookBtnText: { fontSize: 12, fontWeight: "700", color: "#fff" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  modalSheet: {
+    backgroundColor: C.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20,
+  },
+  modalHandle: { width: 36, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: "center", marginBottom: 16 },
+  modalTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 },
+  modalTitle: { fontSize: 16, fontWeight: "700", color: C.text },
+  modalFieldLabel: {
+    fontSize: 11, fontWeight: "700", color: C.textMuted, textTransform: "uppercase",
+    letterSpacing: 0.5, marginBottom: 8,
+  },
+  modalInput: {
+    backgroundColor: C.surface2, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10,
+    marginBottom: 12, borderWidth: 1, borderColor: C.border,
+  },
+  modalInputText: { fontSize: 14, color: C.text },
+  scoreStar: { padding: 2 },
+  scoreStarActive: {},
+  submitBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    backgroundColor: C.accent, borderRadius: 12, paddingVertical: 14, marginTop: 4,
+  },
+  submitBtnText: { fontSize: 15, fontWeight: "700", color: "#fff" },
+});

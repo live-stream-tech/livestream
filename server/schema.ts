@@ -57,6 +57,10 @@ export const creators = pgTable("creators", {
   streamCount: integer("stream_count").notNull().default(0),
   followers: integer("followers").notNull().default(0),
   revenueShare: integer("revenue_share").notNull().default(80),
+  satisfactionScore: real("satisfaction_score").notNull().default(0),
+  attendanceRate: real("attendance_rate").notNull().default(0),
+  bio: text("bio").notNull().default(""),
+  category: text("category").notNull().default("idol"),
 });
 
 export const bookingSessions = pgTable("booking_sessions", {
@@ -214,5 +218,32 @@ export const twoshotBookings = pgTable("twoshot_bookings", {
   cancelReason: text("cancel_reason"),
   refundable: boolean("refundable").notNull().default(false),
   evaluationScore: integer("evaluation_score"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const liverReviews = pgTable("liver_reviews", {
+  id: serial("id").primaryKey(),
+  liverId: integer("liver_id").notNull(),
+  userId: text("user_id").notNull().default("guest"),
+  userName: text("user_name").notNull(),
+  userAvatar: text("user_avatar"),
+  satisfactionScore: integer("satisfaction_score").notNull().default(5),
+  streamCountScore: integer("stream_count_score").notNull().default(5),
+  attendanceScore: integer("attendance_score").notNull().default(5),
+  overallScore: real("overall_score").notNull().default(5.0),
+  comment: text("comment").notNull().default(""),
+  sessionDate: text("session_date").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const liverAvailability = pgTable("liver_availability", {
+  id: serial("id").primaryKey(),
+  liverId: integer("liver_id").notNull(),
+  date: text("date").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  maxSlots: integer("max_slots").notNull().default(3),
+  bookedSlots: integer("booked_slots").notNull().default(0),
+  note: text("note").notNull().default(""),
   createdAt: timestamp("created_at").defaultNow(),
 });
