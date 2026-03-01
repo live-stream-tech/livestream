@@ -18,20 +18,30 @@ if (Platform.OS === "web" && typeof window !== "undefined" && "serviceWorker" in
 }
 
 function LineTokenHandler() {
-  const { line_token, line_error } = useLocalSearchParams<{ line_token?: string; line_error?: string }>();
+  const { line_token } = useLocalSearchParams<{ line_token?: string }>();
   const { loginWithToken } = useAuth();
 
   useEffect(() => {
-    if (line_token) {
-      loginWithToken(line_token as string)
-        .then(() => {
-          if (Platform.OS === "web" && typeof window !== "undefined") {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const webToken = params.get("line_token");
+      if (webToken) {
+        loginWithToken(webToken)
+          .then(() => {
             const url = new URL(window.location.href);
             url.searchParams.delete("line_token");
             window.history.replaceState({}, "", url.toString());
-          }
-          router.replace("/(tabs)/profile");
-        })
+            router.replace("/(tabs)/profile");
+          })
+          .catch(() => {});
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" && line_token) {
+      loginWithToken(line_token as string)
+        .then(() => router.replace("/(tabs)/profile"))
         .catch(() => {});
     }
   }, [line_token]);
