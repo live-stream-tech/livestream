@@ -6,9 +6,9 @@ channel = "stable-24_05"
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["bash", "-c", "npm run server:build && npx expo export --platform web"]
+build = ["bash", "-c", "npm ci && npm run server:build && npx expo export --platform web"]
 run = ["npm", "run", "server:prod"]
-publicDir = "public"
+publicDir = "dist"
 
 [[ports]]
 localPort = 5000
