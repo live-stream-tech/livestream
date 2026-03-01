@@ -27,13 +27,27 @@ function formatNumber(n: number): string {
 }
 
 function VideoCard({ item }: { item: any }) {
+  const isPhotoPost = !item.duration || item.duration === "00:00";
   return (
     <Pressable style={styles.videoCard} onPress={() => router.push(`/video/${item.id}`)}>
       <View style={styles.videoThumbContainer}>
-        <Image source={{ uri: item.thumbnail }} style={styles.videoThumb} contentFit="cover" />
-        <View style={styles.durationBadge}>
-          <Text style={styles.durationText}>{item.duration}</Text>
-        </View>
+        {item.thumbnail ? (
+          <Image source={{ uri: item.thumbnail }} style={styles.videoThumb} contentFit="cover" />
+        ) : (
+          <View style={[styles.videoThumb, styles.noThumbPlaceholder]}>
+            <Ionicons name="document-text-outline" size={28} color={C.textMuted} />
+          </View>
+        )}
+        {isPhotoPost ? (
+          <View style={styles.photoBadge}>
+            <Ionicons name="image-outline" size={11} color="#fff" />
+            <Text style={styles.photoBadgeText}>写真</Text>
+          </View>
+        ) : (
+          <View style={styles.durationBadge}>
+            <Text style={styles.durationText}>{item.duration}</Text>
+          </View>
+        )}
       </View>
       <View style={styles.videoInfo}>
         <View style={styles.creatorRow}>
@@ -503,6 +517,28 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 11,
     fontWeight: "600",
+  },
+  photoBadge: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    backgroundColor: "rgba(41,182,207,0.85)",
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  photoBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  noThumbPlaceholder: {
+    backgroundColor: C.surface2,
+    alignItems: "center",
+    justifyContent: "center",
   },
   videoInfo: {
     marginTop: 8,

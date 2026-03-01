@@ -35,12 +35,11 @@ export default function UploadScreen() {
 
   const { data: communities = [] } = useQuery<Community[]>({ queryKey: ["/api/communities"] });
 
-  const [videoUri, setVideoUri] = useState<string | null>(null);
-  const [thumbnailUri, setThumbnailUri] = useState<string | null>(null);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedCommunityId, setSelectedCommunityId] = useState<number | null>(null);
-  const [fee, setFee] = useState<FeeType>("paid");
+  const [fee, setFee] = useState<FeeType>("free");
   const [price, setPrice] = useState<PriceOption>(500);
   const [scope, setScope] = useState<ScopeType>("public");
   const [tags, setTags] = useState("");
@@ -49,33 +48,33 @@ export default function UploadScreen() {
   const activeCommunityId = selectedCommunityId ?? communities[0]?.id ?? null;
   const selectedCommunity = communities.find((c) => c.id === activeCommunityId);
 
-  async function pickVideo() {
+  async function pickPhoto() {
+    if (Platform.OS === "web") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.onchange = (e: any) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          const url = URL.createObjectURL(file);
+          setPhotoUri(url);
+        }
+      };
+      input.click();
+      return;
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("権限が必要です", "動画を選択するにはメディアライブラリへのアクセスを許可してください");
+      Alert.alert("権限が必要です", "写真を選択するにはメディアライブラリへのアクセスを許可してください");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["videos"],
-      allowsEditing: true,
-      quality: 1,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setVideoUri(result.assets[0].uri);
-    }
-  }
-
-  async function pickThumbnail() {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") return;
-    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsEditing: true,
-      aspect: [16, 9],
       quality: 0.9,
     });
     if (!result.canceled && result.assets[0]) {
-      setThumbnailUri(result.assets[0].uri);
+      setPhotoUri(result.assets[0].uri);
     }
   }
 
@@ -84,11 +83,11 @@ export default function UploadScreen() {
     setUploading(true);
     try {
       const communityName = selectedCommunity?.name ?? "一般";
-      const thumbUrl = thumbnailUri
+      const thumbUrl = photoUri
         ?? selectedCommunity?.thumbnail
         ?? "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=400&fit=crop";
       const avatarUrl = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop";
-      const newVideo = await apiRequest("POST", "/api/videos", {
+      const newPost = await apiRequest("POST", "/api/videos", {
         title: title.trim(),
         creator: communityName,
         community: communityName,
@@ -98,8 +97,8 @@ export default function UploadScreen() {
         avatar: avatarUrl,
       });
       await queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
-      Alert.alert("投稿完了！", "動画が投稿されました", [
-        { text: "確認する", onPress: () => router.replace(`/video/${newVideo.id}`) },
+      Alert.alert("記録完了！", "活動が記録されました", [
+        { text: "確認する", onPress: () => router.replace(`/video/${newPost.id}`) },
         { text: "ホームへ", onPress: () => router.replace("/") },
       ]);
     } catch (e) {
@@ -109,16 +108,15 @@ export default function UploadScreen() {
     }
   }
 
-  const canUpload = videoUri && title.trim().length > 0;
+  const canUpload = title.trim().length > 0;
 
   return (
-    <View style={[styles.container]}>
-      {/* Header */}
+    <View style={styles.container}>
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={22} color={C.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>動画を投稿</Text>
+        <Text style={styles.headerTitle}>活動を記録</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -127,59 +125,36 @@ export default function UploadScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* 動画選択エリア */}
-        <Pressable style={styles.videoPicker} onPress={pickVideo}>
-          {videoUri ? (
-            <View style={styles.videoPreviewContainer}>
-              {thumbnailUri ? (
-                <Image source={{ uri: thumbnailUri }} style={styles.videoPreview} contentFit="cover" />
-              ) : (
-                <View style={styles.videoPreviewPlaceholder}>
-                  <Ionicons name="film-outline" size={40} color={C.accent} />
-                  <Text style={styles.videoSelectedText}>動画を選択済み</Text>
-                </View>
-              )}
-              <View style={styles.videoSelectedBadge}>
+        {/* 写真選択エリア */}
+        <Pressable style={styles.photoPicker} onPress={pickPhoto}>
+          {photoUri ? (
+            <View style={styles.photoPreviewContainer}>
+              <Image source={{ uri: photoUri }} style={styles.photoPreview} contentFit="cover" />
+              <View style={styles.photoSelectedBadge}>
                 <Ionicons name="checkmark-circle" size={18} color={C.green} />
-                <Text style={styles.videoSelectedLabel}>選択済み</Text>
+                <Text style={styles.photoSelectedLabel}>写真を選択済み</Text>
               </View>
-              <Pressable style={styles.rePickBtn} onPress={pickVideo}>
+              <Pressable style={styles.rePickBtn} onPress={pickPhoto}>
                 <Text style={styles.rePickText}>変更</Text>
               </Pressable>
             </View>
           ) : (
-            <View style={styles.videoPickerInner}>
-              <View style={styles.videoPickerIcon}>
-                <Ionicons name="cloud-upload-outline" size={36} color={C.accent} />
+            <View style={styles.photoPickerInner}>
+              <View style={styles.photoPickerIcon}>
+                <Ionicons name="image-outline" size={36} color={C.accent} />
               </View>
-              <Text style={styles.videoPickerTitle}>動画を選択</Text>
-              <Text style={styles.videoPickerSub}>ライブラリから選ぶ</Text>
+              <Text style={styles.photoPickerTitle}>写真を追加（任意）</Text>
+              <Text style={styles.photoPickerSub}>タップして写真を選ぶ</Text>
             </View>
           )}
         </Pressable>
-
-        {/* サムネイル */}
-        <View style={styles.section}>
-          <Text style={styles.label}>サムネイル</Text>
-          <Pressable style={styles.thumbnailPicker} onPress={pickThumbnail}>
-            {thumbnailUri ? (
-              <Image source={{ uri: thumbnailUri }} style={styles.thumbnailPreview} contentFit="cover" />
-            ) : (
-              <View style={styles.thumbnailPickerInner}>
-                <Ionicons name="image-outline" size={24} color={C.textMuted} />
-                <Text style={styles.thumbnailPickerText}>サムネイルを選択</Text>
-              </View>
-            )}
-          </Pressable>
-          <Text style={styles.hint}>16:9 推奨 (1280×720以上)</Text>
-        </View>
 
         {/* タイトル */}
         <View style={styles.section}>
           <Text style={styles.label}>タイトル <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={styles.input}
-            placeholder="動画のタイトルを入力..."
+            placeholder="活動のタイトルを入力..."
             placeholderTextColor={C.textMuted}
             value={title}
             onChangeText={setTitle}
@@ -193,7 +168,7 @@ export default function UploadScreen() {
           <Text style={styles.label}>説明</Text>
           <TextInput
             style={[styles.input, styles.textarea]}
-            placeholder="動画の説明を入力..."
+            placeholder="活動の内容を入力..."
             placeholderTextColor={C.textMuted}
             value={description}
             onChangeText={setDescription}
@@ -251,14 +226,8 @@ export default function UploadScreen() {
                   style={[styles.scopeOption, isActive && styles.scopeOptionActive]}
                   onPress={() => setScope(s)}
                 >
-                  <Ionicons
-                    name={icons[s] as any}
-                    size={18}
-                    color={isActive ? C.accent : C.textMuted}
-                  />
-                  <Text style={[styles.scopeText, isActive && styles.scopeTextActive]}>
-                    {labels[s]}
-                  </Text>
+                  <Ionicons name={icons[s] as any} size={18} color={isActive ? C.accent : C.textMuted} />
+                  <Text style={[styles.scopeText, isActive && styles.scopeTextActive]}>{labels[s]}</Text>
                 </Pressable>
               );
             })}
@@ -327,17 +296,17 @@ export default function UploadScreen() {
           <Pressable
             style={[styles.submitBtn, (!canUpload || uploading) && styles.submitBtnDisabled]}
             onPress={handleSubmit}
-            disabled={uploading}
+            disabled={uploading || !canUpload}
           >
             {uploading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Ionicons name="cloud-upload" size={18} color="#fff" />
+              <Ionicons name="checkmark-circle" size={18} color="#fff" />
             )}
-            <Text style={styles.submitBtnText}>{uploading ? "投稿中..." : "投稿する"}</Text>
+            <Text style={styles.submitBtnText}>{uploading ? "記録中..." : "活動を記録"}</Text>
           </Pressable>
           {!canUpload && (
-            <Text style={styles.submitHint}>動画とタイトルは必須です</Text>
+            <Text style={styles.submitHint}>タイトルは必須です</Text>
           )}
         </View>
       </ScrollView>
@@ -371,10 +340,9 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
-
-  /* 動画選択 */
-  videoPicker: {
+  photoPicker: {
     marginHorizontal: 16,
+    marginTop: 8,
     marginBottom: 4,
     height: 200,
     borderRadius: 14,
@@ -384,13 +352,13 @@ const styles = StyleSheet.create({
     borderColor: C.border,
     borderStyle: "dashed",
   },
-  videoPickerInner: {
+  photoPickerInner: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
   },
-  videoPickerIcon: {
+  photoPickerIcon: {
     width: 72,
     height: 72,
     borderRadius: 36,
@@ -398,36 +366,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  videoPickerTitle: {
+  photoPickerTitle: {
     color: C.text,
     fontSize: 16,
     fontWeight: "700",
   },
-  videoPickerSub: {
+  photoPickerSub: {
     color: C.textMuted,
     fontSize: 13,
   },
-  videoPreviewContainer: {
+  photoPreviewContainer: {
     flex: 1,
     position: "relative",
   },
-  videoPreview: {
+  photoPreview: {
     width: "100%",
     height: "100%",
   },
-  videoPreviewPlaceholder: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    backgroundColor: C.surface2,
-  },
-  videoSelectedText: {
-    color: C.text,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  videoSelectedBadge: {
+  photoSelectedBadge: {
     position: "absolute",
     bottom: 10,
     left: 10,
@@ -439,7 +395,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  videoSelectedLabel: {
+  photoSelectedLabel: {
     color: C.green,
     fontSize: 12,
     fontWeight: "700",
@@ -458,8 +414,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
-
-  /* セクション共通 */
   section: {
     marginHorizontal: 16,
     marginTop: 20,
@@ -484,33 +438,6 @@ const styles = StyleSheet.create({
     textAlign: "right",
     marginTop: 4,
   },
-
-  /* サムネイル */
-  thumbnailPicker: {
-    height: 110,
-    borderRadius: 10,
-    overflow: "hidden",
-    backgroundColor: C.surface,
-    borderWidth: 1.5,
-    borderColor: C.border,
-    borderStyle: "dashed",
-  },
-  thumbnailPickerInner: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-  },
-  thumbnailPickerText: {
-    color: C.textMuted,
-    fontSize: 13,
-  },
-  thumbnailPreview: {
-    width: "100%",
-    height: "100%",
-  },
-
-  /* 入力フィールド */
   input: {
     backgroundColor: C.surface,
     borderRadius: 10,
@@ -526,8 +453,6 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     paddingTop: 12,
   },
-
-  /* コミュニティ */
   communityScroll: {
     gap: 8,
   },
@@ -552,8 +477,6 @@ const styles = StyleSheet.create({
   communityPillTextActive: {
     color: C.accent,
   },
-
-  /* 公開範囲 */
   scopeRow: {
     gap: 8,
   },
@@ -580,8 +503,6 @@ const styles = StyleSheet.create({
   scopeTextActive: {
     color: C.accent,
   },
-
-  /* 料金 */
   feeRow: {
     flexDirection: "row",
     gap: 10,
@@ -655,8 +576,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "800",
   },
-
-  /* 投稿ボタン */
   submitSection: {
     marginHorizontal: 16,
     marginTop: 28,

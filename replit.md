@@ -1,13 +1,23 @@
 # LiveStock - ライブ配信・動画プラットフォーム
 
 ## 概要
-LiveStockはライブ配信・有料動画プラットフォームのモバイルアプリ（Expo React Native）。コミュニティ機能、ランキング、配信者統計を備える。
+LiveStockはライブ配信・有料動画プラットフォームのWebアプリ（Expo React Native Web / PWA）。コミュニティ機能、ランキング、配信者統計を備える。Webブラウザのみで動作（Expo Go不使用）。
 
 ## アーキテクチャ
-- **フロントエンド**: Expo Router（ファイルベースルーティング）
-- **バックエンド**: Express + TypeScript（ポート5000）
+- **フロントエンド**: Expo Router（ファイルベースルーティング）、Webブラウザ専用（ポート8081）
+- **バックエンド**: Express + TypeScript（ポート5000、Expoへのプロキシ）
 - **状態管理**: AsyncStorage + React Context
 - **データ取得**: @tanstack/react-query
+
+## 投稿機能
+- `app/upload.tsx` — 活動記録画面
+  - 写真（任意）＋テキスト（必須）で投稿可能
+  - 動画不要、タイトルのみで投稿可
+  - 投稿ボタン：「活動を記録」
+  - Web環境ではファイルピッカーで写真選択
+- `app/(tabs)/index.tsx` の `VideoCard` — 写真投稿対応
+  - `duration === "00:00"` の場合に「写真」バッジを表示
+  - サムネイルなし投稿もプレースホルダーで表示
 
 ## 画面構成
 
