@@ -206,30 +206,24 @@ function configureExpoAndLanding(app: express.Application) {
       return (expoProxy as express.RequestHandler)(req, res, next);
     });
   } else {
-    app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
-    app.use(express.static(path.resolve(process.cwd(), "static-build")));
-    app.use(express.static(path.resolve(process.cwd(), "public"), {
-      setHeaders: (res, filePath) => {
-        if (filePath.endsWith("sw.js")) {
-          res.setHeader("Content-Type", "application/javascript");
-          res.setHeader("Service-Worker-Allowed", "/");
-          res.setHeader("Cache-Control", "no-cache");
-        }
-        if (filePath.endsWith("manifest.json")) {
-          res.setHeader("Content-Type", "application/manifest+json");
-        }
-      },
-    }));
-
-    const landingPageTemplatePath = path.resolve(process.cwd(), "server", "templates", "landing-page.html");
-    if (fs.existsSync(landingPageTemplatePath)) {
-      const landingPageTemplate = fs.readFileSync(landingPageTemplatePath, "utf-8");
-      const appName = getAppName();
+    const distPath = path.resolve(process.cwd(), "dist");
+    if (fs.existsSync(distPath)) {
+      log(`Serving Expo web export from: ${distPath}`);
+      app.use(express.static(distPath));
       app.use((req: Request, res: Response, next: NextFunction) => {
         if (req.path.startsWith("/api")) return next();
-        const platform = req.header("expo-platform");
-        if (platform && (platform === "ios" || platform === "android")) return next();
-        serveLandingPage({ req, res, landingPageTemplate, appName });
+        const indexPath = path.join(distPath, "index.html");
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+        } else {
+          next();
+        }
+      });
+    } else {
+      log("WARNING: dist/ directory not found. Run 'npx expo export --platform web' to build.");
+      app.use((req: Request, res: Response, next: NextFunction) => {
+        if (req.path.startsWith("/api")) return next();
+        res.status(404).send("Web app not built. Please run the build command.");
       });
     }
   }
