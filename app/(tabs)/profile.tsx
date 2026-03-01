@@ -362,6 +362,12 @@ export default function ProfileScreen() {
               <Ionicons name="pencil-outline" size={18} color={C.text} />
             </Pressable>
             <Pressable
+              style={styles.settingsBtn}
+              onPress={() => router.push("/settings")}
+            >
+              <Ionicons name="settings-outline" size={18} color={C.textMuted} />
+            </Pressable>
+            <Pressable
               testID="logout-button"
               accessibilityLabel="ログアウト"
               accessibilityRole="button"
@@ -964,6 +970,15 @@ const styles = StyleSheet.create({
   // Header actions (edit + logout)
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
   logoutBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  settingsBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,

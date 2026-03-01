@@ -127,6 +127,10 @@ type FeeType = "free" | "paid";
 type PriceOption = 500 | 1000 | 3000 | 5000;
 
 function LiveStartModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const handleStart = () => {
+    onClose();
+    router.push("/broadcast");
+  };
   const insets = useSafeAreaInsets();
   const [scope, setScope] = useState<PublicScope>("public");
   const [fee, setFee] = useState<FeeType>("paid");
@@ -251,7 +255,7 @@ function LiveStartModal({ visible, onClose }: { visible: boolean; onClose: () =>
               </View>
             </View>
 
-            <Pressable style={styles.startBtn}>
+            <Pressable style={styles.startBtn} onPress={handleStart}>
               <View style={styles.startDot} />
               <Text style={styles.startBtnText}>ライブ配信を開始</Text>
             </Pressable>
@@ -282,13 +286,13 @@ export default function LiveScreen() {
     <View style={[styles.container]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-        <Pressable style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={22} color={C.text} />
+        <Pressable style={styles.backBtn} onPress={() => router.push("/livers")}>
+          <Ionicons name="search-outline" size={18} color={C.text} />
         </Pressable>
         <Text style={styles.headerTitle}>LIVE & RESERVE</Text>
-        <Pressable style={styles.bookingBtn}>
-          <Ionicons name="calendar-outline" size={14} color={C.textSec} />
-          <Text style={styles.bookingText}>BOOKING</Text>
+        <Pressable style={styles.startFabSmall} onPress={() => setModalVisible(true)}>
+          <Ionicons name="radio" size={14} color="#fff" />
+          <Text style={styles.startFabSmallText}>START</Text>
         </Pressable>
       </View>
 
@@ -380,15 +384,6 @@ export default function LiveScreen() {
         )}
         <View style={{ height: 100 + bottomInset }} />
       </ScrollView>
-
-      {/* Floating Start Button */}
-      <Pressable
-        style={[styles.startFab, { bottom: bottomInset + 80 }]}
-        onPress={() => setModalVisible(true)}
-      >
-        <Ionicons name="radio" size={16} color="#fff" />
-        <Text style={styles.startFabText}>START</Text>
-      </Pressable>
 
       <LiveStartModal visible={modalVisible} onClose={() => setModalVisible(false)} />
     </View>
@@ -576,6 +571,21 @@ const styles = StyleSheet.create({
   startFabText: {
     color: "#fff",
     fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  startFabSmall: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: C.live,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  startFabSmallText: {
+    color: "#fff",
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.5,
   },
