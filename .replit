@@ -87,4 +87,4 @@ ensurePreviewReachable = "/status"
 [userenv.shared]
 LINE_CHANNEL_ID = "2009275584"
 LINE_CHANNEL_SECRET = "e00810483047ed03794c7b23c674275d"
-LINE_CALLBACK_URL = "https://livestock.replit.app/api/auth/callback/line"
+LINE_CALLBACK_URL = "https://figma-importer.replit.app/api/auth/callback/line"
