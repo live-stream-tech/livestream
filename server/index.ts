@@ -220,6 +220,18 @@ function configureExpoAndLanding(app: express.Application) {
         }
       },
     }));
+
+    const landingPageTemplatePath = path.resolve(process.cwd(), "server", "templates", "landing-page.html");
+    if (fs.existsSync(landingPageTemplatePath)) {
+      const landingPageTemplate = fs.readFileSync(landingPageTemplatePath, "utf-8");
+      const appName = getAppName();
+      app.use((req: Request, res: Response, next: NextFunction) => {
+        if (req.path.startsWith("/api")) return next();
+        const platform = req.header("expo-platform");
+        if (platform && (platform === "ios" || platform === "android")) return next();
+        serveLandingPage({ req, res, landingPageTemplate, appName });
+      });
+    }
   }
 
   log("Expo routing: Checking expo-platform header on / and /manifest");
