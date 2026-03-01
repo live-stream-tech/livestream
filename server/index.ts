@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import * as fs from "fs";
 import * as path from "path";
+import { createProxyMiddleware } from "http-proxy-middleware";
 
 const app = express();
 const log = console.log;
@@ -161,14 +162,7 @@ function serveLandingPage({
 }
 
 function configureExpoAndLanding(app: express.Application) {
-  const templatePath = path.resolve(
-    process.cwd(),
-    "server",
-    "templates",
-    "landing-page.html",
-  );
-  const landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
-  const appName = getAppName();
+  const isDev = process.env.NODE_ENV === "development";
 
   log("Serving static Expo files with dynamic manifest routing");
 
@@ -177,41 +171,56 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
 
-    if (req.path !== "/" && req.path !== "/manifest") {
-      return next();
-    }
-
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
-      return serveExpoManifest(platform, res);
-    }
-
-    if (req.path === "/") {
-      return serveLandingPage({
-        req,
-        res,
-        landingPageTemplate,
-        appName,
-      });
+      if (req.path === "/" || req.path === "/manifest") {
+        return serveExpoManifest(platform, res);
+      }
     }
 
     next();
   });
 
-  app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
-  app.use(express.static(path.resolve(process.cwd(), "static-build")));
-  app.use(express.static(path.resolve(process.cwd(), "public"), {
-    setHeaders: (res, filePath) => {
-      if (filePath.endsWith("sw.js")) {
-        res.setHeader("Content-Type", "application/javascript");
-        res.setHeader("Service-Worker-Allowed", "/");
-        res.setHeader("Cache-Control", "no-cache");
-      }
-      if (filePath.endsWith("manifest.json")) {
-        res.setHeader("Content-Type", "application/manifest+json");
-      }
-    },
-  }));
+  if (isDev) {
+    const expoDevPort = 8081;
+    log(`Dev mode: proxying web requests to Expo dev server on port ${expoDevPort}`);
+
+    const expoProxy = createProxyMiddleware({
+      target: `http://localhost:${expoDevPort}`,
+      changeOrigin: true,
+      ws: true,
+      on: {
+        error: (_err: unknown, _req: unknown, res: unknown) => {
+          const r = res as Response;
+          if (r && typeof r.status === "function") {
+            r.status(502).send("Expo dev server not ready yet. Please wait a moment and refresh.");
+          }
+        },
+      },
+    });
+
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (req.path.startsWith("/api")) return next();
+      const platform = req.header("expo-platform");
+      if (platform && (platform === "ios" || platform === "android")) return next();
+      return (expoProxy as express.RequestHandler)(req, res, next);
+    });
+  } else {
+    app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
+    app.use(express.static(path.resolve(process.cwd(), "static-build")));
+    app.use(express.static(path.resolve(process.cwd(), "public"), {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith("sw.js")) {
+          res.setHeader("Content-Type", "application/javascript");
+          res.setHeader("Service-Worker-Allowed", "/");
+          res.setHeader("Cache-Control", "no-cache");
+        }
+        if (filePath.endsWith("manifest.json")) {
+          res.setHeader("Content-Type", "application/manifest+json");
+        }
+      },
+    }));
+  }
 
   log("Expo routing: Checking expo-platform header on / and /manifest");
 }
