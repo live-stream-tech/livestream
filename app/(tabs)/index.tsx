@@ -177,16 +177,76 @@ function CreatorRankCard({ item }: { item: any }) {
   );
 }
 
+const DUMMY_VIDEOS = [
+  { id: 1, thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&h=200&fit=crop", duration: "12:34", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", community: "地下アイドル界隈", title: "【アイドル】初めての生配信！みんなとお話したい♪", views: 12400, timeAgo: "2時間前", price: null },
+  { id: 2, thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&h=200&fit=crop", duration: "28:15", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop", community: "キャバ嬢・ホスト界隈", title: "今夜のトーク！恋愛相談なんでも聞くよ✨", views: 8900, timeAgo: "4時間前", price: 500 },
+  { id: 3, thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=200&fit=crop", duration: "45:00", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop", community: "英会話クラブ", title: "TOEIC満点講師が教える！ビジネス英語入門", views: 31200, timeAgo: "6時間前", price: 1000 },
+  { id: 4, thumbnail: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&h=200&fit=crop", duration: "00:00", avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=40&h=40&fit=crop", community: "JK日常界隈", title: "今日のコーデ公開📸 秋冬パーカーコーデ", views: 5600, timeAgo: "8時間前", price: null },
+  { id: 5, thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=200&fit=crop", duration: "33:20", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop", community: "占いサロン", title: "【タロット占い】今週のあなたの運勢を読み解く", views: 19800, timeAgo: "12時間前", price: 300 },
+];
+
+const DUMMY_LIVE = [
+  { id: 1, thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", community: "地下アイドル界隈", title: "星空みゆ♪ 歌とダンスでお届け！", viewers: 1240, timeAgo: "配信中" },
+  { id: 2, thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop", community: "キャバ嬢・ホスト界隈", title: "麗華の夜トーク【本音で語るよ】", viewers: 890, timeAgo: "配信中" },
+  { id: 3, thumbnail: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop", community: "フィットネス部", title: "朝活！一緒にヨガしよう🧘", viewers: 420, timeAgo: "配信中" },
+  { id: 4, thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop", community: "占いサロン", title: "神崎リナ【深夜の占いタイム🔮】", viewers: 312, timeAgo: "配信中" },
+];
+
+const DUMMY_RANKED: Record<string, any[]> = {
+  WEEKLY: [
+    { id: 1, thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&h=150&fit=crop", duration: "42:00", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop", community: "キャバ嬢・ホスト界隈", title: "麗華の本音トーク！週間1位", views: 88400, timeAgo: "1日前", price: 500, rank: 1 },
+    { id: 2, thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=150&fit=crop", duration: "60:00", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop", community: "英会話クラブ", title: "完全マスター！TOEIC900点の英語術", views: 54200, timeAgo: "2日前", price: 1000, rank: 2 },
+    { id: 3, thumbnail: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=150&fit=crop", duration: "28:30", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", community: "地下アイドル界隈", title: "みゆの歌唱力全開スペシャル✨", views: 41000, timeAgo: "3日前", price: 300, rank: 3 },
+    { id: 4, thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=150&fit=crop", duration: "50:00", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop", community: "占いサロン", title: "【限定公開】2025年運勢大鑑定", views: 36700, timeAgo: "4日前", price: 800, rank: 4 },
+  ],
+  MONTHLY: [
+    { id: 5, thumbnail: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=150&fit=crop", duration: "55:00", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop", community: "フィットネス部", title: "月間1位！脂肪燃焼フルプログラム", views: 210000, timeAgo: "2週間前", price: 1500, rank: 1 },
+    { id: 6, thumbnail: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=150&fit=crop", duration: "90:00", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=40&h=40&fit=crop", community: "カウンセリングルーム", title: "心の整え方 〜ストレスを手放すヒント〜", views: 175000, timeAgo: "3週間前", price: 2000, rank: 2 },
+    { id: 7, thumbnail: "https://images.unsplash.com/photo-1502767089025-6572583495b9?w=200&h=150&fit=crop", duration: "38:00", avatar: "https://images.unsplash.com/photo-1502767089025-6572583495b9?w=40&h=40&fit=crop", community: "料理教室", title: "フレンチのきほん！本格ソースの作り方", views: 142000, timeAgo: "3週間前", price: 800, rank: 3 },
+    { id: 8, thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&h=150&fit=crop", duration: "42:00", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop", community: "キャバ嬢・ホスト界隈", title: "麗華の恋愛講座 第3弾", views: 128000, timeAgo: "1ヶ月前", price: 500, rank: 4 },
+  ],
+  ALL: [
+    { id: 9, thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=150&fit=crop", duration: "120:00", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop", community: "英会話クラブ", title: "【殿堂入り】英語習得の全ロードマップ", views: 850000, timeAgo: "半年前", price: 3000, rank: 1 },
+    { id: 10, thumbnail: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=150&fit=crop", duration: "180:00", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=40&h=40&fit=crop", community: "カウンセリングルーム", title: "人生を変える心理学の授業【全集】", views: 720000, timeAgo: "1年前", price: 5000, rank: 2 },
+    { id: 11, thumbnail: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=150&fit=crop", duration: "60:00", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", community: "地下アイドル界隈", title: "みゆ1st記念ライブ完全版", views: 654000, timeAgo: "8ヶ月前", price: 1000, rank: 3 },
+    { id: 12, thumbnail: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=150&fit=crop", duration: "90:00", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop", community: "フィットネス部", title: "【総集編】完全版ボディメイクプログラム", views: 590000, timeAgo: "10ヶ月前", price: 2000, rank: 4 },
+  ],
+};
+
+const DUMMY_CREATORS: Record<string, any[]> = {
+  WEEKLY: [
+    { id: 1, name: "麗華 -REIKA-", community: "キャバ嬢・ホスト界隈", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=80&h=80&fit=crop", rank: 1, heatScore: 1414, totalViews: 164800, revenue: 165000, streamCount: 52, followers: 67000, revenueShare: 80 },
+    { id: 2, name: "星空みゆ", community: "地下アイドル界隈", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop", rank: 2, heatScore: 1090, totalViews: 185320, revenue: 173000, streamCount: 34, followers: 48000, revenueShare: 80 },
+    { id: 3, name: "コンビ芸人「ダブルパンチ」", community: "お笑い芸人界隈", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop", rank: 3, heatScore: 923, totalViews: 172450, revenue: 119000, streamCount: 45, followers: 92000, revenueShare: 80 },
+    { id: 4, name: "まいまい17歳", community: "JK日常界隈", avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=80&h=80&fit=crop", rank: 4, heatScore: 865, totalViews: 148900, revenue: 85500, streamCount: 68, followers: 52000, revenueShare: 80 },
+  ],
+  MONTHLY: [
+    { id: 5, name: "桜井 みなみ", community: "アイドル部", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop", rank: 1, heatScore: 4.8, totalViews: 125000, revenue: 980000, streamCount: 87, followers: 15200, revenueShare: 80 },
+    { id: 6, name: "田中 ゆうき", community: "英会話クラブ", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop", rank: 2, heatScore: 4.6, totalViews: 89000, revenue: 650000, streamCount: 62, followers: 9800, revenueShare: 80 },
+    { id: 7, name: "伊藤 さやか", community: "カウンセリングルーム", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&h=80&fit=crop", rank: 3, heatScore: 4.7, totalViews: 41000, revenue: 380000, streamCount: 29, followers: 4200, revenueShare: 80 },
+    { id: 8, name: "神崎 リナ", community: "占いサロン", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop", rank: 4, heatScore: 4.5, totalViews: 73000, revenue: 520000, streamCount: 45, followers: 7600, revenueShare: 80 },
+  ],
+  ALL: [
+    { id: 9, name: "田中 ゆうき", community: "英会話クラブ", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop", rank: 1, heatScore: 9999, totalViews: 890000, revenue: 6500000, streamCount: 312, followers: 98000, revenueShare: 80 },
+    { id: 10, name: "麗華 -REIKA-", community: "キャバ嬢・ホスト界隈", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=80&h=80&fit=crop", rank: 2, heatScore: 8821, totalViews: 740000, revenue: 5200000, streamCount: 280, followers: 670000, revenueShare: 80 },
+    { id: 11, name: "星空みゆ", community: "地下アイドル界隈", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop", rank: 3, heatScore: 7540, totalViews: 620000, revenue: 4100000, streamCount: 201, followers: 480000, revenueShare: 80 },
+    { id: 12, name: "伊藤 さやか", community: "カウンセリングルーム", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&h=80&fit=crop", rank: 4, heatScore: 6320, totalViews: 510000, revenue: 3800000, streamCount: 145, followers: 210000, revenueShare: 80 },
+  ],
+};
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [rankFilter, setRankFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("ALL");
   const [creatorFilter, setCreatorFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("MONTHLY");
 
-  const { data: videos = [] } = useQuery<any[]>({ queryKey: ["/api/videos"] });
-  const { data: liveStreams = [] } = useQuery<any[]>({ queryKey: ["/api/live-streams"] });
-  const { data: rankedVideos = [] } = useQuery<any[]>({ queryKey: ["/api/videos/ranked"] });
-  const { data: creators = [] } = useQuery<any[]>({ queryKey: ["/api/creators"] });
+  const { data: apiVideos = [] } = useQuery<any[]>({ queryKey: ["/api/videos"] });
+  const { data: apiLive = [] } = useQuery<any[]>({ queryKey: ["/api/live-streams"] });
   const unreadCount = useUnreadCount();
+
+  const videos = apiVideos.length > 0 ? apiVideos : DUMMY_VIDEOS;
+  const liveStreams = apiLive.length > 0 ? apiLive : DUMMY_LIVE;
+  const rankedVideos = DUMMY_RANKED[rankFilter];
+  const creators = DUMMY_CREATORS[creatorFilter];
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
