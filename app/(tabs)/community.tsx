@@ -22,6 +22,27 @@ function useUnreadCount() {
   return (data as Notif[]).filter((n) => !n.isRead).length;
 }
 
+const GENRES = [
+  { id: 1, name: "アニメ", icon: "tv-outline", count: 1204 },
+  { id: 2, name: "バンド", icon: "musical-notes-outline", count: 876 },
+  { id: 3, name: "サブカル", icon: "sparkles-outline", count: 642 },
+  { id: 4, name: "コスプレ", icon: "shirt-outline", count: 531 },
+  { id: 5, name: "VTuber", icon: "desktop-outline", count: 987 },
+];
+
+const DUMMY_POSTS = [
+  { id: 1, user: "sakura_fan", avatar: "https://i.pravatar.cc/40?img=1", text: "新エピソードが最高すぎた…作画もストーリーも完璧", videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", genre: "アニメ", votes: 342, timeAgo: "2時間前" },
+  { id: 2, user: "band_master", avatar: "https://i.pravatar.cc/40?img=2", text: "昨日のライブ配信がやばかった！アンコール3回もやってくれた", videoUrl: "https://www.youtube.com/watch?v=9bZkp7q19f0", genre: "バンド", votes: 215, timeAgo: "4時間前" },
+  { id: 3, user: "subculture_king", avatar: "https://i.pravatar.cc/40?img=3", text: "コミケの新刊速報！もう完売しそう…", videoUrl: "", genre: "サブカル", votes: 189, timeAgo: "6時間前" },
+  { id: 4, user: "cosplay_queen", avatar: "https://i.pravatar.cc/40?img=4", text: "今日の衣装どう思う？手作りで3週間かかった", videoUrl: "https://www.youtube.com/watch?v=ZRtdQ81jPUQ", genre: "コスプレ", votes: 567, timeAgo: "1時間前" },
+  { id: 5, user: "vtuber_lover", avatar: "https://i.pravatar.cc/40?img=5", text: "推しのデビュー1周年おめでとう！ずっと応援してるよ", videoUrl: "https://www.youtube.com/watch?v=uelHwf8o7_U", genre: "VTuber", votes: 891, timeAgo: "30分前" },
+  { id: 6, user: "anime_nerd", avatar: "https://i.pravatar.cc/40?img=6", text: "このOPのイントロで鳥肌立った。神曲すぎる", videoUrl: "https://www.youtube.com/watch?v=CevxZvSJLk8", genre: "アニメ", votes: 124, timeAgo: "8時間前" },
+  { id: 7, user: "rock_soul", avatar: "https://i.pravatar.cc/40?img=7", text: "新曲のギターソロが天才的すぎてコピーできない", videoUrl: "https://www.youtube.com/watch?v=fJ9rUzIMcZQ", genre: "バンド", votes: 203, timeAgo: "5時間前" },
+  { id: 8, user: "otaku_life", avatar: "https://i.pravatar.cc/40?img=8", text: "聖地巡礼レポート！実際に行ってきたよ動画あり", videoUrl: "https://www.youtube.com/watch?v=XqZsoesa55w", genre: "サブカル", votes: 77, timeAgo: "12時間前" },
+  { id: 9, user: "costume_pro", avatar: "https://i.pravatar.cc/40?img=9", text: "ウィッグのセット方法を動画で解説しました！", videoUrl: "https://www.youtube.com/watch?v=L_jWHffIx5E", genre: "コスプレ", votes: 312, timeAgo: "3時間前" },
+  { id: 10, user: "virtual_dream", avatar: "https://i.pravatar.cc/40?img=10", text: "3Dモデル更新きた！動きがめちゃくちゃ滑らか", videoUrl: "https://www.youtube.com/watch?v=fRh_vgS2dFE", genre: "VTuber", votes: 445, timeAgo: "45分前" },
+];
+
 const CATEGORIES = ["すべて", "音楽", "アート", "スポーツ", "ゲーム", "ライフスタイル"];
 const CATEGORY_ICONS: Record<string, string> = {
   すべて: "trending-up",
@@ -44,6 +65,12 @@ export default function CommunityScreen() {
   const [selectedCategory, setSelectedCategory] = useState("すべて");
   const [searchText, setSearchText] = useState("");
   const [rankingExpanded, setRankingExpanded] = useState(false);
+  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+  const [votedPosts, setVotedPosts] = useState<Record<number, boolean>>({});
+  const [postVotes, setPostVotes] = useState<Record<number, number>>(
+    Object.fromEntries(DUMMY_POSTS.map((p) => [p.id, p.votes]))
+  );
+  const [votedRanks, setVotedRanks] = useState<Record<number, boolean>>({});
 
   const { data: allCommunities = [] } = useQuery<any[]>({ queryKey: ["/api/communities"] });
   const { data: rankedVideos = [] } = useQuery<any[]>({ queryKey: ["/api/videos/ranked"] });
@@ -51,6 +78,20 @@ export default function CommunityScreen() {
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
+
+  function handleVotePost(id: number) {
+    if (votedPosts[id]) return;
+    setVotedPosts((prev) => ({ ...prev, [id]: true }));
+    setPostVotes((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+  }
+
+  function handleVoteRank(id: number) {
+    setVotedRanks((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  const filteredPosts = selectedGenre
+    ? DUMMY_POSTS.filter((p) => p.genre === selectedGenre)
+    : DUMMY_POSTS;
 
   const myCommunities = allCommunities.filter((c: any) =>
     selectedCategory === "すべて" ? true : c.category === selectedCategory
@@ -197,6 +238,16 @@ export default function CommunityScreen() {
                 <View style={styles.communityRankRight}>
                   <Ionicons name="people" size={13} color={C.textMuted} />
                   <Text style={styles.communityRankMembers}>{formatNumber(community.members)}</Text>
+                  <Pressable
+                    style={[styles.voteBtn, votedRanks[community.id] && styles.voteBtnActive]}
+                    onPress={() => handleVoteRank(community.id)}
+                  >
+                    <Ionicons
+                      name={votedRanks[community.id] ? "thumbs-up" : "thumbs-up-outline"}
+                      size={13}
+                      color={votedRanks[community.id] ? "#fff" : C.accent}
+                    />
+                  </Pressable>
                 </View>
               </Pressable>
             );
@@ -263,6 +314,79 @@ export default function CommunityScreen() {
             </Pressable>
           ))}
         </ScrollView>
+
+        {/* ④ ジャンル別一覧 */}
+        <View style={[styles.sectionHeader, { marginTop: 20 }]}>
+          <View style={styles.sectionAccent} />
+          <Text style={styles.sectionTitle}>ジャンル別コミュニティ</Text>
+        </View>
+
+        <View style={styles.genreGrid}>
+          {GENRES.map((genre) => (
+            <Pressable
+              key={genre.id}
+              style={[styles.genreCard, selectedGenre === genre.name && styles.genreCardActive]}
+              onPress={() => setSelectedGenre(selectedGenre === genre.name ? null : genre.name)}
+            >
+              <Ionicons
+                name={genre.icon as any}
+                size={22}
+                color={selectedGenre === genre.name ? "#fff" : C.accent}
+              />
+              <Text style={[styles.genreName, selectedGenre === genre.name && styles.genreNameActive]}>
+                {genre.name}
+              </Text>
+              <Text style={styles.genreCount}>{formatNumber(genre.count)}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* ⑤ 投稿一覧 */}
+        <View style={[styles.sectionHeader, { marginTop: 20 }]}>
+          <View style={styles.sectionAccent} />
+          <Text style={styles.sectionTitle}>
+            {selectedGenre ? `${selectedGenre}の投稿` : "最新の投稿"}
+          </Text>
+        </View>
+
+        <View style={styles.postList}>
+          {filteredPosts.map((post) => (
+            <View key={post.id} style={styles.postCard}>
+              <View style={styles.postHeader}>
+                <Image source={{ uri: post.avatar }} style={styles.postAvatar} contentFit="cover" />
+                <View style={styles.postMeta}>
+                  <Text style={styles.postUser}>{post.user}</Text>
+                  <View style={styles.postMetaRow}>
+                    <Text style={styles.postGenreBadge}>{post.genre}</Text>
+                    <Text style={styles.postTime}>{post.timeAgo}</Text>
+                  </View>
+                </View>
+              </View>
+              <Text style={styles.postText}>{post.text}</Text>
+              {!!post.videoUrl && (
+                <View style={styles.postVideoRow}>
+                  <Ionicons name="play-circle-outline" size={14} color={C.accent} />
+                  <Text style={styles.postVideoUrl} numberOfLines={1}>{post.videoUrl}</Text>
+                </View>
+              )}
+              <View style={styles.postFooter}>
+                <Pressable
+                  style={[styles.postVoteBtn, votedPosts[post.id] && styles.postVoteBtnActive]}
+                  onPress={() => handleVotePost(post.id)}
+                >
+                  <Ionicons
+                    name={votedPosts[post.id] ? "thumbs-up" : "thumbs-up-outline"}
+                    size={14}
+                    color={votedPosts[post.id] ? "#fff" : C.accent}
+                  />
+                  <Text style={[styles.postVoteText, votedPosts[post.id] && styles.postVoteTextActive]}>
+                    {postVotes[post.id] ?? post.votes}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ))}
+        </View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -600,6 +724,151 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     marginTop: 1,
+  },
+  voteBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.accent,
+    marginLeft: 6,
+  },
+  voteBtnActive: {
+    backgroundColor: C.accent,
+    borderColor: C.accent,
+  },
+  genreGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 16,
+    gap: 10,
+    marginBottom: 4,
+  },
+  genreCard: {
+    width: "18%",
+    minWidth: 62,
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: C.surface,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  genreCardActive: {
+    backgroundColor: C.accent,
+    borderColor: C.accent,
+  },
+  genreName: {
+    color: C.text,
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  genreNameActive: {
+    color: "#fff",
+  },
+  genreCount: {
+    color: C.textMuted,
+    fontSize: 10,
+    textAlign: "center",
+  },
+  postList: {
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  postCard: {
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  postHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  postAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  postMeta: {
+    flex: 1,
+    gap: 3,
+  },
+  postUser: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  postMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  postGenreBadge: {
+    color: C.accent,
+    fontSize: 10,
+    fontWeight: "600",
+    backgroundColor: "rgba(41,182,207,0.12)",
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  postTime: {
+    color: C.textMuted,
+    fontSize: 10,
+  },
+  postText: {
+    color: C.text,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  postVideoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: C.surface2,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  postVideoUrl: {
+    color: C.accent,
+    fontSize: 11,
+    flex: 1,
+  },
+  postFooter: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  postVoteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: C.accent,
+  },
+  postVoteBtnActive: {
+    backgroundColor: C.accent,
+    borderColor: C.accent,
+  },
+  postVoteText: {
+    color: C.accent,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  postVoteTextActive: {
+    color: "#fff",
   },
   expandBtn: {
     flexDirection: "row",
