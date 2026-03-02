@@ -751,11 +751,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── Seed Demo Data ────────────────────────────────────────────────
   app.post("/api/seed", async (_req: Request, res: Response) => {
     const existingCreators = await db.select().from(creators);
-    if (existingCreators.length >= 5) {
+    if (existingCreators.length >= 10) {
       return res.json({ ok: true, message: "Already seeded" });
     }
 
+    const existingNames = new Set(existingCreators.map((c: any) => c.name));
+
     const demoCreators = [
+      {
+        name: "星空みゆ",
+        community: "地下アイドル界隈",
+        avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop",
+        rank: 1,
+        heatScore: 1090.1,
+        totalViews: 185320,
+        revenue: 173000,
+        streamCount: 34,
+        followers: 48000,
+        revenueShare: 80,
+        satisfactionScore: 4.5,
+        attendanceRate: 4.3,
+        bio: "地下アイドル界隈のトップランカー。歌とダンスで毎回視聴者を魅了する実力派ライバー。",
+        category: "idol",
+      },
+      {
+        name: "コンビ芸人「ダブルパンチ」",
+        community: "お笑い芸人界隈",
+        avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop",
+        rank: 2,
+        heatScore: 923.5,
+        totalViews: 172450,
+        revenue: 119000,
+        streamCount: 45,
+        followers: 92000,
+        revenueShare: 80,
+        satisfactionScore: 4.2,
+        attendanceRate: 4.1,
+        bio: "お笑いコンビとして活動中。ライブ配信でも息の合ったトークで笑いを届けます。",
+        category: "idol",
+      },
+      {
+        name: "麗華 -REIKA-",
+        community: "キャバ嬢・ホスト界隈",
+        avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=100&h=100&fit=crop",
+        rank: 3,
+        heatScore: 1414,
+        totalViews: 164800,
+        revenue: 165000,
+        streamCount: 52,
+        followers: 67000,
+        revenueShare: 80,
+        satisfactionScore: 4.6,
+        attendanceRate: 4.8,
+        bio: "キャバ嬢×ライバーとして大人気。トーク力と美貌で多くのファンを獲得。",
+        category: "idol",
+      },
+      {
+        name: "まいまい17歳",
+        community: "JK日常界隈",
+        avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&h=100&fit=crop",
+        rank: 4,
+        heatScore: 865.7,
+        totalViews: 148900,
+        revenue: 85500,
+        streamCount: 68,
+        followers: 52000,
+        revenueShare: 80,
+        satisfactionScore: 4.3,
+        attendanceRate: 4.5,
+        bio: "JKのリアルな日常を発信中。素朴で親しみやすいキャラが人気の秘密。",
+        category: "idol",
+      },
       {
         name: "桜井 みなみ",
         community: "アイドル部",
@@ -854,7 +920,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       },
     ];
 
-    const insertedCreators = await db.insert(creators).values(demoCreators).returning();
+    const toInsert = demoCreators.filter((c) => !existingNames.has(c.name));
+    if (toInsert.length === 0) {
+      return res.json({ ok: true, message: "Already seeded" });
+    }
+    const insertedCreators = await db.insert(creators).values(toInsert).returning();
 
     const today = new Date();
     const availData: { liverId: number; date: string; startTime: string; endTime: string; maxSlots: number; bookedSlots: number; note: string }[] = [];
