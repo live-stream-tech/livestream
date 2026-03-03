@@ -257,6 +257,8 @@ function setupErrorHandler(app: express.Application) {
   setupBodyParsing(app);
   setupRequestLogging(app);
 
+  app.get("/healthcheck", (_req, res) => res.status(200).send("OK"));
+
   configureExpoAndLanding(app);
 
   const server = await registerRoutes(app);

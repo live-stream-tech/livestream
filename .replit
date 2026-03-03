@@ -6,7 +6,7 @@ channel = "stable-24_05"
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["bash", "-c", "npm run expo:static:build && npm run server:build"]
+build = ["bash", "-c", "npm run expo:static:build && npx esbuild server/index.ts --platform=node --packages=external --bundle --format=cjs --outdir=server_dist"]
 run = ["npm", "run", "server:prod"]
 publicDir = "dist"
 
