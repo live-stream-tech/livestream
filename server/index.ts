@@ -8,6 +8,8 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 const app = express();
 const log = console.log;
 
+app.get('/healthcheck', (_req, res) => res.status(200).send('OK'));
+
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
