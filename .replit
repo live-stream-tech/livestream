@@ -6,7 +6,7 @@ channel = "stable-24_05"
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["bash", "-c", "npm run expo:static:build && npx esbuild server/index.ts --platform=node --packages=external --bundle --format=cjs --outdir=server_dist"]
+build = ["bash", "-c", "npm run expo:static:build && npx expo export --platform web && npx esbuild server/index.ts --platform=node --packages=external --bundle --format=cjs --outdir=server_dist"]
 run = ["npm", "run", "server:prod"]
 publicDir = "dist"
 
@@ -16,7 +16,6 @@ externalPort = 5000
 
 [[ports]]
 localPort = 8081
-externalPort = 80
 
 [[ports]]
 localPort = 8082
