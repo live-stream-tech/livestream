@@ -1,19 +1,22 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   Pressable,
+  TextInput,
   Platform,
-  TouchableOpacity,
+  Animated,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
 import { COMMUNITIES, VIDEOS, CREATORS } from "@/constants/data";
+import { apiRequest } from "@/lib/query-client";
 
 type AdData = { title: string; sub: string; cta: string; bg: string; accent: string; thumb: string };
 
@@ -74,6 +77,258 @@ function getAd(name: string): AdData {
   return key ? COMMUNITY_ADS[key] : DEFAULT_AD;
 }
 
+type BoardPost = {
+  id: string;
+  type: "event" | "live" | "notice";
+  tag: string;
+  title: string;
+  detail: string;
+  date: string;
+  icon: string;
+  color: string;
+};
+
+const BOARD_POSTS: BoardPost[] = [
+  {
+    id: "bd1",
+    type: "live",
+    tag: "ライブ告知",
+    title: "ワンマンライブ 先行チケット開始",
+    detail: "4/20（土）Zepp Tokyo • OPEN 17:00 / START 18:00",
+    date: "3/3",
+    icon: "musical-notes",
+    color: C.accent,
+  },
+  {
+    id: "bd2",
+    type: "event",
+    tag: "イベント",
+    title: "チェキ＆握手会 参加者募集",
+    detail: "3/22（土）渋谷WWW • 定員50名 先着順",
+    date: "3/2",
+    icon: "camera",
+    color: "#FF4081",
+  },
+  {
+    id: "bd3",
+    type: "notice",
+    tag: "お知らせ",
+    title: "コミュニティメンバー限定 配信スケジュール",
+    detail: "毎週木曜 22:00〜 メンバー向けトーク配信を予定",
+    date: "3/1",
+    icon: "megaphone",
+    color: C.orange,
+  },
+  {
+    id: "bd4",
+    type: "live",
+    tag: "生配信",
+    title: "アニバーサリーライブ配信",
+    detail: "3/30（日）21:00〜 コミュニティ限定アーカイブあり",
+    date: "2/28",
+    icon: "radio",
+    color: "#29B6CF",
+  },
+  {
+    id: "bd5",
+    type: "event",
+    tag: "オフ会",
+    title: "春のオフ会 企画中！参加者募集",
+    detail: "4/5（土）新宿 • 参加費無料",
+    date: "2/26",
+    icon: "people",
+    color: C.green,
+  },
+];
+
+type JukeboxState = {
+  communityId: number;
+  currentVideoTitle: string | null;
+  currentVideoThumbnail: string | null;
+  currentVideoDurationSecs: number;
+  startedAt: string;
+  isPlaying: boolean;
+  watchersCount: number;
+};
+
+type QueueItem = {
+  id: number;
+  videoTitle: string;
+  videoThumbnail: string;
+  videoDurationSecs: number;
+  addedBy: string;
+  addedByAvatar: string | null;
+  isPlayed: boolean;
+};
+
+type ChatMsg = {
+  id: number;
+  username: string;
+  avatar: string | null;
+  message: string;
+  createdAt: string;
+};
+
+type JukeboxData = {
+  state: JukeboxState | null;
+  queue: QueueItem[];
+  chat: ChatMsg[];
+};
+
+function calcProgress(startedAt: string, durationSecs: number): number {
+  const elapsed = (Date.now() - new Date(startedAt).getTime()) / 1000;
+  if (durationSecs <= 0) return 0;
+  return Math.min(elapsed / durationSecs, 1);
+}
+
+function fmtSecs(s: number): string {
+  if (!s || s <= 0) return "0:00";
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
+function EmbeddedJukebox({ communityId }: { communityId: number }) {
+  const qc = useQueryClient();
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const [comment, setComment] = useState("");
+  const [progress, setProgress] = useState(0);
+
+  const { data } = useQuery<JukeboxData>({
+    queryKey: [`/api/jukebox/${communityId}`],
+    refetchInterval: 5000,
+  });
+
+  const state = data?.state ?? null;
+  const queue = data?.queue ?? [];
+  const chat = (data?.chat ?? []).slice(-3);
+  const upcoming = queue.filter((q) => !q.isPlayed);
+
+  useEffect(() => {
+    if (!state?.isPlaying) return;
+    const iv = setInterval(() => {
+      setProgress(calcProgress(state.startedAt, state.currentVideoDurationSecs));
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [state?.startedAt, state?.currentVideoDurationSecs, state?.isPlaying]);
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.3, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
+
+  const chatMutation = useMutation({
+    mutationFn: (msg: string) =>
+      apiRequest("POST", `/api/jukebox/${communityId}/chat`, {
+        username: "あなた",
+        avatar: null,
+        message: msg,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/jukebox/${communityId}`] }),
+  });
+
+  const sendComment = useCallback(() => {
+    const msg = comment.trim();
+    if (!msg) return;
+    setComment("");
+    chatMutation.mutate(msg);
+  }, [comment]);
+
+  const addedByItem = upcoming[0];
+
+  return (
+    <View style={jukeStyles.container}>
+      <View style={jukeStyles.header}>
+        <View style={jukeStyles.badge}>
+          <Animated.View style={[jukeStyles.badgeDot, { transform: [{ scale: pulseAnim }] }]} />
+          <Text style={jukeStyles.badgeText}>JUKEBOX</Text>
+        </View>
+        <View style={jukeStyles.watchersChip}>
+          <Ionicons name="people" size={11} color="rgba(255,255,255,0.7)" />
+          <Text style={jukeStyles.watchersText}>{state?.watchersCount ?? 0}人視聴中</Text>
+        </View>
+        <Pressable style={jukeStyles.fullBtn} onPress={() => router.push(`/jukebox/${communityId}`)}>
+          <Ionicons name="expand" size={13} color={C.textMuted} />
+        </Pressable>
+      </View>
+
+      {state ? (
+        <View style={jukeStyles.playerRow}>
+          <View style={jukeStyles.thumbWrap}>
+            {state.currentVideoThumbnail ? (
+              <Image source={{ uri: state.currentVideoThumbnail }} style={jukeStyles.thumb} contentFit="cover" />
+            ) : (
+              <View style={[jukeStyles.thumb, { backgroundColor: C.surface3 }]} />
+            )}
+            <View style={jukeStyles.thumbOverlay} />
+            <View style={jukeStyles.playCircle}>
+              <Ionicons name="play" size={14} color="#fff" />
+            </View>
+          </View>
+          <View style={jukeStyles.playerInfo}>
+            <Text style={jukeStyles.nowPlayingTitle} numberOfLines={2}>
+              {state.currentVideoTitle}
+            </Text>
+            {addedByItem && (
+              <Text style={jukeStyles.addedBy} numberOfLines={1}>
+                {addedByItem.addedBy} が選んだ
+              </Text>
+            )}
+            <View style={jukeStyles.progressRow}>
+              <View style={jukeStyles.progressTrack}>
+                <View style={[jukeStyles.progressFill, { width: `${progress * 100}%` as any }]} />
+              </View>
+              <Text style={jukeStyles.progressTime}>
+                {fmtSecs(state.currentVideoDurationSecs)}
+              </Text>
+            </View>
+          </View>
+        </View>
+      ) : (
+        <View style={jukeStyles.emptyPlayer}>
+          <Ionicons name="musical-notes-outline" size={24} color={C.textMuted} />
+          <Text style={jukeStyles.emptyText}>再生中の動画なし</Text>
+        </View>
+      )}
+
+      {chat.length > 0 && (
+        <View style={jukeStyles.commentsWrap}>
+          {chat.map((msg) => (
+            <View key={msg.id} style={jukeStyles.commentRow}>
+              <Text style={jukeStyles.commentUser}>{msg.username}</Text>
+              <Text style={jukeStyles.commentText} numberOfLines={1}>{msg.message}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <View style={jukeStyles.commentInput}>
+        <TextInput
+          style={jukeStyles.input}
+          placeholder="コメント（保存されません）"
+          placeholderTextColor={C.textMuted}
+          value={comment}
+          onChangeText={setComment}
+          onSubmitEditing={sendComment}
+          returnKeyType="send"
+        />
+        <Pressable
+          style={[jukeStyles.sendBtn, !comment.trim() && jukeStyles.sendBtnDisabled]}
+          onPress={sendComment}
+        >
+          <Ionicons name="send" size={14} color="#fff" />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 const TABS = ["新着順", "クリエイター", "掲示板"] as const;
 type Tab = typeof TABS[number];
 
@@ -84,17 +339,14 @@ export default function CommunityDetailScreen() {
   const [following, setFollowing] = useState(false);
 
   const community = COMMUNITIES.find((c) => c.id === id) ?? COMMUNITIES[0];
+  const communityId = parseInt(community.id);
   const ad = getAd(community.name);
 
   const bottomInset = Platform.OS === "web" ? 34 : 0;
 
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
-      <ScrollView
-        style={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Cover Image — shorter */}
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.coverContainer}>
           <Image source={{ uri: community.thumbnail }} style={styles.coverImage} contentFit="cover" />
           <View style={styles.coverOverlay} />
@@ -106,8 +358,7 @@ export default function CommunityDetailScreen() {
           </Pressable>
         </View>
 
-        {/* Ad Banner */}
-        <TouchableOpacity activeOpacity={0.85} style={[styles.adBanner, { backgroundColor: ad.bg }]}>
+        <Pressable activeOpacity={0.85} style={[styles.adBanner, { backgroundColor: ad.bg }]}>
           <View style={styles.adPrBadge}>
             <Text style={styles.adPrText}>PR</Text>
           </View>
@@ -119,9 +370,8 @@ export default function CommunityDetailScreen() {
           <View style={[styles.adCtaBtn, { backgroundColor: ad.accent }]}>
             <Text style={styles.adCtaText}>{ad.cta}</Text>
           </View>
-        </TouchableOpacity>
+        </Pressable>
 
-        {/* Profile */}
         <View style={styles.profileSection}>
           <View style={styles.profileRow}>
             <View style={styles.communityAvatarContainer}>
@@ -153,26 +403,23 @@ export default function CommunityDetailScreen() {
             </Text>
           </View>
 
-          <View style={styles.actionRow}>
-            <Pressable
-              style={[styles.followBtn, following && styles.followBtnActive]}
-              onPress={() => setFollowing(!following)}
-            >
-              <Text style={styles.followBtnText}>
-                {following ? "フォロー中" : "フォロー"}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={styles.jukeboxBtn}
-              onPress={() => router.push(`/jukebox/${id}`)}
-            >
-              <Ionicons name="musical-notes" size={14} color={C.orange} />
-              <Text style={styles.jukeboxBtnText}>ジュークボックス</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            style={[styles.followBtn, following && styles.followBtnActive]}
+            onPress={() => setFollowing(!following)}
+          >
+            <Ionicons
+              name={following ? "checkmark" : "add"}
+              size={16}
+              color={following ? C.textSec : "#fff"}
+            />
+            <Text style={[styles.followBtnText, following && styles.followBtnTextActive]}>
+              {following ? "フォロー中" : "フォローする"}
+            </Text>
+          </Pressable>
         </View>
 
-        {/* Tabs */}
+        <EmbeddedJukebox communityId={communityId} />
+
         <View style={styles.tabRow}>
           {TABS.map((tab) => (
             <Pressable
@@ -185,13 +432,11 @@ export default function CommunityDetailScreen() {
           ))}
         </View>
 
-        {/* Content */}
         {activeTab === "新着順" && (
           <View>
-            {/* Video request card */}
             <View style={styles.requestCard}>
               <View style={styles.requestHeader}>
-                <Ionicons name="videocam" size={20} color={C.accent} />
+                <Ionicons name="videocam" size={18} color={C.accent} />
                 <Text style={styles.requestTitle}>動画投稿を依頼する</Text>
               </View>
               <Text style={styles.requestDesc}>
@@ -207,17 +452,22 @@ export default function CommunityDetailScreen() {
               </View>
             </View>
 
-            {/* Posts */}
-            {VIDEOS.slice(0, 3).map((video) => (
+            {VIDEOS.slice(0, 4).map((video) => (
               <Pressable key={video.id} style={styles.postCard} onPress={() => router.push(`/video/${video.id}`)}>
                 <View style={styles.postHeader}>
                   <Image source={{ uri: video.avatar }} style={styles.postAvatar} contentFit="cover" />
-                  <View>
+                  <View style={styles.postMeta}>
                     <Text style={styles.postCreator}>{video.creator}</Text>
                     <Text style={styles.postTime}>{video.timeAgo}</Text>
                   </View>
+                  {video.price && (
+                    <View style={styles.pricePill}>
+                      <Text style={styles.pricePillText}>¥{video.price}</Text>
+                    </View>
+                  )}
                 </View>
                 <Image source={{ uri: video.thumbnail }} style={styles.postImage} contentFit="cover" />
+                <Text style={styles.postTitle} numberOfLines={1}>{video.title}</Text>
               </Pressable>
             ))}
           </View>
@@ -225,16 +475,14 @@ export default function CommunityDetailScreen() {
 
         {activeTab === "クリエイター" && (
           <View style={styles.creatorList}>
-            {CREATORS.slice(0, 3).map((creator) => (
+            {CREATORS.slice(0, 4).map((creator) => (
               <View key={creator.id} style={styles.creatorItem}>
                 <Image source={{ uri: creator.avatar }} style={styles.creatorAvatar} contentFit="cover" />
                 <View style={styles.creatorInfo}>
                   <Text style={styles.creatorName}>{creator.name}</Text>
                   <Text style={styles.creatorCommunity}>{creator.community}</Text>
                   <View style={styles.creatorStats}>
-                    <Text style={styles.creatorStat}>
-                      <Ionicons name="people-outline" size={11} /> {(creator.followers / 1000).toFixed(0)}千フォロワー
-                    </Text>
+                    <Text style={styles.creatorStat}>{(creator.followers / 1000).toFixed(0)}千フォロワー</Text>
                     <Text style={styles.creatorStat}>配信{creator.streamCount}回</Text>
                   </View>
                 </View>
@@ -247,9 +495,25 @@ export default function CommunityDetailScreen() {
         )}
 
         {activeTab === "掲示板" && (
-          <View style={styles.boardEmpty}>
-            <Ionicons name="chatbubbles-outline" size={48} color={C.textMuted} />
-            <Text style={styles.emptyText}>掲示板の投稿はまだありません</Text>
+          <View style={styles.boardList}>
+            {BOARD_POSTS.map((post) => (
+              <Pressable key={post.id} style={styles.boardCard}>
+                <View style={[styles.boardIconWrap, { backgroundColor: post.color + "22" }]}>
+                  <Ionicons name={post.icon as any} size={20} color={post.color} />
+                </View>
+                <View style={styles.boardBody}>
+                  <View style={styles.boardTagRow}>
+                    <View style={[styles.boardTag, { backgroundColor: post.color + "33" }]}>
+                      <Text style={[styles.boardTagText, { color: post.color }]}>{post.tag}</Text>
+                    </View>
+                    <Text style={styles.boardDate}>{post.date}</Text>
+                  </View>
+                  <Text style={styles.boardTitle}>{post.title}</Text>
+                  <Text style={styles.boardDetail} numberOfLines={1}>{post.detail}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
+              </Pressable>
+            ))}
           </View>
         )}
 
@@ -259,17 +523,212 @@ export default function CommunityDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const jukeStyles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: C.bg,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: C.border,
   },
-  scroll: {
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  badge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: C.accentDark,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  badgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.accent,
+  },
+  badgeText: {
+    color: C.accent,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  watchersChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     flex: 1,
   },
-  coverContainer: {
-    height: 130,
+  watchersText: {
+    color: C.textSec,
+    fontSize: 11,
+  },
+  fullBtn: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playerRow: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+  },
+  thumbWrap: {
+    width: 90,
+    height: 60,
+    borderRadius: 8,
+    overflow: "hidden",
     position: "relative",
+    backgroundColor: C.surface3,
+  },
+  thumb: {
+    width: 90,
+    height: 60,
+    borderRadius: 8,
+  },
+  thumbOverlay: {
+    ...StyleSheet.absoluteFillObject as any,
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  playCircle: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    marginTop: -12,
+    marginLeft: -12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playerInfo: {
+    flex: 1,
+    gap: 4,
+    justifyContent: "center",
+  },
+  nowPlayingTitle: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 17,
+  },
+  addedBy: {
+    color: C.accent,
+    fontSize: 11,
+  },
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  progressTrack: {
+    flex: 1,
+    height: 3,
+    backgroundColor: C.surface3,
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: 3,
+    backgroundColor: C.accent,
+    borderRadius: 2,
+  },
+  progressTime: {
+    color: C.textMuted,
+    fontSize: 10,
+  },
+  emptyPlayer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    padding: 12,
+  },
+  emptyText: {
+    color: C.textMuted,
+    fontSize: 12,
+  },
+  commentsWrap: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    gap: 4,
+  },
+  commentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  commentUser: {
+    color: C.accent,
+    fontSize: 11,
+    fontWeight: "700",
+    minWidth: 40,
+  },
+  commentText: {
+    color: C.textSec,
+    fontSize: 11,
+    flex: 1,
+  },
+  commentInput: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+  },
+  input: {
+    flex: 1,
+    height: 34,
+    backgroundColor: C.surface2,
+    borderRadius: 17,
+    paddingHorizontal: 12,
+    color: C.text,
+    fontSize: 13,
+  },
+  sendBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: C.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sendBtnDisabled: {
+    backgroundColor: C.surface3,
+  },
+});
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  scroll: { flex: 1 },
+  coverContainer: { height: 130, position: "relative" },
+  coverImage: { width: "100%", height: "100%" },
+  coverOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  backBtn: {
+    position: "absolute",
+    left: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   adBanner: {
     flexDirection: "row",
@@ -295,67 +754,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.5,
   },
-  adThumb: {
-    width: 80,
-    height: 54,
-    borderRadius: 6,
-  },
-  adBody: {
-    flex: 1,
-    gap: 4,
-  },
-  adTitle: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  adSub: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 11,
-  },
-  adCtaBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 6,
-  },
-  adCtaText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  coverImage: {
-    width: "100%",
-    height: "100%",
-  },
-  coverOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  backBtn: {
-    position: "absolute",
-    left: 16,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  profileSection: {
-    padding: 16,
-    gap: 10,
-  },
+  adThumb: { width: 80, height: 54, borderRadius: 6 },
+  adBody: { flex: 1, gap: 4 },
+  adTitle: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  adSub: { color: "rgba(255,255,255,0.55)", fontSize: 11 },
+  adCtaBtn: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 6 },
+  adCtaText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  profileSection: { padding: 16, gap: 10 },
   profileRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
   },
-  communityAvatarContainer: {
-    position: "relative",
-  },
+  communityAvatarContainer: { position: "relative" },
   communityAvatar: {
-    width: 64,
-    height: 64,
+    width: 60,
+    height: 60,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: C.accent,
@@ -371,94 +785,47 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: C.bg,
   },
-  profileInfo: {
-    flex: 1,
-    gap: 4,
-  },
+  profileInfo: { flex: 1, gap: 4 },
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     flexWrap: "wrap",
   },
-  communityName: {
-    color: C.text,
-    fontSize: 18,
-    fontWeight: "800",
-  },
+  communityName: { color: C.text, fontSize: 17, fontWeight: "800" },
   officialBadge: {
     backgroundColor: C.surface3,
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  officialText: {
-    color: C.textSec,
-    fontSize: 9,
-    fontWeight: "700",
-  },
-  categoryText: {
-    color: C.textSec,
-    fontSize: 12,
-  },
-  description: {
-    color: C.textSec,
-    fontSize: 13,
-    lineHeight: 19,
-  },
+  officialText: { color: C.textSec, fontSize: 9, fontWeight: "700" },
+  categoryText: { color: C.textSec, fontSize: 12 },
+  description: { color: C.textSec, fontSize: 13, lineHeight: 19 },
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  statText: {
-    color: C.textSec,
-    fontSize: 12,
-  },
-  statNumber: {
-    color: C.text,
-    fontWeight: "700",
-  },
-  statDivider: {
-    color: C.textMuted,
-  },
-  actionRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
+  statText: { color: C.textSec, fontSize: 12 },
+  statNumber: { color: C.text, fontWeight: "700" },
+  statDivider: { color: C.textMuted },
   followBtn: {
-    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
     backgroundColor: C.accent,
     borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
+    paddingVertical: 11,
   },
   followBtnActive: {
     backgroundColor: C.surface2,
     borderWidth: 1,
     borderColor: C.border,
   },
-  followBtnText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  jukeboxBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: C.surface2,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: C.orange + "55",
-  },
-  jukeboxBtnText: {
-    color: C.orange,
-    fontSize: 13,
-    fontWeight: "700",
-  },
+  followBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  followBtnTextActive: { color: C.textSec },
   tabRow: {
     flexDirection: "row",
     borderBottomWidth: 1,
@@ -472,69 +839,36 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
-  tabItemActive: {
-    borderBottomColor: C.accent,
-  },
-  tabText: {
-    color: C.textMuted,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  tabTextActive: {
-    color: C.text,
-    fontWeight: "700",
-  },
+  tabItemActive: { borderBottomColor: C.accent },
+  tabText: { color: C.textMuted, fontSize: 13, fontWeight: "600" },
+  tabTextActive: { color: C.text, fontWeight: "700" },
   requestCard: {
     margin: 16,
     backgroundColor: C.surface,
     borderRadius: 12,
-    padding: 16,
-    gap: 10,
-  },
-  requestHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+    padding: 14,
     gap: 8,
   },
-  requestTitle: {
-    color: C.text,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  requestDesc: {
-    color: C.textSec,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  requestActions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 4,
-  },
+  requestHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  requestTitle: { color: C.text, fontSize: 14, fontWeight: "700" },
+  requestDesc: { color: C.textSec, fontSize: 12, lineHeight: 17 },
+  requestActions: { flexDirection: "row", gap: 10, marginTop: 4 },
   requestPrimaryBtn: {
     flex: 1,
     backgroundColor: C.accent,
     borderRadius: 8,
-    paddingVertical: 10,
+    paddingVertical: 9,
     alignItems: "center",
   },
-  requestPrimaryText: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "700",
-  },
+  requestPrimaryText: { color: "#fff", fontSize: 13, fontWeight: "700" },
   requestSecondaryBtn: {
     backgroundColor: C.surface3,
     borderRadius: 8,
-    paddingVertical: 10,
+    paddingVertical: 9,
     paddingHorizontal: 14,
     alignItems: "center",
   },
-  requestSecondaryText: {
-    color: C.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
+  requestSecondaryText: { color: C.text, fontSize: 13, fontWeight: "700" },
   postCard: {
     borderTopWidth: 1,
     borderTopColor: C.border,
@@ -547,31 +881,29 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   postAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     borderWidth: 1.5,
     borderColor: C.accent,
   },
-  postCreator: {
-    color: C.text,
-    fontSize: 13,
-    fontWeight: "700",
+  postMeta: { flex: 1 },
+  postCreator: { color: C.text, fontSize: 13, fontWeight: "700" },
+  postTime: { color: C.textMuted, fontSize: 11, marginTop: 2 },
+  pricePill: {
+    backgroundColor: C.accent,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  postTime: {
-    color: C.textMuted,
-    fontSize: 11,
-    marginTop: 2,
-  },
+  pricePillText: { color: "#fff", fontSize: 11, fontWeight: "700" },
   postImage: {
     width: "100%",
-    height: 200,
+    height: 190,
     borderRadius: 10,
   },
-  creatorList: {
-    padding: 16,
-    gap: 14,
-  },
+  postTitle: { color: C.textSec, fontSize: 13, lineHeight: 18 },
+  creatorList: { padding: 16, gap: 12 },
   creatorItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -581,51 +913,67 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   creatorAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     borderWidth: 2,
     borderColor: C.accent,
   },
-  creatorInfo: {
-    flex: 1,
-    gap: 3,
-  },
-  creatorName: {
-    color: C.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  creatorCommunity: {
-    color: C.textSec,
-    fontSize: 11,
-  },
-  creatorStats: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  creatorStat: {
-    color: C.textMuted,
-    fontSize: 11,
-  },
+  creatorInfo: { flex: 1, gap: 3 },
+  creatorName: { color: C.text, fontSize: 13, fontWeight: "700" },
+  creatorCommunity: { color: C.textSec, fontSize: 11 },
+  creatorStats: { flexDirection: "row", gap: 10 },
+  creatorStat: { color: C.textMuted, fontSize: 11 },
   followSmallBtn: {
     backgroundColor: C.accent,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
-  followSmallText: {
-    color: "#fff",
-    fontSize: 12,
+  followSmallText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  boardList: { padding: 16, gap: 10 },
+  boardCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 14,
+  },
+  boardIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  boardBody: { flex: 1, gap: 4 },
+  boardTagRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  boardTag: {
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  boardTagText: {
+    fontSize: 10,
     fontWeight: "700",
   },
-  boardEmpty: {
-    alignItems: "center",
-    paddingTop: 60,
-    gap: 12,
+  boardDate: {
+    color: C.textMuted,
+    fontSize: 10,
   },
-  emptyText: {
+  boardTitle: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 17,
+  },
+  boardDetail: {
     color: C.textSec,
-    fontSize: 14,
+    fontSize: 11,
   },
 });
