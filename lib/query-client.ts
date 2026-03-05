@@ -2,21 +2,33 @@ import { fetch } from "expo/fetch";
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 /**
- * Gets the base URL for the Express API server (e.g., "http://localhost:3000")
+ * Gets the base URL for the Express API server (e.g., "http://localhost:5000")
  * @returns {string} The API base URL
  */
 export function getApiUrl(): string {
   const host = process.env.EXPO_PUBLIC_DOMAIN;
 
   if (host) {
-    return new URL(`https://${host}`).href;
+    const normalized = host.startsWith("http") ? host : `https://${host}`;
+    return new URL(normalized).origin + "/";
   }
 
   if (typeof window !== "undefined" && window.location?.origin) {
     return window.location.origin + "/";
   }
 
-  throw new Error("EXPO_PUBLIC_DOMAIN is not set");
+  // Native 開発環境向けのフォールバック
+  // サーバーのデフォルトポート (server/index.ts) は 5000
+  if (process.env.NODE_ENV !== "production") {
+    console.warn(
+      "[getApiUrl] EXPO_PUBLIC_DOMAIN が未設定のため、開発用に http://localhost:5000/ を使用します。",
+    );
+    return "http://localhost:5000/";
+  }
+
+  throw new Error(
+    "EXPO_PUBLIC_DOMAIN is not set and API base URL could not be inferred.",
+  );
 }
 
 async function throwIfResNotOk(res: Response) {

@@ -21,7 +21,7 @@ import {
   liverReviews,
   liverAvailability,
 } from "./schema";
-import { eq, asc, desc, count, sql } from "drizzle-orm";
+import { eq, asc, desc, count, sql, and } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -173,6 +173,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const [row] = await db.select().from(communities).where(eq(communities.id, id));
     if (!row) return res.status(404).json({ message: "Not found" });
     res.json(row);
+  });
+
+  app.post("/api/communities", async (req: Request, res: Response) => {
+    const { name, description, bannerUrl, iconUrl, categories } = req.body as {
+      name?: string;
+      description?: string;
+      bannerUrl?: string;
+      iconUrl?: string;
+      categories?: string[] | string;
+    };
+
+    const trimmedName = (name ?? "").trim();
+    const trimmedDescription = (description ?? "").trim();
+    const banner = (bannerUrl ?? "").trim();
+    const icon = (iconUrl ?? "").trim();
+
+    const categoryList =
+      Array.isArray(categories)
+        ? categories.map((c) => String(c).trim()).filter(Boolean)
+        : typeof categories === "string"
+        ? categories
+            .split(/[,\s]+/)
+            .map((c) => c.trim())
+            .filter(Boolean)
+        : [];
+
+    if (!trimmedName || !trimmedDescription || !banner || !icon || categoryList.length === 0) {
+      return res.status(400).json({ error: "必須項目をすべて入力してください" });
+    }
+
+    if (trimmedDescription.length < 100) {
+      return res.status(400).json({ error: "説明文は100文字以上で入力してください" });
+    }
+
+    try {
+      const primaryCategory = categoryList[0];
+      const [row] = await db
+        .insert(communities)
+        .values({
+          name: trimmedName,
+          members: 0,
+          thumbnail: banner,
+          online: false,
+          category: primaryCategory,
+        })
+        .returning();
+
+      // フロントで扱いやすいよう、リクエスト情報もそのまま返す
+      res.status(201).json({
+        ...row,
+        description: trimmedDescription,
+        bannerUrl: banner,
+        iconUrl: icon,
+        categories: categoryList,
+      });
+    } catch (e) {
+      console.error("Create community error:", e);
+      res.status(500).json({ error: "コミュニティの作成に失敗しました" });
+    }
   });
 
   // ── Videos ───────────────────────────────────────────────────────
@@ -363,15 +422,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/jukebox/:communityId/add", async (req: Request, res: Response) => {
     const communityId = parseInt(req.params.communityId);
-    const { videoId, videoTitle, videoThumbnail, videoDurationSecs, addedBy, addedByAvatar } = req.body;
+    const { videoId, videoTitle, videoThumbnail, videoDurationSecs, addedBy, addedByAvatar, youtubeId } = req.body;
     const existing = await db.select().from(jukeboxQueue)
       .where(eq(jukeboxQueue.communityId, communityId))
       .orderBy(desc(jukeboxQueue.position));
     const nextPos = existing.length > 0 ? existing[0].position + 1 : 1;
     const [item] = await db.insert(jukeboxQueue).values({
-      communityId, videoId, videoTitle, videoThumbnail, videoDurationSecs: videoDurationSecs ?? 0,
+      communityId,
+      videoId,
+      videoTitle,
+      videoThumbnail,
+      videoDurationSecs: videoDurationSecs ?? 0,
+      youtubeId: youtubeId ?? null,
       addedBy: addedBy ?? "あなた", addedByAvatar, position: nextPos, isPlayed: false,
     }).returning();
+
+    // 最初の1件が追加されたときは自動で再生を開始する
+    if (existing.length === 0) {
+      const watchers = Math.floor(Math.random() * 80) + 20;
+      await db
+        .insert(jukeboxState)
+        .values({
+          communityId,
+          currentVideoId: item.videoId,
+          currentVideoTitle: item.videoTitle,
+          currentVideoThumbnail: item.videoThumbnail,
+          currentVideoDurationSecs: item.videoDurationSecs ?? 0,
+          currentVideoYoutubeId: (item as any).youtubeId ?? null,
+          startedAt: new Date(),
+          isPlaying: true,
+          watchersCount: watchers,
+        })
+        .onConflictDoUpdate({
+          target: jukeboxState.communityId,
+          set: {
+            currentVideoId: item.videoId,
+            currentVideoTitle: item.videoTitle,
+            currentVideoThumbnail: item.videoThumbnail,
+            currentVideoDurationSecs: item.videoDurationSecs ?? 0,
+            currentVideoYoutubeId: (item as any).youtubeId ?? null,
+            startedAt: new Date(),
+            isPlaying: true,
+            watchersCount: watchers,
+          },
+        });
+    }
+
     res.json(item);
   });
 
@@ -383,15 +479,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const next = queue.find((q) => !q.isPlayed);
     if (next) {
       await db.update(jukeboxQueue).set({ isPlayed: true }).where(eq(jukeboxQueue.id, next.id));
-      await db.update(jukeboxState).set({
-        currentVideoId: next.videoId,
-        currentVideoTitle: next.videoTitle,
-        currentVideoThumbnail: next.videoThumbnail,
-        currentVideoDurationSecs: next.videoDurationSecs ?? 0,
-        startedAt: new Date(),
-        isPlaying: true,
-        watchersCount: Math.floor(Math.random() * 80) + 20,
-      }).where(eq(jukeboxState.communityId, communityId));
+      const watchers = Math.floor(Math.random() * 80) + 20;
+      await db
+        .insert(jukeboxState)
+        .values({
+          communityId,
+          currentVideoId: next.videoId,
+          currentVideoTitle: next.videoTitle,
+          currentVideoThumbnail: next.videoThumbnail,
+          currentVideoDurationSecs: next.videoDurationSecs ?? 0,
+          currentVideoYoutubeId: (next as any).youtubeId ?? null,
+          startedAt: new Date(),
+          isPlaying: true,
+          watchersCount: watchers,
+        })
+        .onConflictDoUpdate({
+          target: jukeboxState.communityId,
+          set: {
+            currentVideoId: next.videoId,
+            currentVideoTitle: next.videoTitle,
+            currentVideoThumbnail: next.videoThumbnail,
+            currentVideoDurationSecs: next.videoDurationSecs ?? 0,
+            currentVideoYoutubeId: (next as any).youtubeId ?? null,
+            startedAt: new Date(),
+            isPlaying: true,
+            watchersCount: watchers,
+          },
+        });
+    } else {
+      // 再生キューが空になった場合は再生状態をリセット
+      await db
+        .update(jukeboxState)
+        .set({
+          currentVideoId: null,
+          currentVideoTitle: null,
+          currentVideoThumbnail: null,
+          currentVideoDurationSecs: 0,
+          currentVideoYoutubeId: null,
+          isPlaying: false,
+        })
+        .where(eq(jukeboxState.communityId, communityId));
     }
     res.json({ ok: true });
   });
@@ -679,6 +806,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(liver);
   });
 
+  // ── Profile Roles (Creator / Twoshot Liver) ────────────────────────
+  app.get("/api/profile/roles", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const rows = await db.select().from(creators).where(eq(creators.name, user.name));
+    const isEditor = rows.some((r) => r.category === "editor");
+    const isTwoshot = rows.some((r) => r.category === "twoshot");
+
+    res.json({ isEditor, isTwoshot });
+  });
+
+  app.post("/api/profile/register-role", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const { role } = req.body as { role?: "editor" | "twoshot" };
+    if (role !== "editor" && role !== "twoshot") {
+      return res.status(400).json({ error: "role は editor か twoshot を指定してください" });
+    }
+
+    const category = role === "editor" ? "editor" : "twoshot";
+    const communityLabel = role === "editor" ? "動画編集クリエイター" : "ツーショットライバー";
+
+    const existing = await db
+      .select()
+      .from(creators)
+      .where(
+        and(
+          eq(creators.name, user.name),
+          eq(creators.category, category),
+        ),
+      );
+    if (existing.length > 0) {
+      return res.json({ ok: true, alreadyRegistered: true });
+    }
+
+    const avatar =
+      user.avatar ??
+      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop";
+
+    const [created] = await db
+      .insert(creators)
+      .values({
+        name: user.name,
+        community: communityLabel,
+        avatar,
+        rank: 999,
+        heatScore: 0,
+        totalViews: 0,
+        revenue: 0,
+        streamCount: 0,
+        followers: 0,
+        revenueShare: 80,
+        satisfactionScore: 5,
+        attendanceRate: 5,
+        bio: user.bio ?? "",
+        category,
+      })
+      .returning();
+
+    res.status(201).json({ ok: true, creator: created });
+  });
+
   // ── Liver Reviews ─────────────────────────────────────────────────
   app.get("/api/livers/:id/reviews", async (req: Request, res: Response) => {
     const id = parseInt(req.params.id);
@@ -750,6 +941,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Seed Demo Data ────────────────────────────────────────────────
   app.post("/api/seed", async (_req: Request, res: Response) => {
+    // Seed demo user accounts (including a shared demo account) ----------
+    const existingUsers = await db.select().from(userAccounts);
+    if (existingUsers.length < 10) {
+      const demoEmail = "demo@livestock.jp";
+      const demoPasswordHash = await bcrypt.hash("password", 10);
+
+      const baseUsers = [
+        {
+          email: demoEmail,
+          passwordHash: demoPasswordHash,
+          name: "デモアカウント",
+          bio: "誰でも編集できるデモユーザーです。プロフィールや肩書きを自由に変更してお試しください。",
+          avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop",
+        },
+        {
+          email: "idol1@example.com",
+          passwordHash: demoPasswordHash,
+          name: "星空みゆ",
+          bio: "地下アイドルとして活動中。ライブとチェキ会でみんなに元気を届けます。",
+          avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
+        },
+        {
+          email: "comedian@example.com",
+          passwordHash: demoPasswordHash,
+          name: "ダブルパンチ山本",
+          bio: "お笑いコンビ「ダブルパンチ」のツッコミ担当。",
+          avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop",
+        },
+        {
+          email: "host@example.com",
+          passwordHash: demoPasswordHash,
+          name: "麗華 -REIKA-",
+          bio: "キャバクラと配信を両立するカリスマホステス。",
+          avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=150&h=150&fit=crop",
+        },
+        {
+          email: "jk@example.com",
+          passwordHash: demoPasswordHash,
+          name: "まいまい17歳",
+          bio: "放課後トーク配信が人気のJKライバー。",
+          avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&h=150&fit=crop",
+        },
+        {
+          email: "english@example.com",
+          passwordHash: demoPasswordHash,
+          name: "田中 ゆうき",
+          bio: "英会話クラブ主宰。ビジネス英語から日常会話まで。",
+          avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
+        },
+        {
+          email: "fortune@example.com",
+          passwordHash: demoPasswordHash,
+          name: "神崎 リナ",
+          bio: "タロットと西洋占星術を組み合わせた占い配信。",
+          avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop",
+        },
+        {
+          email: "fitness@example.com",
+          passwordHash: demoPasswordHash,
+          name: "松本 こうた",
+          bio: "元プロサッカー選手のフィットネスライバー。",
+          avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",
+        },
+        {
+          email: "counselor@example.com",
+          passwordHash: demoPasswordHash,
+          name: "伊藤 さやか",
+          bio: "心のケアを届けるオンラインカウンセラー。",
+          avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop",
+        },
+        {
+          email: "cooking@example.com",
+          passwordHash: demoPasswordHash,
+          name: "中村 あおい",
+          bio: "自宅でできる本格レシピを配信する料理ライバー。",
+          avatar: "https://images.unsplash.com/photo-1502767089025-6572583495b9?w=150&h=150&fit=crop",
+        },
+        {
+          email: "editor@example.com",
+          passwordHash: demoPasswordHash,
+          name: "映像編集マン",
+          bio: "テロップ・カット・サムネまでワンストップで対応する動画編集クリエイター。",
+          avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop",
+        },
+      ];
+
+      const existingEmails = new Set(existingUsers.map((u) => u.email.toLowerCase()));
+      const toInsertUsers = baseUsers.filter((u) => !existingEmails.has(u.email.toLowerCase()));
+      if (toInsertUsers.length > 0) {
+        await db.insert(userAccounts).values(toInsertUsers);
+      }
+    }
+
+    // Seed creators / livers -------------------------------------------------
     const existingCreators = await db.select().from(creators);
     if (existingCreators.length >= 10) {
       return res.json({ ok: true, message: "Already seeded" });

@@ -1,40 +1,18 @@
-"use strict";
-var __create = Object.create;
 var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
 };
-var __copyProps = (to, from, except, desc2) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc2 = __getOwnPropDesc(from, key)) || desc2.enumerable });
-  }
-  return to;
-};
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
 
 // server/index.ts
-var import_express = __toESM(require("express"));
+import express from "express";
 
 // server/routes.ts
-var import_node_http = require("node:http");
+import { createServer } from "node:http";
 
 // server/db.ts
-var import_node_postgres = require("drizzle-orm/node-postgres");
-var import_pg = require("pg");
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 
 // server/schema.ts
 var schema_exports = {};
@@ -58,288 +36,286 @@ __export(schema_exports, {
   videos: () => videos,
   withdrawals: () => withdrawals
 });
-var import_pg_core = require("drizzle-orm/pg-core");
-var communities = (0, import_pg_core.pgTable)("communities", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  name: (0, import_pg_core.text)("name").notNull(),
-  members: (0, import_pg_core.integer)("members").notNull().default(0),
-  thumbnail: (0, import_pg_core.text)("thumbnail").notNull(),
-  online: (0, import_pg_core.boolean)("online").notNull().default(false),
-  category: (0, import_pg_core.text)("category").notNull()
+import {
+  pgTable,
+  serial,
+  text,
+  integer,
+  boolean,
+  real,
+  timestamp
+} from "drizzle-orm/pg-core";
+var communities = pgTable("communities", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  members: integer("members").notNull().default(0),
+  thumbnail: text("thumbnail").notNull(),
+  online: boolean("online").notNull().default(false),
+  category: text("category").notNull()
 });
-var videos = (0, import_pg_core.pgTable)("videos", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  title: (0, import_pg_core.text)("title").notNull(),
-  creator: (0, import_pg_core.text)("creator").notNull(),
-  community: (0, import_pg_core.text)("community").notNull(),
-  views: (0, import_pg_core.integer)("views").notNull().default(0),
-  timeAgo: (0, import_pg_core.text)("time_ago").notNull(),
-  duration: (0, import_pg_core.text)("duration").notNull(),
-  price: (0, import_pg_core.integer)("price"),
-  thumbnail: (0, import_pg_core.text)("thumbnail").notNull(),
-  avatar: (0, import_pg_core.text)("avatar").notNull(),
-  rank: (0, import_pg_core.integer)("rank"),
-  isRanked: (0, import_pg_core.boolean)("is_ranked").notNull().default(false),
-  createdAt: (0, import_pg_core.timestamp)("created_at").defaultNow()
+var videos = pgTable("videos", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  creator: text("creator").notNull(),
+  community: text("community").notNull(),
+  views: integer("views").notNull().default(0),
+  timeAgo: text("time_ago").notNull(),
+  duration: text("duration").notNull(),
+  price: integer("price"),
+  thumbnail: text("thumbnail").notNull(),
+  avatar: text("avatar").notNull(),
+  rank: integer("rank"),
+  isRanked: boolean("is_ranked").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow()
 });
-var liveStreams = (0, import_pg_core.pgTable)("live_streams", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  title: (0, import_pg_core.text)("title").notNull(),
-  creator: (0, import_pg_core.text)("creator").notNull(),
-  community: (0, import_pg_core.text)("community").notNull(),
-  viewers: (0, import_pg_core.integer)("viewers").notNull().default(0),
-  thumbnail: (0, import_pg_core.text)("thumbnail").notNull(),
-  avatar: (0, import_pg_core.text)("avatar").notNull(),
-  timeAgo: (0, import_pg_core.text)("time_ago").notNull(),
-  isLive: (0, import_pg_core.boolean)("is_live").notNull().default(true)
+var liveStreams = pgTable("live_streams", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  creator: text("creator").notNull(),
+  community: text("community").notNull(),
+  viewers: integer("viewers").notNull().default(0),
+  thumbnail: text("thumbnail").notNull(),
+  avatar: text("avatar").notNull(),
+  timeAgo: text("time_ago").notNull(),
+  isLive: boolean("is_live").notNull().default(true)
 });
-var creators = (0, import_pg_core.pgTable)("creators", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  name: (0, import_pg_core.text)("name").notNull(),
-  community: (0, import_pg_core.text)("community").notNull(),
-  avatar: (0, import_pg_core.text)("avatar").notNull(),
-  rank: (0, import_pg_core.integer)("rank").notNull(),
-  heatScore: (0, import_pg_core.real)("heat_score").notNull().default(0),
-  totalViews: (0, import_pg_core.integer)("total_views").notNull().default(0),
-  revenue: (0, import_pg_core.integer)("revenue").notNull().default(0),
-  streamCount: (0, import_pg_core.integer)("stream_count").notNull().default(0),
-  followers: (0, import_pg_core.integer)("followers").notNull().default(0),
-  revenueShare: (0, import_pg_core.integer)("revenue_share").notNull().default(80),
-  satisfactionScore: (0, import_pg_core.real)("satisfaction_score").notNull().default(0),
-  attendanceRate: (0, import_pg_core.real)("attendance_rate").notNull().default(0),
-  bio: (0, import_pg_core.text)("bio").notNull().default(""),
-  category: (0, import_pg_core.text)("category").notNull().default("idol")
+var creators = pgTable("creators", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  community: text("community").notNull(),
+  avatar: text("avatar").notNull(),
+  rank: integer("rank").notNull(),
+  heatScore: real("heat_score").notNull().default(0),
+  totalViews: integer("total_views").notNull().default(0),
+  revenue: integer("revenue").notNull().default(0),
+  streamCount: integer("stream_count").notNull().default(0),
+  followers: integer("followers").notNull().default(0),
+  revenueShare: integer("revenue_share").notNull().default(80),
+  satisfactionScore: real("satisfaction_score").notNull().default(0),
+  attendanceRate: real("attendance_rate").notNull().default(0),
+  bio: text("bio").notNull().default(""),
+  category: text("category").notNull().default("idol")
 });
-var bookingSessions = (0, import_pg_core.pgTable)("booking_sessions", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  creator: (0, import_pg_core.text)("creator").notNull(),
-  category: (0, import_pg_core.text)("category").notNull(),
-  categoryLabel: (0, import_pg_core.text)("category_label").notNull(),
-  title: (0, import_pg_core.text)("title").notNull(),
-  avatar: (0, import_pg_core.text)("avatar").notNull(),
-  thumbnail: (0, import_pg_core.text)("thumbnail").notNull(),
-  date: (0, import_pg_core.text)("date").notNull(),
-  time: (0, import_pg_core.text)("time").notNull(),
-  duration: (0, import_pg_core.text)("duration").notNull(),
-  price: (0, import_pg_core.integer)("price").notNull(),
-  spotsTotal: (0, import_pg_core.integer)("spots_total").notNull(),
-  spotsLeft: (0, import_pg_core.integer)("spots_left").notNull(),
-  rating: (0, import_pg_core.real)("rating").notNull().default(5),
-  reviewCount: (0, import_pg_core.integer)("review_count").notNull().default(0),
-  tag: (0, import_pg_core.text)("tag")
+var bookingSessions = pgTable("booking_sessions", {
+  id: serial("id").primaryKey(),
+  creator: text("creator").notNull(),
+  category: text("category").notNull(),
+  categoryLabel: text("category_label").notNull(),
+  title: text("title").notNull(),
+  avatar: text("avatar").notNull(),
+  thumbnail: text("thumbnail").notNull(),
+  date: text("date").notNull(),
+  time: text("time").notNull(),
+  duration: text("duration").notNull(),
+  price: integer("price").notNull(),
+  spotsTotal: integer("spots_total").notNull(),
+  spotsLeft: integer("spots_left").notNull(),
+  rating: real("rating").notNull().default(5),
+  reviewCount: integer("review_count").notNull().default(0),
+  tag: text("tag")
 });
-var notifications = (0, import_pg_core.pgTable)("notifications", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  type: (0, import_pg_core.text)("type").notNull(),
-  title: (0, import_pg_core.text)("title").notNull(),
-  body: (0, import_pg_core.text)("body").notNull(),
-  amount: (0, import_pg_core.integer)("amount"),
-  avatar: (0, import_pg_core.text)("avatar"),
-  thumbnail: (0, import_pg_core.text)("thumbnail"),
-  isRead: (0, import_pg_core.boolean)("is_read").notNull().default(false),
-  createdAt: (0, import_pg_core.timestamp)("created_at").defaultNow(),
-  timeAgo: (0, import_pg_core.text)("time_ago").notNull()
+var notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  amount: integer("amount"),
+  avatar: text("avatar"),
+  thumbnail: text("thumbnail"),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  timeAgo: text("time_ago").notNull()
 });
-var liveStreamChat = (0, import_pg_core.pgTable)("live_stream_chat", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  streamId: (0, import_pg_core.integer)("stream_id").notNull(),
-  username: (0, import_pg_core.text)("username").notNull(),
-  avatar: (0, import_pg_core.text)("avatar"),
-  message: (0, import_pg_core.text)("message").notNull(),
-  isGift: (0, import_pg_core.boolean)("is_gift").default(false),
-  giftAmount: (0, import_pg_core.integer)("gift_amount"),
-  createdAt: (0, import_pg_core.timestamp)("created_at").defaultNow()
+var liveStreamChat = pgTable("live_stream_chat", {
+  id: serial("id").primaryKey(),
+  streamId: integer("stream_id").notNull(),
+  username: text("username").notNull(),
+  avatar: text("avatar"),
+  message: text("message").notNull(),
+  isGift: boolean("is_gift").default(false),
+  giftAmount: integer("gift_amount"),
+  createdAt: timestamp("created_at").defaultNow()
 });
-var dmConversationMessages = (0, import_pg_core.pgTable)("dm_conversation_messages", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  dmId: (0, import_pg_core.integer)("dm_id").notNull(),
-  sender: (0, import_pg_core.text)("sender").notNull(),
-  text: (0, import_pg_core.text)("text").notNull(),
-  isRead: (0, import_pg_core.boolean)("is_read").default(false),
-  createdAt: (0, import_pg_core.timestamp)("created_at").defaultNow()
+var dmConversationMessages = pgTable("dm_conversation_messages", {
+  id: serial("id").primaryKey(),
+  dmId: integer("dm_id").notNull(),
+  sender: text("sender").notNull(),
+  text: text("text").notNull(),
+  isRead: boolean("is_read").default(false),
+  createdAt: timestamp("created_at").defaultNow()
 });
-var jukeboxState = (0, import_pg_core.pgTable)("jukebox_state", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  communityId: (0, import_pg_core.integer)("community_id").notNull().unique(),
-  currentVideoId: (0, import_pg_core.integer)("current_video_id"),
-  currentVideoTitle: (0, import_pg_core.text)("current_video_title"),
-  currentVideoThumbnail: (0, import_pg_core.text)("current_video_thumbnail"),
-  currentVideoDurationSecs: (0, import_pg_core.integer)("current_video_duration_secs").default(0),
-  startedAt: (0, import_pg_core.timestamp)("started_at").defaultNow(),
-  isPlaying: (0, import_pg_core.boolean)("is_playing").default(true),
-  watchersCount: (0, import_pg_core.integer)("watchers_count").default(1)
+var jukeboxState = pgTable("jukebox_state", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull().unique(),
+  currentVideoId: integer("current_video_id"),
+  currentVideoTitle: text("current_video_title"),
+  currentVideoThumbnail: text("current_video_thumbnail"),
+  currentVideoDurationSecs: integer("current_video_duration_secs").default(0),
+  // YouTubeなど外部動画のID（任意）
+  currentVideoYoutubeId: text("current_video_youtube_id"),
+  startedAt: timestamp("started_at").defaultNow(),
+  isPlaying: boolean("is_playing").default(true),
+  watchersCount: integer("watchers_count").default(1)
 });
-var jukeboxQueue = (0, import_pg_core.pgTable)("jukebox_queue", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  communityId: (0, import_pg_core.integer)("community_id").notNull(),
-  videoId: (0, import_pg_core.integer)("video_id"),
-  videoTitle: (0, import_pg_core.text)("video_title").notNull(),
-  videoThumbnail: (0, import_pg_core.text)("video_thumbnail").notNull(),
-  videoDurationSecs: (0, import_pg_core.integer)("video_duration_secs").default(0),
-  addedBy: (0, import_pg_core.text)("added_by").notNull().default("\u3042\u306A\u305F"),
-  addedByAvatar: (0, import_pg_core.text)("added_by_avatar"),
-  position: (0, import_pg_core.integer)("position").notNull().default(0),
-  isPlayed: (0, import_pg_core.boolean)("is_played").default(false),
-  createdAt: (0, import_pg_core.timestamp)("created_at").defaultNow()
+var jukeboxQueue = pgTable("jukebox_queue", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  videoId: integer("video_id"),
+  videoTitle: text("video_title").notNull(),
+  videoThumbnail: text("video_thumbnail").notNull(),
+  videoDurationSecs: integer("video_duration_secs").default(0),
+  youtubeId: text("youtube_id"),
+  addedBy: text("added_by").notNull().default("\u3042\u306A\u305F"),
+  addedByAvatar: text("added_by_avatar"),
+  position: integer("position").notNull().default(0),
+  isPlayed: boolean("is_played").default(false),
+  createdAt: timestamp("created_at").defaultNow()
 });
-var jukeboxChat = (0, import_pg_core.pgTable)("jukebox_chat", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  communityId: (0, import_pg_core.integer)("community_id").notNull(),
-  username: (0, import_pg_core.text)("username").notNull(),
-  avatar: (0, import_pg_core.text)("avatar"),
-  message: (0, import_pg_core.text)("message").notNull(),
-  createdAt: (0, import_pg_core.timestamp)("created_at").defaultNow()
+var jukeboxChat = pgTable("jukebox_chat", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  username: text("username").notNull(),
+  avatar: text("avatar"),
+  message: text("message").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
 });
-var dmMessages = (0, import_pg_core.pgTable)("dm_messages", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  name: (0, import_pg_core.text)("name").notNull(),
-  avatar: (0, import_pg_core.text)("avatar").notNull(),
-  lastMessage: (0, import_pg_core.text)("last_message").notNull(),
-  time: (0, import_pg_core.text)("time").notNull(),
-  unread: (0, import_pg_core.integer)("unread").notNull().default(0),
-  online: (0, import_pg_core.boolean)("online").notNull().default(false),
-  sortOrder: (0, import_pg_core.integer)("sort_order").notNull().default(0)
+var dmMessages = pgTable("dm_messages", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  avatar: text("avatar").notNull(),
+  lastMessage: text("last_message").notNull(),
+  time: text("time").notNull(),
+  unread: integer("unread").notNull().default(0),
+  online: boolean("online").notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0)
 });
-var userAccounts = (0, import_pg_core.pgTable)("user_accounts", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  email: (0, import_pg_core.text)("email").unique().notNull(),
-  passwordHash: (0, import_pg_core.text)("password_hash").notNull(),
-  name: (0, import_pg_core.text)("name").notNull().default("\u30E6\u30FC\u30B6\u30FC"),
-  bio: (0, import_pg_core.text)("bio").notNull().default(""),
-  avatar: (0, import_pg_core.text)("avatar"),
-  lineId: (0, import_pg_core.text)("line_id").unique(),
-  createdAt: (0, import_pg_core.timestamp)("created_at").defaultNow(),
-  updatedAt: (0, import_pg_core.timestamp)("updated_at").defaultNow()
+var userAccounts = pgTable("user_accounts", {
+  id: serial("id").primaryKey(),
+  email: text("email").unique().notNull(),
+  passwordHash: text("password_hash").notNull(),
+  name: text("name").notNull().default("\u30E6\u30FC\u30B6\u30FC"),
+  bio: text("bio").notNull().default(""),
+  avatar: text("avatar"),
+  lineId: text("line_id").unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
 });
-var earnings = (0, import_pg_core.pgTable)("earnings", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  userId: (0, import_pg_core.text)("user_id").notNull().default("guest-001"),
-  type: (0, import_pg_core.text)("type").notNull(),
-  title: (0, import_pg_core.text)("title").notNull(),
-  amount: (0, import_pg_core.integer)("amount").notNull(),
-  revenueShare: (0, import_pg_core.integer)("revenue_share").notNull().default(80),
-  netAmount: (0, import_pg_core.integer)("net_amount").notNull(),
-  createdAt: (0, import_pg_core.timestamp)("created_at").defaultNow()
+var earnings = pgTable("earnings", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().default("guest-001"),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  amount: integer("amount").notNull(),
+  revenueShare: integer("revenue_share").notNull().default(80),
+  netAmount: integer("net_amount").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
 });
-var withdrawals = (0, import_pg_core.pgTable)("withdrawals", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  userId: (0, import_pg_core.text)("user_id").notNull().default("guest-001"),
-  amount: (0, import_pg_core.integer)("amount").notNull(),
-  status: (0, import_pg_core.text)("status").notNull().default("pending"),
-  bankName: (0, import_pg_core.text)("bank_name").notNull(),
-  bankBranch: (0, import_pg_core.text)("bank_branch").notNull(),
-  accountType: (0, import_pg_core.text)("account_type").notNull().default("\u666E\u901A"),
-  accountNumber: (0, import_pg_core.text)("account_number").notNull(),
-  accountName: (0, import_pg_core.text)("account_name").notNull(),
-  note: (0, import_pg_core.text)("note"),
-  requestedAt: (0, import_pg_core.timestamp)("requested_at").defaultNow(),
-  processedAt: (0, import_pg_core.timestamp)("processed_at")
+var withdrawals = pgTable("withdrawals", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull().default("guest-001"),
+  amount: integer("amount").notNull(),
+  status: text("status").notNull().default("pending"),
+  bankName: text("bank_name").notNull(),
+  bankBranch: text("bank_branch").notNull(),
+  accountType: text("account_type").notNull().default("\u666E\u901A"),
+  accountNumber: text("account_number").notNull(),
+  accountName: text("account_name").notNull(),
+  note: text("note"),
+  requestedAt: timestamp("requested_at").defaultNow(),
+  processedAt: timestamp("processed_at")
 });
-var twoshotBookings = (0, import_pg_core.pgTable)("twoshot_bookings", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  streamId: (0, import_pg_core.integer)("stream_id").notNull(),
-  userId: (0, import_pg_core.text)("user_id").notNull().default("guest"),
-  userName: (0, import_pg_core.text)("user_name").notNull(),
-  userAvatar: (0, import_pg_core.text)("user_avatar"),
-  stripeSessionId: (0, import_pg_core.text)("stripe_session_id"),
-  stripePaymentIntentId: (0, import_pg_core.text)("stripe_payment_intent_id"),
-  price: (0, import_pg_core.integer)("price").notNull(),
-  status: (0, import_pg_core.text)("status").notNull().default("pending"),
-  queuePosition: (0, import_pg_core.integer)("queue_position").notNull().default(0),
-  agreedToTerms: (0, import_pg_core.boolean)("agreed_to_terms").notNull().default(false),
-  agreedAt: (0, import_pg_core.timestamp)("agreed_at"),
-  notifiedAt: (0, import_pg_core.timestamp)("notified_at"),
-  completedAt: (0, import_pg_core.timestamp)("completed_at"),
-  cancelledAt: (0, import_pg_core.timestamp)("cancelled_at"),
-  cancelReason: (0, import_pg_core.text)("cancel_reason"),
-  refundable: (0, import_pg_core.boolean)("refundable").notNull().default(false),
-  evaluationScore: (0, import_pg_core.integer)("evaluation_score"),
-  createdAt: (0, import_pg_core.timestamp)("created_at").defaultNow()
+var twoshotBookings = pgTable("twoshot_bookings", {
+  id: serial("id").primaryKey(),
+  streamId: integer("stream_id").notNull(),
+  userId: text("user_id").notNull().default("guest"),
+  userName: text("user_name").notNull(),
+  userAvatar: text("user_avatar"),
+  stripeSessionId: text("stripe_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  price: integer("price").notNull(),
+  status: text("status").notNull().default("pending"),
+  queuePosition: integer("queue_position").notNull().default(0),
+  agreedToTerms: boolean("agreed_to_terms").notNull().default(false),
+  agreedAt: timestamp("agreed_at"),
+  notifiedAt: timestamp("notified_at"),
+  completedAt: timestamp("completed_at"),
+  cancelledAt: timestamp("cancelled_at"),
+  cancelReason: text("cancel_reason"),
+  refundable: boolean("refundable").notNull().default(false),
+  evaluationScore: integer("evaluation_score"),
+  createdAt: timestamp("created_at").defaultNow()
 });
-var liverReviews = (0, import_pg_core.pgTable)("liver_reviews", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  liverId: (0, import_pg_core.integer)("liver_id").notNull(),
-  userId: (0, import_pg_core.text)("user_id").notNull().default("guest"),
-  userName: (0, import_pg_core.text)("user_name").notNull(),
-  userAvatar: (0, import_pg_core.text)("user_avatar"),
-  satisfactionScore: (0, import_pg_core.integer)("satisfaction_score").notNull().default(5),
-  streamCountScore: (0, import_pg_core.integer)("stream_count_score").notNull().default(5),
-  attendanceScore: (0, import_pg_core.integer)("attendance_score").notNull().default(5),
-  overallScore: (0, import_pg_core.real)("overall_score").notNull().default(5),
-  comment: (0, import_pg_core.text)("comment").notNull().default(""),
-  sessionDate: (0, import_pg_core.text)("session_date").notNull(),
-  createdAt: (0, import_pg_core.timestamp)("created_at").defaultNow()
+var liverReviews = pgTable("liver_reviews", {
+  id: serial("id").primaryKey(),
+  liverId: integer("liver_id").notNull(),
+  userId: text("user_id").notNull().default("guest"),
+  userName: text("user_name").notNull(),
+  userAvatar: text("user_avatar"),
+  satisfactionScore: integer("satisfaction_score").notNull().default(5),
+  streamCountScore: integer("stream_count_score").notNull().default(5),
+  attendanceScore: integer("attendance_score").notNull().default(5),
+  overallScore: real("overall_score").notNull().default(5),
+  comment: text("comment").notNull().default(""),
+  sessionDate: text("session_date").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
 });
-var liverAvailability = (0, import_pg_core.pgTable)("liver_availability", {
-  id: (0, import_pg_core.serial)("id").primaryKey(),
-  liverId: (0, import_pg_core.integer)("liver_id").notNull(),
-  date: (0, import_pg_core.text)("date").notNull(),
-  startTime: (0, import_pg_core.text)("start_time").notNull(),
-  endTime: (0, import_pg_core.text)("end_time").notNull(),
-  maxSlots: (0, import_pg_core.integer)("max_slots").notNull().default(3),
-  bookedSlots: (0, import_pg_core.integer)("booked_slots").notNull().default(0),
-  note: (0, import_pg_core.text)("note").notNull().default(""),
-  createdAt: (0, import_pg_core.timestamp)("created_at").defaultNow()
+var liverAvailability = pgTable("liver_availability", {
+  id: serial("id").primaryKey(),
+  liverId: integer("liver_id").notNull(),
+  date: text("date").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time").notNull(),
+  maxSlots: integer("max_slots").notNull().default(3),
+  bookedSlots: integer("booked_slots").notNull().default(0),
+  note: text("note").notNull().default(""),
+  createdAt: timestamp("created_at").defaultNow()
 });
 
 // server/db.ts
-var pool = new import_pg.Pool({
+var pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL?.includes("neon") ? { rejectUnauthorized: false } : false
 });
-var db = (0, import_node_postgres.drizzle)(pool, { schema: schema_exports });
+var db = drizzle(pool, { schema: schema_exports });
 
 // server/routes.ts
-var import_drizzle_orm = require("drizzle-orm");
+import { eq, asc, desc, count, sql, and } from "drizzle-orm";
 
-// server/stripeClient.ts
-var import_stripe = __toESM(require("stripe"));
-async function getCredentials() {
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY ? "repl " + process.env.REPL_IDENTITY : process.env.WEB_REPL_RENEWAL ? "depl " + process.env.WEB_REPL_RENEWAL : null;
-  if (!xReplitToken) throw new Error("X-Replit-Token not found");
-  const connectorName = "stripe";
-  const isProduction = process.env.REPLIT_DEPLOYMENT === "1";
-  const targetEnvironment = isProduction ? "production" : "development";
-  const url = new URL(`https://${hostname}/api/v2/connection`);
-  url.searchParams.set("include_secrets", "true");
-  url.searchParams.set("connector_names", connectorName);
-  url.searchParams.set("environment", targetEnvironment);
-  const response = await fetch(url.toString(), {
-    headers: { Accept: "application/json", "X-Replit-Token": xReplitToken }
-  });
-  const data = await response.json();
-  const connectionSettings = data.items?.[0];
-  if (!connectionSettings?.settings?.secret) {
-    throw new Error(`Stripe ${targetEnvironment} connection not found`);
-  }
-  return {
-    publishableKey: connectionSettings.settings.publishable,
-    secretKey: connectionSettings.settings.secret
-  };
+// server/stripeClient.local.ts
+import Stripe from "stripe";
+var SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+var PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY;
+if (!SECRET_KEY || !PUBLISHABLE_KEY) {
+  console.warn(
+    "[stripe] STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY \u304C\u8A2D\u5B9A\u3055\u308C\u3066\u3044\u306A\u3044\u305F\u3081\u3001Stripe\u9023\u643A\u306F\u7121\u52B9\u3067\u3059\u3002"
+  );
 }
 async function getUncachableStripeClient() {
-  const { secretKey } = await getCredentials();
-  return new import_stripe.default(secretKey, { apiVersion: "2025-08-27.basil" });
+  if (!SECRET_KEY) {
+    throw new Error("STRIPE_SECRET_KEY is not set");
+  }
+  return new Stripe(SECRET_KEY, { apiVersion: "2025-08-27.basil" });
 }
 async function getStripePublishableKey() {
-  const { publishableKey } = await getCredentials();
-  return publishableKey;
+  if (!PUBLISHABLE_KEY) {
+    throw new Error("STRIPE_PUBLISHABLE_KEY is not set");
+  }
+  return PUBLISHABLE_KEY;
 }
 
 // server/routes.ts
-var import_bcryptjs = __toESM(require("bcryptjs"));
-var import_jsonwebtoken = __toESM(require("jsonwebtoken"));
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 var JWT_SECRET = process.env.SESSION_SECRET ?? "livestock-dev-secret";
 function makeToken(userId) {
-  return import_jsonwebtoken.default.sign({ sub: userId }, JWT_SECRET, { expiresIn: "90d" });
+  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "90d" });
 }
 async function getAuthUser(req) {
   const auth = req.headers?.authorization ?? "";
   if (!auth.startsWith("Bearer ")) return null;
   try {
-    const payload = import_jsonwebtoken.default.verify(auth.slice(7), JWT_SECRET);
-    const [user] = await db.select().from(userAccounts).where((0, import_drizzle_orm.eq)(userAccounts.id, payload.sub));
+    const payload = jwt.verify(auth.slice(7), JWT_SECRET);
+    const [user] = await db.select().from(userAccounts).where(eq(userAccounts.id, payload.sub));
     return user ?? null;
   } catch {
     return null;
@@ -350,9 +326,9 @@ async function registerRoutes(app2) {
     const { email, password, name } = req.body;
     if (!email || !password || !name) return res.status(400).json({ error: "\u5FC5\u9808\u9805\u76EE\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
     if (password.length < 6) return res.status(400).json({ error: "\u30D1\u30B9\u30EF\u30FC\u30C9\u306F6\u6587\u5B57\u4EE5\u4E0A\u3067\u8A2D\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044" });
-    const existing = await db.select().from(userAccounts).where((0, import_drizzle_orm.eq)(userAccounts.email, email.toLowerCase()));
+    const existing = await db.select().from(userAccounts).where(eq(userAccounts.email, email.toLowerCase()));
     if (existing.length > 0) return res.status(409).json({ error: "\u3053\u306E\u30E1\u30FC\u30EB\u30A2\u30C9\u30EC\u30B9\u306F\u3059\u3067\u306B\u767B\u9332\u3055\u308C\u3066\u3044\u307E\u3059" });
-    const passwordHash = await import_bcryptjs.default.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
     const [user] = await db.insert(userAccounts).values({ email: email.toLowerCase(), passwordHash, name }).returning();
     const token = makeToken(user.id);
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, bio: user.bio, avatar: user.avatar } });
@@ -360,9 +336,9 @@ async function registerRoutes(app2) {
   app2.post("/api/auth/login", async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: "\u30E1\u30FC\u30EB\u30A2\u30C9\u30EC\u30B9\u3068\u30D1\u30B9\u30EF\u30FC\u30C9\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
-    const [user] = await db.select().from(userAccounts).where((0, import_drizzle_orm.eq)(userAccounts.email, email.toLowerCase()));
+    const [user] = await db.select().from(userAccounts).where(eq(userAccounts.email, email.toLowerCase()));
     if (!user) return res.status(401).json({ error: "\u30E1\u30FC\u30EB\u30A2\u30C9\u30EC\u30B9\u307E\u305F\u306F\u30D1\u30B9\u30EF\u30FC\u30C9\u304C\u6B63\u3057\u304F\u3042\u308A\u307E\u305B\u3093" });
-    const ok = await import_bcryptjs.default.compare(password, user.passwordHash);
+    const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: "\u30E1\u30FC\u30EB\u30A2\u30C9\u30EC\u30B9\u307E\u305F\u306F\u30D1\u30B9\u30EF\u30FC\u30C9\u304C\u6B63\u3057\u304F\u3042\u308A\u307E\u305B\u3093" });
     const token = makeToken(user.id);
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, bio: user.bio, avatar: user.avatar } });
@@ -376,7 +352,7 @@ async function registerRoutes(app2) {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
     const { name, bio, avatar } = req.body;
-    const [updated] = await db.update(userAccounts).set({ name: name ?? user.name, bio: bio ?? user.bio, avatar: avatar !== void 0 ? avatar : user.avatar, updatedAt: /* @__PURE__ */ new Date() }).where((0, import_drizzle_orm.eq)(userAccounts.id, user.id)).returning();
+    const [updated] = await db.update(userAccounts).set({ name: name ?? user.name, bio: bio ?? user.bio, avatar: avatar !== void 0 ? avatar : user.avatar, updatedAt: /* @__PURE__ */ new Date() }).where(eq(userAccounts.id, user.id)).returning();
     res.json({ id: updated.id, email: updated.email, name: updated.name, bio: updated.bio, avatar: updated.avatar });
   });
   const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID ?? "";
@@ -425,11 +401,11 @@ async function registerRoutes(app2) {
       const lineName = profile.displayName ?? "LINE\u30E6\u30FC\u30B6\u30FC";
       const lineAvatar = profile.pictureUrl ?? null;
       const lineEmail = `line_${lineId}@line.local`;
-      let [existing] = await db.select().from(userAccounts).where((0, import_drizzle_orm.eq)(userAccounts.lineId, lineId));
+      let [existing] = await db.select().from(userAccounts).where(eq(userAccounts.lineId, lineId));
       if (!existing) {
         [existing] = await db.insert(userAccounts).values({ email: lineEmail, passwordHash: "line-oauth", name: lineName, avatar: lineAvatar, lineId }).onConflictDoUpdate({ target: userAccounts.email, set: { lineId, name: lineName, avatar: lineAvatar, updatedAt: /* @__PURE__ */ new Date() } }).returning();
       } else {
-        [existing] = await db.update(userAccounts).set({ name: lineName, avatar: lineAvatar, updatedAt: /* @__PURE__ */ new Date() }).where((0, import_drizzle_orm.eq)(userAccounts.id, existing.id)).returning();
+        [existing] = await db.update(userAccounts).set({ name: lineName, avatar: lineAvatar, updatedAt: /* @__PURE__ */ new Date() }).where(eq(userAccounts.id, existing.id)).returning();
       }
       const jwtToken = makeToken(existing.id);
       res.redirect(`/?line_token=${encodeURIComponent(jwtToken)}`);
@@ -439,26 +415,60 @@ async function registerRoutes(app2) {
     }
   });
   app2.get("/api/communities", async (_req, res) => {
-    const rows = await db.select().from(communities).orderBy((0, import_drizzle_orm.desc)(communities.members));
+    const rows = await db.select().from(communities).orderBy(desc(communities.members));
     res.json(rows);
   });
   app2.get("/api/communities/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const [row] = await db.select().from(communities).where((0, import_drizzle_orm.eq)(communities.id, id));
+    const [row] = await db.select().from(communities).where(eq(communities.id, id));
     if (!row) return res.status(404).json({ message: "Not found" });
     res.json(row);
   });
+  app2.post("/api/communities", async (req, res) => {
+    const { name, description, bannerUrl, iconUrl, categories } = req.body;
+    const trimmedName = (name ?? "").trim();
+    const trimmedDescription = (description ?? "").trim();
+    const banner = (bannerUrl ?? "").trim();
+    const icon = (iconUrl ?? "").trim();
+    const categoryList = Array.isArray(categories) ? categories.map((c) => String(c).trim()).filter(Boolean) : typeof categories === "string" ? categories.split(/[,\s]+/).map((c) => c.trim()).filter(Boolean) : [];
+    if (!trimmedName || !trimmedDescription || !banner || !icon || categoryList.length === 0) {
+      return res.status(400).json({ error: "\u5FC5\u9808\u9805\u76EE\u3092\u3059\u3079\u3066\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    }
+    if (trimmedDescription.length < 100) {
+      return res.status(400).json({ error: "\u8AAC\u660E\u6587\u306F100\u6587\u5B57\u4EE5\u4E0A\u3067\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    }
+    try {
+      const primaryCategory = categoryList[0];
+      const [row] = await db.insert(communities).values({
+        name: trimmedName,
+        members: 0,
+        thumbnail: banner,
+        online: false,
+        category: primaryCategory
+      }).returning();
+      res.status(201).json({
+        ...row,
+        description: trimmedDescription,
+        bannerUrl: banner,
+        iconUrl: icon,
+        categories: categoryList
+      });
+    } catch (e) {
+      console.error("Create community error:", e);
+      res.status(500).json({ error: "\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u306E\u4F5C\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
+    }
+  });
   app2.get("/api/videos", async (_req, res) => {
-    const rows = await db.select().from(videos).where((0, import_drizzle_orm.eq)(videos.isRanked, false)).orderBy((0, import_drizzle_orm.desc)(videos.createdAt));
+    const rows = await db.select().from(videos).where(eq(videos.isRanked, false)).orderBy(desc(videos.createdAt));
     res.json(rows);
   });
   app2.get("/api/videos/ranked", async (_req, res) => {
-    const rows = await db.select().from(videos).where((0, import_drizzle_orm.eq)(videos.isRanked, true)).orderBy((0, import_drizzle_orm.asc)(videos.rank));
+    const rows = await db.select().from(videos).where(eq(videos.isRanked, true)).orderBy(asc(videos.rank));
     res.json(rows);
   });
   app2.get("/api/videos/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const [row] = await db.select().from(videos).where((0, import_drizzle_orm.eq)(videos.id, id));
+    const [row] = await db.select().from(videos).where(eq(videos.id, id));
     if (!row) return res.status(404).json({ message: "Not found" });
     res.json(row);
   });
@@ -482,38 +492,38 @@ async function registerRoutes(app2) {
     res.status(201).json(row);
   });
   app2.get("/api/live-streams", async (_req, res) => {
-    const rows = await db.select().from(liveStreams).where((0, import_drizzle_orm.eq)(liveStreams.isLive, true)).orderBy((0, import_drizzle_orm.desc)(liveStreams.viewers));
+    const rows = await db.select().from(liveStreams).where(eq(liveStreams.isLive, true)).orderBy(desc(liveStreams.viewers));
     res.json(rows);
   });
   app2.get("/api/creators", async (_req, res) => {
-    const rows = await db.select().from(creators).orderBy((0, import_drizzle_orm.asc)(creators.rank));
+    const rows = await db.select().from(creators).orderBy(asc(creators.rank));
     res.json(rows);
   });
   app2.get("/api/booking-sessions", async (req, res) => {
     const { category } = req.query;
-    const rows = category && category !== "all" ? await db.select().from(bookingSessions).where((0, import_drizzle_orm.eq)(bookingSessions.category, category)) : await db.select().from(bookingSessions);
+    const rows = category && category !== "all" ? await db.select().from(bookingSessions).where(eq(bookingSessions.category, category)) : await db.select().from(bookingSessions);
     res.json(rows);
   });
   app2.post("/api/booking-sessions/:id/book", async (req, res) => {
     const id = parseInt(req.params.id);
-    const [session] = await db.select().from(bookingSessions).where((0, import_drizzle_orm.eq)(bookingSessions.id, id));
+    const [session] = await db.select().from(bookingSessions).where(eq(bookingSessions.id, id));
     if (!session) return res.status(404).json({ message: "Not found" });
     if (session.spotsLeft <= 0) return res.status(400).json({ message: "\u6E80\u5E2D\u3067\u3059" });
-    const [updated] = await db.update(bookingSessions).set({ spotsLeft: session.spotsLeft - 1 }).where((0, import_drizzle_orm.eq)(bookingSessions.id, id)).returning();
+    const [updated] = await db.update(bookingSessions).set({ spotsLeft: session.spotsLeft - 1 }).where(eq(bookingSessions.id, id)).returning();
     res.json(updated);
   });
   app2.get("/api/dm-messages", async (_req, res) => {
-    const rows = await db.select().from(dmMessages).orderBy((0, import_drizzle_orm.asc)(dmMessages.sortOrder));
+    const rows = await db.select().from(dmMessages).orderBy(asc(dmMessages.sortOrder));
     res.json(rows);
   });
   app2.post("/api/dm-messages/:id/read", async (req, res) => {
     const id = parseInt(req.params.id);
-    const [updated] = await db.update(dmMessages).set({ unread: 0 }).where((0, import_drizzle_orm.eq)(dmMessages.id, id)).returning();
+    const [updated] = await db.update(dmMessages).set({ unread: 0 }).where(eq(dmMessages.id, id)).returning();
     res.json(updated);
   });
   app2.get("/api/notifications", async (req, res) => {
     const { type } = req.query;
-    const rows = type && type !== "all" ? await db.select().from(notifications).where((0, import_drizzle_orm.eq)(notifications.type, type)).orderBy((0, import_drizzle_orm.desc)(notifications.createdAt)) : await db.select().from(notifications).orderBy((0, import_drizzle_orm.desc)(notifications.createdAt));
+    const rows = type && type !== "all" ? await db.select().from(notifications).where(eq(notifications.type, type)).orderBy(desc(notifications.createdAt)) : await db.select().from(notifications).orderBy(desc(notifications.createdAt));
     res.json(rows);
   });
   app2.post("/api/notifications/read-all", async (_req, res) => {
@@ -522,18 +532,18 @@ async function registerRoutes(app2) {
   });
   app2.post("/api/notifications/:id/read", async (req, res) => {
     const id = parseInt(req.params.id);
-    const [updated] = await db.update(notifications).set({ isRead: true }).where((0, import_drizzle_orm.eq)(notifications.id, id)).returning();
+    const [updated] = await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, id)).returning();
     res.json(updated);
   });
   app2.get("/api/live-streams/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const [stream] = await db.select().from(liveStreams).where((0, import_drizzle_orm.eq)(liveStreams.id, id));
+    const [stream] = await db.select().from(liveStreams).where(eq(liveStreams.id, id));
     if (!stream) return res.status(404).json({ error: "Not found" });
     res.json(stream);
   });
   app2.get("/api/live-streams/:id/chat", async (req, res) => {
     const id = parseInt(req.params.id);
-    const msgs = await db.select().from(liveStreamChat).where((0, import_drizzle_orm.eq)(liveStreamChat.streamId, id)).orderBy((0, import_drizzle_orm.asc)(liveStreamChat.createdAt));
+    const msgs = await db.select().from(liveStreamChat).where(eq(liveStreamChat.streamId, id)).orderBy(asc(liveStreamChat.createdAt));
     res.json(msgs);
   });
   app2.post("/api/live-streams/:id/chat", async (req, res) => {
@@ -551,7 +561,7 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/dm-messages/:id/conversation", async (req, res) => {
     const id = parseInt(req.params.id);
-    const msgs = await db.select().from(dmConversationMessages).where((0, import_drizzle_orm.eq)(dmConversationMessages.dmId, id)).orderBy((0, import_drizzle_orm.asc)(dmConversationMessages.createdAt));
+    const msgs = await db.select().from(dmConversationMessages).where(eq(dmConversationMessages.dmId, id)).orderBy(asc(dmConversationMessages.createdAt));
     res.json(msgs);
   });
   app2.post("/api/dm-messages/:id/conversation", async (req, res) => {
@@ -563,20 +573,20 @@ async function registerRoutes(app2) {
       text: text2,
       isRead: true
     }).returning();
-    await db.update(dmMessages).set({ lastMessage: text2, unread: 0 }).where((0, import_drizzle_orm.eq)(dmMessages.id, id));
+    await db.update(dmMessages).set({ lastMessage: text2, unread: 0 }).where(eq(dmMessages.id, id));
     res.json(msg);
   });
   app2.get("/api/jukebox/:communityId", async (req, res) => {
     const communityId = parseInt(req.params.communityId);
-    const [state] = await db.select().from(jukeboxState).where((0, import_drizzle_orm.eq)(jukeboxState.communityId, communityId));
-    const queue = await db.select().from(jukeboxQueue).where((0, import_drizzle_orm.eq)(jukeboxQueue.communityId, communityId)).orderBy((0, import_drizzle_orm.asc)(jukeboxQueue.position));
-    const chat = await db.select().from(jukeboxChat).where((0, import_drizzle_orm.eq)(jukeboxChat.communityId, communityId)).orderBy((0, import_drizzle_orm.asc)(jukeboxChat.createdAt));
+    const [state] = await db.select().from(jukeboxState).where(eq(jukeboxState.communityId, communityId));
+    const queue = await db.select().from(jukeboxQueue).where(eq(jukeboxQueue.communityId, communityId)).orderBy(asc(jukeboxQueue.position));
+    const chat = await db.select().from(jukeboxChat).where(eq(jukeboxChat.communityId, communityId)).orderBy(asc(jukeboxChat.createdAt));
     res.json({ state: state ?? null, queue, chat });
   });
   app2.post("/api/jukebox/:communityId/add", async (req, res) => {
     const communityId = parseInt(req.params.communityId);
-    const { videoId, videoTitle, videoThumbnail, videoDurationSecs, addedBy, addedByAvatar } = req.body;
-    const existing = await db.select().from(jukeboxQueue).where((0, import_drizzle_orm.eq)(jukeboxQueue.communityId, communityId)).orderBy((0, import_drizzle_orm.desc)(jukeboxQueue.position));
+    const { videoId, videoTitle, videoThumbnail, videoDurationSecs, addedBy, addedByAvatar, youtubeId } = req.body;
+    const existing = await db.select().from(jukeboxQueue).where(eq(jukeboxQueue.communityId, communityId)).orderBy(desc(jukeboxQueue.position));
     const nextPos = existing.length > 0 ? existing[0].position + 1 : 1;
     const [item] = await db.insert(jukeboxQueue).values({
       communityId,
@@ -584,28 +594,79 @@ async function registerRoutes(app2) {
       videoTitle,
       videoThumbnail,
       videoDurationSecs: videoDurationSecs ?? 0,
+      youtubeId: youtubeId ?? null,
       addedBy: addedBy ?? "\u3042\u306A\u305F",
       addedByAvatar,
       position: nextPos,
       isPlayed: false
     }).returning();
+    if (existing.length === 0) {
+      const watchers = Math.floor(Math.random() * 80) + 20;
+      await db.insert(jukeboxState).values({
+        communityId,
+        currentVideoId: item.videoId,
+        currentVideoTitle: item.videoTitle,
+        currentVideoThumbnail: item.videoThumbnail,
+        currentVideoDurationSecs: item.videoDurationSecs ?? 0,
+        currentVideoYoutubeId: item.youtubeId ?? null,
+        startedAt: /* @__PURE__ */ new Date(),
+        isPlaying: true,
+        watchersCount: watchers
+      }).onConflictDoUpdate({
+        target: jukeboxState.communityId,
+        set: {
+          currentVideoId: item.videoId,
+          currentVideoTitle: item.videoTitle,
+          currentVideoThumbnail: item.videoThumbnail,
+          currentVideoDurationSecs: item.videoDurationSecs ?? 0,
+          currentVideoYoutubeId: item.youtubeId ?? null,
+          startedAt: /* @__PURE__ */ new Date(),
+          isPlaying: true,
+          watchersCount: watchers
+        }
+      });
+    }
     res.json(item);
   });
   app2.post("/api/jukebox/:communityId/next", async (req, res) => {
     const communityId = parseInt(req.params.communityId);
-    const queue = await db.select().from(jukeboxQueue).where((0, import_drizzle_orm.eq)(jukeboxQueue.communityId, communityId)).orderBy((0, import_drizzle_orm.asc)(jukeboxQueue.position));
+    const queue = await db.select().from(jukeboxQueue).where(eq(jukeboxQueue.communityId, communityId)).orderBy(asc(jukeboxQueue.position));
     const next = queue.find((q) => !q.isPlayed);
     if (next) {
-      await db.update(jukeboxQueue).set({ isPlayed: true }).where((0, import_drizzle_orm.eq)(jukeboxQueue.id, next.id));
-      await db.update(jukeboxState).set({
+      await db.update(jukeboxQueue).set({ isPlayed: true }).where(eq(jukeboxQueue.id, next.id));
+      const watchers = Math.floor(Math.random() * 80) + 20;
+      await db.insert(jukeboxState).values({
+        communityId,
         currentVideoId: next.videoId,
         currentVideoTitle: next.videoTitle,
         currentVideoThumbnail: next.videoThumbnail,
         currentVideoDurationSecs: next.videoDurationSecs ?? 0,
+        currentVideoYoutubeId: next.youtubeId ?? null,
         startedAt: /* @__PURE__ */ new Date(),
         isPlaying: true,
-        watchersCount: Math.floor(Math.random() * 80) + 20
-      }).where((0, import_drizzle_orm.eq)(jukeboxState.communityId, communityId));
+        watchersCount: watchers
+      }).onConflictDoUpdate({
+        target: jukeboxState.communityId,
+        set: {
+          currentVideoId: next.videoId,
+          currentVideoTitle: next.videoTitle,
+          currentVideoThumbnail: next.videoThumbnail,
+          currentVideoDurationSecs: next.videoDurationSecs ?? 0,
+          currentVideoYoutubeId: next.youtubeId ?? null,
+          startedAt: /* @__PURE__ */ new Date(),
+          isPlaying: true,
+          watchersCount: watchers
+        }
+      });
+    } else {
+      await db.update(jukeboxState).set({
+        currentVideoId: null,
+        currentVideoTitle: null,
+        currentVideoThumbnail: null,
+        currentVideoDurationSecs: 0,
+        currentVideoYoutubeId: null,
+        isPlaying: false
+      }).where(eq(jukeboxState.communityId, communityId));
     }
     res.json({ ok: true });
   });
@@ -630,12 +691,12 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/twoshot/:streamId/bookings", async (req, res) => {
     const streamId = parseInt(req.params.streamId);
-    const rows = await db.select().from(twoshotBookings).where((0, import_drizzle_orm.eq)(twoshotBookings.streamId, streamId)).orderBy((0, import_drizzle_orm.asc)(twoshotBookings.queuePosition));
+    const rows = await db.select().from(twoshotBookings).where(eq(twoshotBookings.streamId, streamId)).orderBy(asc(twoshotBookings.queuePosition));
     res.json(rows);
   });
   app2.get("/api/twoshot/:streamId/queue-count", async (req, res) => {
     const streamId = parseInt(req.params.streamId);
-    const [{ total }] = await db.select({ total: (0, import_drizzle_orm.count)() }).from(twoshotBookings).where(import_drizzle_orm.sql`stream_id = ${streamId} AND status IN ('paid','waiting','notified')`);
+    const [{ total }] = await db.select({ total: count() }).from(twoshotBookings).where(sql`stream_id = ${streamId} AND status IN ('paid','waiting','notified')`);
     res.json({ count: Number(total) });
   });
   app2.post("/api/twoshot/:streamId/checkout", async (req, res) => {
@@ -644,9 +705,9 @@ async function registerRoutes(app2) {
     if (!userName) return res.status(400).json({ error: "userName required" });
     try {
       const stripe = await getUncachableStripeClient();
-      const [{ total }] = await db.select({ total: (0, import_drizzle_orm.count)() }).from(twoshotBookings).where(import_drizzle_orm.sql`stream_id = ${streamId} AND status IN ('paid','waiting','notified')`);
+      const [{ total }] = await db.select({ total: count() }).from(twoshotBookings).where(sql`stream_id = ${streamId} AND status IN ('paid','waiting','notified')`);
       const queuePos = Number(total) + 1;
-      const [stream] = await db.select().from(liveStreams).where((0, import_drizzle_orm.eq)(liveStreams.id, streamId));
+      const [stream] = await db.select().from(liveStreams).where(eq(liveStreams.id, streamId));
       const streamTitle = stream?.title ?? "\u30C4\u30FC\u30B7\u30E7\u30C3\u30C8\u64AE\u5F71";
       const creatorName = stream?.creator ?? "\u30AF\u30EA\u30A8\u30A4\u30BF\u30FC";
       const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : "http://localhost:8081";
@@ -706,8 +767,8 @@ async function registerRoutes(app2) {
       await db.update(twoshotBookings).set({
         status: "paid",
         stripePaymentIntentId: session.payment_intent
-      }).where((0, import_drizzle_orm.eq)(twoshotBookings.stripeSessionId, sessionId));
-      const [booking] = await db.select().from(twoshotBookings).where((0, import_drizzle_orm.eq)(twoshotBookings.stripeSessionId, sessionId));
+      }).where(eq(twoshotBookings.stripeSessionId, sessionId));
+      const [booking] = await db.select().from(twoshotBookings).where(eq(twoshotBookings.stripeSessionId, sessionId));
       res.json({ ok: true, booking });
     } catch (e) {
       res.status(500).json({ error: e.message });
@@ -715,12 +776,12 @@ async function registerRoutes(app2) {
   });
   app2.post("/api/twoshot/:bookingId/notify", async (req, res) => {
     const bookingId = parseInt(req.params.bookingId);
-    await db.update(twoshotBookings).set({ status: "notified", notifiedAt: /* @__PURE__ */ new Date() }).where((0, import_drizzle_orm.eq)(twoshotBookings.id, bookingId));
+    await db.update(twoshotBookings).set({ status: "notified", notifiedAt: /* @__PURE__ */ new Date() }).where(eq(twoshotBookings.id, bookingId));
     res.json({ ok: true });
   });
   app2.post("/api/twoshot/:bookingId/complete", async (req, res) => {
     const bookingId = parseInt(req.params.bookingId);
-    await db.update(twoshotBookings).set({ status: "completed", completedAt: /* @__PURE__ */ new Date() }).where((0, import_drizzle_orm.eq)(twoshotBookings.id, bookingId));
+    await db.update(twoshotBookings).set({ status: "completed", completedAt: /* @__PURE__ */ new Date() }).where(eq(twoshotBookings.id, bookingId));
     res.json({ ok: true });
   });
   app2.post("/api/twoshot/:bookingId/cancel", async (req, res) => {
@@ -731,13 +792,13 @@ async function registerRoutes(app2) {
       cancelledAt: /* @__PURE__ */ new Date(),
       cancelReason: reason ?? "\u30E6\u30FC\u30B6\u30FC\u30AD\u30E3\u30F3\u30BB\u30EB",
       refundable: !isSelfCancel
-    }).where((0, import_drizzle_orm.eq)(twoshotBookings.id, bookingId));
+    }).where(eq(twoshotBookings.id, bookingId));
     res.json({ ok: true });
   });
   app2.get("/api/revenue/summary", async (_req, res) => {
     const userId = "guest-001";
-    const earningRows = await db.select().from(earnings).where((0, import_drizzle_orm.eq)(earnings.userId, userId));
-    const withdrawalRows = await db.select().from(withdrawals).where((0, import_drizzle_orm.eq)(withdrawals.userId, userId));
+    const earningRows = await db.select().from(earnings).where(eq(earnings.userId, userId));
+    const withdrawalRows = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId));
     const totalEarned = earningRows.reduce((s, e) => s + e.netAmount, 0);
     const totalWithdrawn = withdrawalRows.filter((w) => w.status === "completed").reduce((s, w) => s + w.amount, 0);
     const pendingWithdrawal = withdrawalRows.filter((w) => w.status === "pending" || w.status === "processing").reduce((s, w) => s + w.amount, 0);
@@ -757,12 +818,12 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/revenue/earnings", async (_req, res) => {
     const userId = "guest-001";
-    const rows = await db.select().from(earnings).where((0, import_drizzle_orm.eq)(earnings.userId, userId)).orderBy((0, import_drizzle_orm.desc)(earnings.createdAt));
+    const rows = await db.select().from(earnings).where(eq(earnings.userId, userId)).orderBy(desc(earnings.createdAt));
     res.json(rows);
   });
   app2.get("/api/revenue/withdrawals", async (_req, res) => {
     const userId = "guest-001";
-    const rows = await db.select().from(withdrawals).where((0, import_drizzle_orm.eq)(withdrawals.userId, userId)).orderBy((0, import_drizzle_orm.desc)(withdrawals.requestedAt));
+    const rows = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId)).orderBy(desc(withdrawals.requestedAt));
     res.json(rows);
   });
   app2.post("/api/revenue/withdraw", async (req, res) => {
@@ -771,8 +832,8 @@ async function registerRoutes(app2) {
     if (!amount || amount < 1e3) {
       return res.status(400).json({ error: "\u6700\u4F4E\u5F15\u304D\u51FA\u3057\u984D\u306F\xA51,000\u3067\u3059" });
     }
-    const earningRows = await db.select().from(earnings).where((0, import_drizzle_orm.eq)(earnings.userId, userId));
-    const withdrawalRows = await db.select().from(withdrawals).where((0, import_drizzle_orm.eq)(withdrawals.userId, userId));
+    const earningRows = await db.select().from(earnings).where(eq(earnings.userId, userId));
+    const withdrawalRows = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId));
     const totalEarned = earningRows.reduce((s, e) => s + e.netAmount, 0);
     const totalUsed = withdrawalRows.filter((w) => w.status !== "failed").reduce((s, w) => s + w.amount, 0);
     const available = totalEarned - totalUsed;
@@ -784,7 +845,7 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/livers", async (req, res) => {
     const { name, minScore, category, date } = req.query;
-    let rows = await db.select().from(creators).orderBy((0, import_drizzle_orm.asc)(creators.rank));
+    let rows = await db.select().from(creators).orderBy(asc(creators.rank));
     if (name) {
       const q = name.toLowerCase();
       rows = rows.filter((r) => r.name.toLowerCase().includes(q));
@@ -797,7 +858,7 @@ async function registerRoutes(app2) {
       rows = rows.filter((r) => r.satisfactionScore >= ms);
     }
     if (date) {
-      const avail = await db.select().from(liverAvailability).where((0, import_drizzle_orm.eq)(liverAvailability.date, date));
+      const avail = await db.select().from(liverAvailability).where(eq(liverAvailability.date, date));
       const availIds = new Set(avail.map((a) => a.liverId));
       rows = rows.filter((r) => availIds.has(r.id));
     }
@@ -805,13 +866,58 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/livers/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const [liver] = await db.select().from(creators).where((0, import_drizzle_orm.eq)(creators.id, id));
+    const [liver] = await db.select().from(creators).where(eq(creators.id, id));
     if (!liver) return res.status(404).json({ error: "Not found" });
     res.json(liver);
   });
+  app2.get("/api/profile/roles", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const rows = await db.select().from(creators).where(eq(creators.name, user.name));
+    const isEditor = rows.some((r) => r.category === "editor");
+    const isTwoshot = rows.some((r) => r.category === "twoshot");
+    res.json({ isEditor, isTwoshot });
+  });
+  app2.post("/api/profile/register-role", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const { role } = req.body;
+    if (role !== "editor" && role !== "twoshot") {
+      return res.status(400).json({ error: "role \u306F editor \u304B twoshot \u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044" });
+    }
+    const category = role === "editor" ? "editor" : "twoshot";
+    const communityLabel = role === "editor" ? "\u52D5\u753B\u7DE8\u96C6\u30AF\u30EA\u30A8\u30A4\u30BF\u30FC" : "\u30C4\u30FC\u30B7\u30E7\u30C3\u30C8\u30E9\u30A4\u30D0\u30FC";
+    const existing = await db.select().from(creators).where(
+      and(
+        eq(creators.name, user.name),
+        eq(creators.category, category)
+      )
+    );
+    if (existing.length > 0) {
+      return res.json({ ok: true, alreadyRegistered: true });
+    }
+    const avatar = user.avatar ?? "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop";
+    const [created] = await db.insert(creators).values({
+      name: user.name,
+      community: communityLabel,
+      avatar,
+      rank: 999,
+      heatScore: 0,
+      totalViews: 0,
+      revenue: 0,
+      streamCount: 0,
+      followers: 0,
+      revenueShare: 80,
+      satisfactionScore: 5,
+      attendanceRate: 5,
+      bio: user.bio ?? "",
+      category
+    }).returning();
+    res.status(201).json({ ok: true, creator: created });
+  });
   app2.get("/api/livers/:id/reviews", async (req, res) => {
     const id = parseInt(req.params.id);
-    const rows = await db.select().from(liverReviews).where((0, import_drizzle_orm.eq)(liverReviews.liverId, id)).orderBy((0, import_drizzle_orm.desc)(liverReviews.createdAt));
+    const rows = await db.select().from(liverReviews).where(eq(liverReviews.liverId, id)).orderBy(desc(liverReviews.createdAt));
     res.json(rows);
   });
   app2.post("/api/livers/:id/reviews", async (req, res) => {
@@ -831,7 +937,7 @@ async function registerRoutes(app2) {
       comment,
       sessionDate: sessionDate ?? (/* @__PURE__ */ new Date()).toISOString().slice(0, 10)
     }).returning();
-    const allReviews = await db.select().from(liverReviews).where((0, import_drizzle_orm.eq)(liverReviews.liverId, id));
+    const allReviews = await db.select().from(liverReviews).where(eq(liverReviews.liverId, id));
     const avgOverall = allReviews.reduce((s, r) => s + r.overallScore, 0) / allReviews.length;
     const avgSatisfaction = allReviews.reduce((s, r) => s + r.satisfactionScore, 0) / allReviews.length;
     const avgAttendance = allReviews.reduce((s, r) => s + r.attendanceScore, 0) / allReviews.length;
@@ -839,12 +945,12 @@ async function registerRoutes(app2) {
       heatScore: parseFloat(avgOverall.toFixed(1)),
       satisfactionScore: parseFloat(avgSatisfaction.toFixed(1)),
       attendanceRate: parseFloat(avgAttendance.toFixed(1))
-    }).where((0, import_drizzle_orm.eq)(creators.id, id));
+    }).where(eq(creators.id, id));
     res.status(201).json(row);
   });
   app2.get("/api/livers/:id/availability", async (req, res) => {
     const id = parseInt(req.params.id);
-    const rows = await db.select().from(liverAvailability).where((0, import_drizzle_orm.eq)(liverAvailability.liverId, id)).orderBy((0, import_drizzle_orm.asc)(liverAvailability.date), (0, import_drizzle_orm.asc)(liverAvailability.startTime));
+    const rows = await db.select().from(liverAvailability).where(eq(liverAvailability.liverId, id)).orderBy(asc(liverAvailability.date), asc(liverAvailability.startTime));
     res.json(rows);
   });
   app2.post("/api/livers/:id/availability", async (req, res) => {
@@ -864,10 +970,99 @@ async function registerRoutes(app2) {
   });
   app2.delete("/api/livers/:id/availability/:slotId", async (req, res) => {
     const slotId = parseInt(req.params.slotId);
-    await db.delete(liverAvailability).where((0, import_drizzle_orm.eq)(liverAvailability.id, slotId));
+    await db.delete(liverAvailability).where(eq(liverAvailability.id, slotId));
     res.json({ ok: true });
   });
   app2.post("/api/seed", async (_req, res) => {
+    const existingUsers = await db.select().from(userAccounts);
+    if (existingUsers.length < 10) {
+      const demoEmail = "demo@livestock.jp";
+      const demoPasswordHash = await bcrypt.hash("password", 10);
+      const baseUsers = [
+        {
+          email: demoEmail,
+          passwordHash: demoPasswordHash,
+          name: "\u30C7\u30E2\u30A2\u30AB\u30A6\u30F3\u30C8",
+          bio: "\u8AB0\u3067\u3082\u7DE8\u96C6\u3067\u304D\u308B\u30C7\u30E2\u30E6\u30FC\u30B6\u30FC\u3067\u3059\u3002\u30D7\u30ED\u30D5\u30A3\u30FC\u30EB\u3084\u80A9\u66F8\u304D\u3092\u81EA\u7531\u306B\u5909\u66F4\u3057\u3066\u304A\u8A66\u3057\u304F\u3060\u3055\u3044\u3002",
+          avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop"
+        },
+        {
+          email: "idol1@example.com",
+          passwordHash: demoPasswordHash,
+          name: "\u661F\u7A7A\u307F\u3086",
+          bio: "\u5730\u4E0B\u30A2\u30A4\u30C9\u30EB\u3068\u3057\u3066\u6D3B\u52D5\u4E2D\u3002\u30E9\u30A4\u30D6\u3068\u30C1\u30A7\u30AD\u4F1A\u3067\u307F\u3093\u306A\u306B\u5143\u6C17\u3092\u5C4A\u3051\u307E\u3059\u3002",
+          avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop"
+        },
+        {
+          email: "comedian@example.com",
+          passwordHash: demoPasswordHash,
+          name: "\u30C0\u30D6\u30EB\u30D1\u30F3\u30C1\u5C71\u672C",
+          bio: "\u304A\u7B11\u3044\u30B3\u30F3\u30D3\u300C\u30C0\u30D6\u30EB\u30D1\u30F3\u30C1\u300D\u306E\u30C4\u30C3\u30B3\u30DF\u62C5\u5F53\u3002",
+          avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop"
+        },
+        {
+          email: "host@example.com",
+          passwordHash: demoPasswordHash,
+          name: "\u9E97\u83EF -REIKA-",
+          bio: "\u30AD\u30E3\u30D0\u30AF\u30E9\u3068\u914D\u4FE1\u3092\u4E21\u7ACB\u3059\u308B\u30AB\u30EA\u30B9\u30DE\u30DB\u30B9\u30C6\u30B9\u3002",
+          avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=150&h=150&fit=crop"
+        },
+        {
+          email: "jk@example.com",
+          passwordHash: demoPasswordHash,
+          name: "\u307E\u3044\u307E\u304417\u6B73",
+          bio: "\u653E\u8AB2\u5F8C\u30C8\u30FC\u30AF\u914D\u4FE1\u304C\u4EBA\u6C17\u306EJK\u30E9\u30A4\u30D0\u30FC\u3002",
+          avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&h=150&fit=crop"
+        },
+        {
+          email: "english@example.com",
+          passwordHash: demoPasswordHash,
+          name: "\u7530\u4E2D \u3086\u3046\u304D",
+          bio: "\u82F1\u4F1A\u8A71\u30AF\u30E9\u30D6\u4E3B\u5BB0\u3002\u30D3\u30B8\u30CD\u30B9\u82F1\u8A9E\u304B\u3089\u65E5\u5E38\u4F1A\u8A71\u307E\u3067\u3002",
+          avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop"
+        },
+        {
+          email: "fortune@example.com",
+          passwordHash: demoPasswordHash,
+          name: "\u795E\u5D0E \u30EA\u30CA",
+          bio: "\u30BF\u30ED\u30C3\u30C8\u3068\u897F\u6D0B\u5360\u661F\u8853\u3092\u7D44\u307F\u5408\u308F\u305B\u305F\u5360\u3044\u914D\u4FE1\u3002",
+          avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop"
+        },
+        {
+          email: "fitness@example.com",
+          passwordHash: demoPasswordHash,
+          name: "\u677E\u672C \u3053\u3046\u305F",
+          bio: "\u5143\u30D7\u30ED\u30B5\u30C3\u30AB\u30FC\u9078\u624B\u306E\u30D5\u30A3\u30C3\u30C8\u30CD\u30B9\u30E9\u30A4\u30D0\u30FC\u3002",
+          avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop"
+        },
+        {
+          email: "counselor@example.com",
+          passwordHash: demoPasswordHash,
+          name: "\u4F0A\u85E4 \u3055\u3084\u304B",
+          bio: "\u5FC3\u306E\u30B1\u30A2\u3092\u5C4A\u3051\u308B\u30AA\u30F3\u30E9\u30A4\u30F3\u30AB\u30A6\u30F3\u30BB\u30E9\u30FC\u3002",
+          avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop"
+        },
+        {
+          email: "cooking@example.com",
+          passwordHash: demoPasswordHash,
+          name: "\u4E2D\u6751 \u3042\u304A\u3044",
+          bio: "\u81EA\u5B85\u3067\u3067\u304D\u308B\u672C\u683C\u30EC\u30B7\u30D4\u3092\u914D\u4FE1\u3059\u308B\u6599\u7406\u30E9\u30A4\u30D0\u30FC\u3002",
+          avatar: "https://images.unsplash.com/photo-1502767089025-6572583495b9?w=150&h=150&fit=crop"
+        },
+        {
+          email: "editor@example.com",
+          passwordHash: demoPasswordHash,
+          name: "\u6620\u50CF\u7DE8\u96C6\u30DE\u30F3",
+          bio: "\u30C6\u30ED\u30C3\u30D7\u30FB\u30AB\u30C3\u30C8\u30FB\u30B5\u30E0\u30CD\u307E\u3067\u30EF\u30F3\u30B9\u30C8\u30C3\u30D7\u3067\u5BFE\u5FDC\u3059\u308B\u52D5\u753B\u7DE8\u96C6\u30AF\u30EA\u30A8\u30A4\u30BF\u30FC\u3002",
+          avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop"
+        }
+      ];
+      const existingEmails = new Set(existingUsers.map((u) => u.email.toLowerCase()));
+      const toInsertUsers = baseUsers.filter((u) => !existingEmails.has(u.email.toLowerCase()));
+      if (toInsertUsers.length > 0) {
+        await db.insert(userAccounts).values(toInsertUsers);
+      }
+    }
     const existingCreators = await db.select().from(creators);
     if (existingCreators.length >= 10) {
       return res.json({ ok: true, message: "Already seeded" });
@@ -1123,30 +1318,22 @@ async function registerRoutes(app2) {
     }
     res.json({ ok: true, created: insertedCreators.length });
   });
-  const httpServer = (0, import_node_http.createServer)(app2);
+  const httpServer = createServer(app2);
   return httpServer;
 }
 
 // server/index.ts
-var fs = __toESM(require("fs"));
-var path = __toESM(require("path"));
-var import_http_proxy_middleware = require("http-proxy-middleware");
-var app = (0, import_express.default)();
+import * as fs from "fs";
+import * as path from "path";
+import { createProxyMiddleware } from "http-proxy-middleware";
+var app = express();
 var log = console.log;
+app.get("/healthcheck", (_req, res) => res.status(200).send("OK"));
 function setupCors(app2) {
   app2.use((req, res, next) => {
-    const origins = /* @__PURE__ */ new Set();
-    if (process.env.REPLIT_DEV_DOMAIN) {
-      origins.add(`https://${process.env.REPLIT_DEV_DOMAIN}`);
-    }
-    if (process.env.REPLIT_DOMAINS) {
-      process.env.REPLIT_DOMAINS.split(",").forEach((d) => {
-        origins.add(`https://${d.trim()}`);
-      });
-    }
     const origin = req.header("origin");
     const isLocalhost = origin?.startsWith("http://localhost:") || origin?.startsWith("http://127.0.0.1:");
-    if (origin && (origins.has(origin) || isLocalhost)) {
+    if (origin && isLocalhost) {
       res.header("Access-Control-Allow-Origin", origin);
       res.header(
         "Access-Control-Allow-Methods",
@@ -1163,13 +1350,13 @@ function setupCors(app2) {
 }
 function setupBodyParsing(app2) {
   app2.use(
-    import_express.default.json({
+    express.json({
       verify: (req, _res, buf) => {
         req.rawBody = buf;
       }
     })
   );
-  app2.use(import_express.default.urlencoded({ extended: false }));
+  app2.use(express.urlencoded({ extended: false }));
 }
 function setupRequestLogging(app2) {
   app2.use((req, res, next) => {
@@ -1230,7 +1417,7 @@ function configureExpoAndLanding(app2) {
   if (isDev) {
     const expoDevPort = 8081;
     log(`Dev mode: proxying web requests to Expo dev server on port ${expoDevPort}`);
-    const expoProxy = (0, import_http_proxy_middleware.createProxyMiddleware)({
+    const expoProxy = createProxyMiddleware({
       target: `http://localhost:${expoDevPort}`,
       changeOrigin: true,
       ws: true,
@@ -1253,7 +1440,7 @@ function configureExpoAndLanding(app2) {
     const distPath = path.resolve(process.cwd(), "dist");
     if (fs.existsSync(distPath)) {
       log(`Serving Expo web export from: ${distPath}`);
-      app2.use(import_express.default.static(distPath));
+      app2.use(express.static(distPath));
       app2.use((req, res, next) => {
         if (req.path.startsWith("/api")) return next();
         const indexPath = path.join(distPath, "index.html");

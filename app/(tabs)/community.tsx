@@ -156,7 +156,7 @@ export default function CommunityScreen() {
               onChangeText={setSearch}
             />
           </View>
-          <Pressable style={styles.createBtn} onPress={() => {}}>
+          <Pressable style={styles.createBtn} onPress={() => router.push("/community/create")}>
             <Ionicons name="add" size={18} color="#fff" />
             <Text style={styles.createBtnText}>作成</Text>
           </Pressable>

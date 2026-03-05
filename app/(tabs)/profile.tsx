@@ -21,6 +21,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Svg, { Polygon, Circle, Line, Text as SvgText } from "react-native-svg";
 import { useAuth } from "@/lib/auth";
 import { C } from "@/constants/colors";
+import { apiRequest } from "@/lib/query-client";
 
 type Notif = { id: number; isRead: boolean };
 function useUnreadCount() {
@@ -195,6 +196,38 @@ export default function ProfileScreen() {
   const [editAvatar, setEditAvatar] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
 
+  // Role / creator registration state
+  const { data: roleStatus, refetch: refetchRoles } = useQuery<{ isEditor: boolean; isTwoshot: boolean } | null>({
+    queryKey: ["/api/profile/roles"],
+    enabled: !!user,
+  });
+  const [roleLoading, setRoleLoading] = useState<"editor" | "twoshot" | null>(null);
+
+  // Search state
+  const [searchText, setSearchText] = useState("");
+  const [searchDebounced, setSearchDebounced] = useState("");
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setSearchDebounced(searchText.trim());
+    }, 300);
+    return () => clearTimeout(id);
+  }, [searchText]);
+
+  type Liver = {
+    id: number;
+    name: string;
+    community: string;
+    avatar: string;
+    category: string;
+    followers: number;
+  };
+
+  const { data: searchResults = [] } = useQuery<Liver[]>({
+    queryKey: [searchDebounced ? `/api/livers?name=${encodeURIComponent(searchDebounced)}` : "/api/livers"],
+    enabled: searchDebounced.length > 0,
+  });
+
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
       if (raw) {
@@ -265,6 +298,25 @@ export default function ProfileScreen() {
     }
   }
 
+  async function registerRole(role: "editor" | "twoshot") {
+    if (!user || roleLoading) return;
+    setRoleLoading(role);
+    try {
+      await apiRequest("POST", "/api/profile/register-role", { role });
+      await refetchRoles();
+      Alert.alert(
+        "登録完了",
+        role === "editor"
+          ? "動画編集クリエイターとして登録されました。ライバー検索などに表示されます。"
+          : "ツーショットライバーとして登録されました。ライバー検索などに表示されます。",
+      );
+    } catch (e: any) {
+      Alert.alert("エラー", e?.message ?? "登録に失敗しました");
+    } finally {
+      setRoleLoading(null);
+    }
+  }
+
   const dominantIdx = scores.indexOf(Math.max(...scores));
   const dominantType = ENNEAGRAM_TYPES[dominantIdx];
 
@@ -319,8 +371,10 @@ export default function ProfileScreen() {
         <Ionicons name="search" size={16} color={C.textMuted} />
         <TextInput
           style={styles.searchInput}
-          placeholder="ユーザーを検索"
+          placeholder="ライバー / クリエイターを検索"
           placeholderTextColor={C.textMuted}
+          value={searchText}
+          onChangeText={setSearchText}
         />
       </View>
 
@@ -416,6 +470,84 @@ export default function ProfileScreen() {
           <Ionicons name="wallet-outline" size={16} color="#fff" />
           <Text style={styles.revenueBtnText}>REVENUE MANAGEMENT</Text>
         </Pressable>
+
+        {/* Creator / Twoshot registration */}
+        <View style={styles.roleCard}>
+          <Text style={styles.roleTitle}>クリエイター登録</Text>
+          <Text style={styles.roleSub}>
+            動画編集クリエイター / ツーショットライバーとして、検索一覧などに表示できるようにします。
+          </Text>
+          <View style={styles.roleButtonsRow}>
+            <Pressable
+              style={[
+                styles.roleButton,
+                roleStatus?.isEditor && styles.roleButtonActive,
+              ]}
+              disabled={!!roleStatus?.isEditor || roleLoading === "editor"}
+              onPress={() => registerRole("editor")}
+            >
+              <Ionicons
+                name="color-wand-outline"
+                size={16}
+                color={roleStatus?.isEditor ? "#fff" : C.textSec}
+              />
+              <Text
+                style={[
+                  styles.roleButtonText,
+                  roleStatus?.isEditor && styles.roleButtonTextActive,
+                ]}
+              >
+                動画編集クリエイター
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.roleButton,
+                roleStatus?.isTwoshot && styles.roleButtonActive,
+              ]}
+              disabled={!!roleStatus?.isTwoshot || roleLoading === "twoshot"}
+              onPress={() => registerRole("twoshot")}
+            >
+              <Ionicons
+                name="camera-outline"
+                size={16}
+                color={roleStatus?.isTwoshot ? "#fff" : C.textSec}
+              />
+              <Text
+                style={[
+                  styles.roleButtonText,
+                  roleStatus?.isTwoshot && styles.roleButtonTextActive,
+                ]}
+              >
+                ツーショットライバー
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Search results */}
+        {searchDebounced.length > 0 && searchResults.length > 0 && (
+          <View style={styles.searchResults}>
+            {searchResults.slice(0, 8).map((liver) => (
+              <Pressable
+                key={liver.id}
+                style={styles.searchResultRow}
+                onPress={() => router.push(`/livers/${liver.id}`)}
+              >
+                <Image source={{ uri: liver.avatar }} style={styles.searchResultAvatar} contentFit="cover" />
+                <View style={styles.searchResultBody}>
+                  <Text style={styles.searchResultName} numberOfLines={1}>
+                    {liver.name}
+                  </Text>
+                  <Text style={styles.searchResultMeta} numberOfLines={1}>
+                    {liver.community} / {liver.category}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         <View style={styles.postsHeader}>
           <View style={styles.postsLeft}>
@@ -800,6 +932,37 @@ const styles = StyleSheet.create({
   progressFill: { height: "100%", backgroundColor: C.accent, borderRadius: 4 },
   trophyIcon: { position: "absolute", right: 0, top: -3 },
   supporterSub: { color: C.accent, fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
+  roleCard: {
+    marginHorizontal: 16,
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    gap: 8,
+  },
+  roleTitle: { color: C.text, fontSize: 13, fontWeight: "700" },
+  roleSub: { color: C.textMuted, fontSize: 11 },
+  roleButtonsRow: { flexDirection: "row", gap: 8, marginTop: 6 },
+  roleButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: C.surface2,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  roleButtonActive: {
+    backgroundColor: C.accent,
+    borderColor: C.accent,
+  },
+  roleButtonText: { color: C.textSec, fontSize: 12, fontWeight: "700" },
+  roleButtonTextActive: { color: "#fff" },
   revenueBtn: {
     marginHorizontal: 16,
     backgroundColor: C.green,
@@ -812,6 +975,31 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   revenueBtnText: { color: "#fff", fontSize: 14, fontWeight: "800", letterSpacing: 0.5 },
+  searchResults: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: C.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  searchResultRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  searchResultAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 10,
+  },
+  searchResultBody: { flex: 1 },
+  searchResultName: { color: C.text, fontSize: 13, fontWeight: "700" },
+  searchResultMeta: { color: C.textMuted, fontSize: 11, marginTop: 2 },
   postsHeader: {
     flexDirection: "row",
     justifyContent: "space-between",

@@ -131,7 +131,7 @@ function CreatorRankCard({ item }: { item: any }) {
   const borderColor =
     item.rank === 1 ? C.orange : item.rank === 2 ? C.textSec : item.rank === 3 ? C.orangeLight : C.border;
   return (
-    <View style={[styles.creatorCard, { borderColor }]}>
+    <Pressable style={[styles.creatorCard, { borderColor }]} onPress={() => router.push(`/livers/${item.id}`)}>
       <View style={styles.creatorHeader}>
         <View style={[styles.rankCircle, { backgroundColor: item.rank <= 3 ? C.orange : C.surface3 }]}>
           <Text style={styles.rankCircleText}>{item.rank}</Text>
@@ -173,7 +173,7 @@ function CreatorRankCard({ item }: { item: any }) {
         <Text style={styles.revenueShareLabel}>レベニューシェア</Text>
         <Text style={styles.revenueShareValue}>{item.revenueShare}%</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -238,15 +238,47 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [rankFilter, setRankFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("ALL");
   const [creatorFilter, setCreatorFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("MONTHLY");
+  const [creatorTab, setCreatorTab] = useState<"ranking" | "twoshot">("ranking");
 
   const { data: apiVideos = [] } = useQuery<any[]>({ queryKey: ["/api/videos"] });
   const { data: apiLive = [] } = useQuery<any[]>({ queryKey: ["/api/live-streams"] });
+  type BookingSession = {
+    id: number;
+    creator: string;
+    category: string;
+    categoryLabel: string;
+    title: string;
+    avatar: string;
+    thumbnail: string;
+    date: string;
+    time: string;
+    duration: string;
+    price: number;
+    spotsTotal: number;
+    spotsLeft: number;
+    rating: number;
+    reviewCount: number;
+    tag: string | null;
+  };
+  const { data: twoshotSessions = [] } = useQuery<BookingSession[]>({
+    queryKey: ["/api/booking-sessions"],
+  });
   const unreadCount = useUnreadCount();
+  type JukeState = {
+    communityId: number;
+    currentVideoTitle: string | null;
+    currentVideoThumbnail: string | null;
+    currentVideoDurationSecs: number;
+    watchersCount: number;
+  };
+  type JukeData = { state: JukeState | null; queue: any[]; chat: any[] };
+  const { data: jukeData } = useQuery<JukeData>({ queryKey: ["/api/jukebox/1"] });
 
   const videos = apiVideos.length > 0 ? apiVideos : DUMMY_VIDEOS;
   const liveStreams = apiLive.length > 0 ? apiLive : DUMMY_LIVE;
   const rankedVideos = DUMMY_RANKED[rankFilter];
   const creators = DUMMY_CREATORS[creatorFilter];
+  const nowJuke = jukeData?.state ?? null;
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
@@ -274,6 +306,41 @@ export default function HomeScreen() {
           </Pressable>
         </View>
       </View>
+
+      {/* Mini Jukebox widget */}
+      {nowJuke && (
+        <Pressable
+          style={styles.miniJukebox}
+          onPress={() => router.push(`/jukebox/${nowJuke.communityId}`)}
+        >
+          <View style={styles.miniThumbWrap}>
+            {nowJuke.currentVideoThumbnail ? (
+              <Image
+                source={{ uri: nowJuke.currentVideoThumbnail }}
+                style={styles.miniThumb}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={[styles.miniThumb, styles.miniThumbPlaceholder]}>
+                <Ionicons name="musical-notes-outline" size={18} color={C.textMuted} />
+              </View>
+            )}
+          </View>
+          <View style={styles.miniBody}>
+            <View style={styles.miniLabelRow}>
+              <Ionicons name="musical-notes" size={12} color={C.accent} />
+              <Text style={styles.miniLabel}>参加コミュニティのJukebox</Text>
+            </View>
+            <Text style={styles.miniTitle} numberOfLines={1}>
+              {nowJuke.currentVideoTitle ?? "再生中の動画なし"}
+            </Text>
+            <Text style={styles.miniMeta}>
+              {nowJuke.watchersCount}人が同時視聴中
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+        </Pressable>
+      )}
 
       <ScrollView
         style={styles.scroll}
@@ -346,23 +413,89 @@ export default function HomeScreen() {
             <View style={[styles.liveDotInline, { backgroundColor: C.orange }]} />
             <Text style={styles.sectionTitle}>配信者ランキング</Text>
           </View>
-          <View style={styles.filterPills}>
-            {(["WEEKLY", "MONTHLY", "ALL"] as const).map((f) => (
-              <Pressable
-                key={f}
-                style={[styles.filterPill, creatorFilter === f && styles.filterPillActive]}
-                onPress={() => setCreatorFilter(f)}
+          <View style={styles.creatorTabs}>
+            <Pressable
+              style={[styles.creatorTab, creatorTab === "ranking" && styles.creatorTabActive]}
+              onPress={() => setCreatorTab("ranking")}
+            >
+              <Text
+                style={[
+                  styles.creatorTabText,
+                  creatorTab === "ranking" && styles.creatorTabTextActive,
+                ]}
               >
-                <Text style={[styles.filterPillText, creatorFilter === f && styles.filterPillTextActive]}>
-                  {f}
-                </Text>
-              </Pressable>
-            ))}
+                ランキング
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.creatorTab, creatorTab === "twoshot" && styles.creatorTabActive]}
+              onPress={() => setCreatorTab("twoshot")}
+            >
+              <Text
+                style={[
+                  styles.creatorTabText,
+                  creatorTab === "twoshot" && styles.creatorTabTextActive,
+                ]}
+              >
+                ツーショット予約
+              </Text>
+            </Pressable>
           </View>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-          {creators.map((c) => <CreatorRankCard key={c.id} item={c} />)}
-        </ScrollView>
+        {creatorTab === "ranking" ? (
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderLeft} />
+            <View style={styles.filterPills}>
+              {(["WEEKLY", "MONTHLY", "ALL"] as const).map((f) => (
+                <Pressable
+                  key={f}
+                  style={[styles.filterPill, creatorFilter === f && styles.filterPillActive]}
+                  onPress={() => setCreatorFilter(f)}
+                >
+                  <Text style={[styles.filterPillText, creatorFilter === f && styles.filterPillTextActive]}>
+                    {f}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
+        {creatorTab === "ranking" ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+            {creators.map((c) => (
+              <CreatorRankCard key={c.id} item={c} />
+            ))}
+          </ScrollView>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+            {twoshotSessions.map((s) => (
+              <Pressable
+                key={s.id}
+                style={styles.twoshotCard}
+                onPress={() => router.push(`/twoshot-booking/${s.id}`)}
+              >
+                <View style={styles.twoshotThumbWrap}>
+                  <Image source={{ uri: s.thumbnail }} style={styles.twoshotThumb} contentFit="cover" />
+                  <View style={styles.twoshotBadge}>
+                    <Ionicons name="camera-outline" size={10} color="#fff" />
+                    <Text style={styles.twoshotBadgeText}>ツーショット</Text>
+                  </View>
+                </View>
+                <View style={styles.twoshotBody}>
+                  <Text style={styles.twoshotCreator} numberOfLines={1}>
+                    {s.creator}
+                  </Text>
+                  <Text style={styles.twoshotTitle} numberOfLines={2}>
+                    {s.title}
+                  </Text>
+                  <Text style={styles.twoshotMeta}>
+                    {s.date} {s.time} · 残り{s.spotsLeft}枠
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -525,6 +658,57 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
   },
+  miniJukebox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  miniThumbWrap: {
+    width: 64,
+    height: 40,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: C.surface2,
+  },
+  miniThumb: {
+    width: "100%",
+    height: "100%",
+  },
+  miniThumbPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  miniBody: {
+    flex: 1,
+    gap: 2,
+  },
+  miniLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  miniLabel: {
+    color: C.accent,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  miniTitle: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  miniMeta: {
+    color: C.textMuted,
+    fontSize: 11,
+  },
   filterPills: {
     flexDirection: "row",
     gap: 4,
@@ -546,10 +730,84 @@ const styles = StyleSheet.create({
   filterPillTextActive: {
     color: "#fff",
   },
+  creatorTabs: {
+    flexDirection: "row",
+    backgroundColor: C.surface,
+    borderRadius: 8,
+    padding: 2,
+    gap: 2,
+  },
+  creatorTab: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  creatorTabActive: {
+    backgroundColor: C.accent,
+  },
+  creatorTabText: {
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  creatorTabTextActive: {
+    color: "#fff",
+    fontWeight: "700",
+  },
   hScroll: {
     paddingHorizontal: 16,
     paddingBottom: 16,
     gap: 12,
+  },
+  twoshotCard: {
+    width: 220,
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  twoshotThumbWrap: {
+    position: "relative",
+  },
+  twoshotThumb: {
+    width: 220,
+    height: 110,
+  },
+  twoshotBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    backgroundColor: C.accent,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  twoshotBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  twoshotBody: {
+    padding: 10,
+    gap: 3,
+  },
+  twoshotCreator: {
+    color: C.textSec,
+    fontSize: 11,
+  },
+  twoshotTitle: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  twoshotMeta: {
+    color: C.textMuted,
+    fontSize: 11,
+    marginTop: 2,
   },
   videoCard: {
     width: 180,

@@ -108,7 +108,10 @@ function BookingCard({ session }: { session: BookingSession }) {
               <View style={[styles.bookingProgressFill, { width: `${spotsPercent}%` as any, backgroundColor: isAlmostFull ? C.live : categoryColor }]} />
             </View>
           </View>
-          <Pressable style={[styles.bookingBtn, { backgroundColor: categoryColor }]}>
+          <Pressable
+            style={[styles.bookingBtn, { backgroundColor: categoryColor }]}
+            onPress={() => router.push(`/twoshot-booking/${session.id}`)}
+          >
             <Text style={styles.bookingBtnText}>予約する</Text>
           </Pressable>
         </View>

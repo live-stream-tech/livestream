@@ -18,6 +18,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/query-client";
 import { C } from "@/constants/colors";
+import { CREATORS } from "@/constants/data";
 
 type Liver = {
   id: number;
@@ -160,7 +161,25 @@ export default function LiverDetailScreen() {
     );
   }
 
-  if (!liver) {
+  const creatorBase = CREATORS.find((c) => c.id === String(liverId));
+  const fallbackLiver: Liver | undefined = creatorBase && {
+    id: liverId,
+    name: creatorBase.name,
+    community: creatorBase.community,
+    avatar: creatorBase.avatar,
+    rank: creatorBase.rank,
+    heatScore: creatorBase.heatScore,
+    streamCount: creatorBase.streamCount,
+    followers: creatorBase.followers,
+    satisfactionScore: 4.6,
+    attendanceRate: 4.8,
+    bio: `${creatorBase.community}で活動する人気ライバーです。（ダミーデータ）`,
+    category: "dummy",
+  };
+
+  const displayLiver = liver ?? fallbackLiver;
+
+  if (!displayLiver) {
     return (
       <View style={[styles.container, { paddingTop: topInset }]}>
         <Text style={{ color: C.text, margin: 20 }}>ライバーが見つかりません</Text>
@@ -170,7 +189,7 @@ export default function LiverDetailScreen() {
 
   const avgOverall = reviews.length > 0
     ? (reviews.reduce((s, r) => s + r.overallScore, 0) / reviews.length)
-    : liver.heatScore;
+    : displayLiver.heatScore;
 
   const upcomingSlots = slots
     .filter((s) => s.date >= new Date().toISOString().slice(0, 10))
@@ -199,31 +218,31 @@ export default function LiverDetailScreen() {
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={22} color={C.text} />
         </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>{liver.name}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{displayLiver.name}</Text>
         <View style={{ width: 36 }} />
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.profileCard}>
-          <Image source={{ uri: liver.avatar }} style={styles.avatar} contentFit="cover" />
+          <Image source={{ uri: displayLiver.avatar }} style={styles.avatar} contentFit="cover" />
           <View style={styles.profileInfo}>
             <View style={styles.nameRankRow}>
-              <Text style={styles.name}>{liver.name}</Text>
+              <Text style={styles.name}>{displayLiver.name}</Text>
               <View style={styles.rankBadge}>
                 <Ionicons name="trophy" size={11} color={C.orange} />
-                <Text style={styles.rankText}>#{liver.rank}</Text>
+                <Text style={styles.rankText}>#{displayLiver.rank}</Text>
               </View>
             </View>
-            <Text style={styles.community}>{liver.community}</Text>
-            <Text style={styles.bio}>{liver.bio}</Text>
+            <Text style={styles.community}>{displayLiver.community}</Text>
+            <Text style={styles.bio}>{displayLiver.bio}</Text>
             <View style={styles.statRow}>
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{liver.followers.toLocaleString()}</Text>
+                <Text style={styles.statValue}>{displayLiver.followers.toLocaleString()}</Text>
                 <Text style={styles.statLabel}>フォロワー</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{liver.streamCount}</Text>
+                <Text style={styles.statValue}>{displayLiver.streamCount}</Text>
                 <Text style={styles.statLabel}>配信回数</Text>
               </View>
               <View style={styles.statDivider} />

@@ -122,6 +122,8 @@ export const jukeboxState = pgTable("jukebox_state", {
   currentVideoTitle: text("current_video_title"),
   currentVideoThumbnail: text("current_video_thumbnail"),
   currentVideoDurationSecs: integer("current_video_duration_secs").default(0),
+  // YouTubeなど外部動画のID（任意）
+  currentVideoYoutubeId: text("current_video_youtube_id"),
   startedAt: timestamp("started_at").defaultNow(),
   isPlaying: boolean("is_playing").default(true),
   watchersCount: integer("watchers_count").default(1),
@@ -134,6 +136,7 @@ export const jukeboxQueue = pgTable("jukebox_queue", {
   videoTitle: text("video_title").notNull(),
   videoThumbnail: text("video_thumbnail").notNull(),
   videoDurationSecs: integer("video_duration_secs").default(0),
+  youtubeId: text("youtube_id"),
   addedBy: text("added_by").notNull().default("あなた"),
   addedByAvatar: text("added_by_avatar"),
   position: integer("position").notNull().default(0),

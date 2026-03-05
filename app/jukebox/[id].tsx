@@ -19,12 +19,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { C } from "@/constants/colors";
 import { apiRequest } from "@/lib/query-client";
+import { useAuth } from "@/lib/auth";
+import { Linking } from "react-native";
 
 type JukeboxState = {
   communityId: number;
   currentVideoTitle: string | null;
   currentVideoThumbnail: string | null;
   currentVideoDurationSecs: number;
+  currentVideoYoutubeId?: string | null;
   startedAt: string;
   isPlaying: boolean;
   watchersCount: number;
@@ -35,6 +38,7 @@ type QueueItem = {
   videoTitle: string;
   videoThumbnail: string;
   videoDurationSecs: number;
+  youtubeId?: string | null;
   addedBy: string;
   addedByAvatar: string | null;
   isPlayed: boolean;
@@ -60,7 +64,27 @@ type Video = {
   thumbnail: string;
   duration: string;
   category: string;
+  price?: number | null;
 };
+
+function extractYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url.trim());
+    if (u.hostname === "youtu.be") {
+      return u.pathname.slice(1) || null;
+    }
+    if (u.hostname.endsWith("youtube.com")) {
+      const v = u.searchParams.get("v");
+      if (v) return v;
+      const parts = u.pathname.split("/");
+      const idx = parts.indexOf("embed");
+      if (idx >= 0 && parts[idx + 1]) return parts[idx + 1];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 function fmtSecs(s: number): string {
   if (!s || s <= 0) return "0:00";
@@ -88,10 +112,14 @@ function NowPlaying({
   useEffect(() => {
     if (!state?.isPlaying) return;
     const iv = setInterval(() => {
-      setProgress(calcProgress(state.startedAt, state.currentVideoDurationSecs));
+      const p = calcProgress(state.startedAt, state.currentVideoDurationSecs);
+      setProgress(p);
+      if (p >= 1 && state.currentVideoDurationSecs > 0) {
+        onNext();
+      }
     }, 1000);
     return () => clearInterval(iv);
-  }, [state?.startedAt, state?.currentVideoDurationSecs, state?.isPlaying]);
+  }, [state?.startedAt, state?.currentVideoDurationSecs, state?.isPlaying, onNext]);
 
   useEffect(() => {
     const pulse = Animated.loop(
@@ -118,16 +146,36 @@ function NowPlaying({
     state.currentVideoDurationSecs
   );
 
+  const isYouTube = !!state.currentVideoYoutubeId;
+  const youtubeEmbedUrl = isYouTube
+    ? `https://www.youtube.com/embed/${state.currentVideoYoutubeId}?autoplay=1`
+    : null;
+
   return (
     <View style={styles.nowPlaying}>
-      {state.currentVideoThumbnail ? (
-        <Image
-          source={{ uri: state.currentVideoThumbnail }}
-          style={StyleSheet.absoluteFill}
-          contentFit="cover"
-        />
-      ) : null}
-      <View style={styles.nowPlayingOverlay} />
+      {Platform.OS === "web" && isYouTube ? (
+        <View style={styles.youtubeContainer}>
+          {/* React Native Web では iframe を直接使用 */}
+          {/* eslint-disable-next-line react/no-danger */}
+          <iframe
+            src={youtubeEmbedUrl ?? ""}
+            style={{ width: "100%", height: "100%", border: "none", borderRadius: 16 }}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </View>
+      ) : (
+        <>
+          {state.currentVideoThumbnail ? (
+            <Image
+              source={{ uri: state.currentVideoThumbnail }}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+            />
+          ) : null}
+          <View style={styles.nowPlayingOverlay} />
+        </>
+      )}
 
       <View style={styles.nowPlayingTop}>
         <View style={styles.liveChip}>
@@ -142,7 +190,15 @@ function NowPlaying({
 
       <View style={styles.nowPlayingBottom}>
         <View style={styles.nowPlayingCenter}>
-          <Pressable style={styles.playIcon}>
+          <Pressable
+            style={styles.playIcon}
+            onPress={() => {
+              if (isYouTube && state.currentVideoYoutubeId) {
+                const url = `https://www.youtube.com/watch?v=${state.currentVideoYoutubeId}`;
+                Linking.openURL(url);
+              }
+            }}
+          >
             <Ionicons name="play" size={28} color="rgba(255,255,255,0.9)" />
           </Pressable>
         </View>
@@ -223,37 +279,48 @@ export default function JukeboxScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const flatListRef = useRef<FlatList>(null);
+  const { user } = useAuth();
 
   const [chatInput, setChatInput] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+   const [ytUrl, setYtUrl] = useState("");
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
+  const jukeboxKey = [`/api/jukebox/${communityId}`] as const;
+
   const { data } = useQuery<JukeboxData>({
-    queryKey: [`/api/jukebox/${communityId}`],
+    queryKey: jukeboxKey,
     refetchInterval: 3000,
   });
 
-  const { data: allVideos = [] } = useQuery<Video[]>({ queryKey: ["/api/videos"] });
+  const { data: apiVideos = [] } = useQuery<Video[]>({ queryKey: ["/api/videos"] });
 
   const state = data?.state ?? null;
   const queue = data?.queue ?? [];
   const chat = data?.chat ?? [];
 
+  const purchasedVideos: Video[] = (apiVideos as any[]).filter((v) => v.price && v.price > 0);
+  const uploadedVideos: Video[] = user
+    ? (apiVideos as any[]).filter((v) => v.creator === user.name)
+    : [];
+
   const chatMutation = useMutation({
     mutationFn: (msg: string) =>
       apiRequest("POST", `/api/jukebox/${communityId}/chat`, {
-        username: "あなた",
-        avatar: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=80&h=80&fit=crop",
+        username: user?.name ?? "ゲスト",
+        avatar:
+          user?.avatar ??
+          "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=80&h=80&fit=crop",
         message: msg,
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/jukebox", communityId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: jukeboxKey }),
   });
 
   const nextMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/jukebox/${communityId}/next`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/jukebox", communityId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: jukeboxKey }),
   });
 
   const addMutation = useMutation({
@@ -263,14 +330,38 @@ export default function JukeboxScreen() {
         videoTitle: video.title,
         videoThumbnail: video.thumbnail,
         videoDurationSecs: 900,
-        addedBy: "あなた",
-        addedByAvatar: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=80&h=80&fit=crop",
+        youtubeId: (video as any).youtubeId ?? null,
+        addedBy: user?.name ?? "ゲスト",
+        addedByAvatar:
+          user?.avatar ??
+          "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=80&h=80&fit=crop",
       }),
     onSuccess: () => {
+      setYtUrl("");
       setShowAddModal(false);
-      qc.invalidateQueries({ queryKey: ["/api/jukebox", communityId] });
+      qc.invalidateQueries({ queryKey: jukeboxKey });
     },
   });
+
+  const handleAddYouTube = () => {
+    const url = ytUrl.trim();
+    if (!url) return;
+    const idPart = extractYouTubeId(url);
+    if (!idPart) {
+      alert("有効なYouTubeのURLを入力してください");
+      return;
+    }
+    const video: Video & { youtubeId: string } = {
+      id: Date.now(),
+      title: "YouTube リクエスト",
+      thumbnail: `https://img.youtube.com/vi/${idPart}/hqdefault.jpg`,
+      duration: "0:00",
+      category: "YouTube",
+      price: null,
+      youtubeId: idPart,
+    };
+    addMutation.mutate(video);
+  };
 
   const sendChat = useCallback(() => {
     const msg = chatInput.trim();
@@ -372,9 +463,39 @@ export default function JukeboxScreen() {
         <Pressable style={styles.modalBg} onPress={() => setShowAddModal(false)}>
           <Pressable style={styles.modalSheet} onPress={() => {}}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>購入済み動画をキューに追加</Text>
+            <Text style={styles.modalTitle}>Jukeboxに動画を追加</Text>
+
+            {/* YouTube URL input */}
+            <View style={styles.ytInputSection}>
+              <Text style={styles.ytLabel}>YouTubeのURL</Text>
+              <View style={styles.ytRow}>
+                <TextInput
+                  style={styles.ytInput}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  placeholderTextColor={C.textMuted}
+                  value={ytUrl}
+                  onChangeText={setYtUrl}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Pressable
+                  style={[styles.ytAddButton, !ytUrl.trim() && styles.ytAddButtonDisabled]}
+                  onPress={handleAddYouTube}
+                  disabled={!ytUrl.trim()}
+                >
+                  <Ionicons name="logo-youtube" size={16} color="#fff" />
+                  <Text style={styles.ytAddButtonText}>このURLで追加</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Purchased videos */}
+            <Text style={styles.modalSubtitle}>自分の購入済み動画</Text>
             <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
-              {allVideos.map((video) => (
+              {purchasedVideos.length === 0 && (
+                <Text style={styles.emptyPurchasedText}>まだ購入済み動画がありません</Text>
+              )}
+              {purchasedVideos.map((video) => (
                 <Pressable
                   key={video.id}
                   style={styles.modalItem}
@@ -385,12 +506,40 @@ export default function JukeboxScreen() {
                     <Text style={styles.modalItemTitle} numberOfLines={2}>{video.title}</Text>
                     <View style={styles.modalItemMeta}>
                       <Ionicons name="checkmark-circle" size={12} color={C.green} />
-                      <Text style={styles.modalItemMetaText}>購入済み · {video.category}</Text>
+                      <Text style={styles.modalItemMetaText}>
+                        購入済み動画 · ¥{video.price?.toLocaleString()}
+                      </Text>
                     </View>
                   </View>
                   <Ionicons name="add-circle" size={24} color={C.accent} />
                 </Pressable>
               ))}
+
+              {/* Uploaded videos */}
+              {uploadedVideos.length > 0 && (
+                <>
+                  <Text style={styles.modalSubtitle}>自分がアップした動画</Text>
+                  {uploadedVideos.map((video) => (
+                    <Pressable
+                      key={`u-${video.id}`}
+                      style={styles.modalItem}
+                      onPress={() => addMutation.mutate(video)}
+                    >
+                      <Image source={{ uri: video.thumbnail }} style={styles.modalThumb} contentFit="cover" />
+                      <View style={styles.modalItemInfo}>
+                        <Text style={styles.modalItemTitle} numberOfLines={2}>{video.title}</Text>
+                        <View style={styles.modalItemMeta}>
+                          <Ionicons name="person-circle" size={12} color={C.accent} />
+                          <Text style={styles.modalItemMetaText}>
+                            自分の投稿 · {video.price ? `¥${video.price.toLocaleString()}` : "無料"}
+                          </Text>
+                        </View>
+                      </View>
+                      <Ionicons name="add-circle" size={24} color={C.accent} />
+                    </Pressable>
+                  ))}
+                </>
+              )}
               <View style={{ height: 40 }} />
             </ScrollView>
           </Pressable>
@@ -675,6 +824,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 12,
+    paddingHorizontal: 16,
     maxHeight: "75%",
   },
   modalHandle: {
@@ -689,10 +839,54 @@ const styles = StyleSheet.create({
     color: C.text,
     fontSize: 16,
     fontWeight: "800",
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  modalList: { paddingHorizontal: 16 },
+  modalSubtitle: {
+    color: C.textSec,
+    fontSize: 12,
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  ytInputSection: {
+    marginBottom: 8,
+    gap: 6,
+  },
+  ytLabel: {
+    color: C.textSec,
+    fontSize: 12,
+  },
+  ytRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  ytInput: {
+    flex: 1,
+    backgroundColor: C.surface2,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: C.text,
+    fontSize: 12,
+  },
+  ytAddButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#ff0000",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  ytAddButtonDisabled: {
+    opacity: 0.4,
+  },
+  ytAddButtonText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  modalList: {},
   modalItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -706,4 +900,9 @@ const styles = StyleSheet.create({
   modalItemTitle: { color: C.text, fontSize: 13, fontWeight: "600", lineHeight: 17 },
   modalItemMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
   modalItemMetaText: { color: C.textMuted, fontSize: 11 },
+  emptyPurchasedText: {
+    color: C.textMuted,
+    fontSize: 12,
+    paddingVertical: 8,
+  },
 });

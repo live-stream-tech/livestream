@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
+import { VIDEOS } from "@/constants/data";
 
 const COMMENTS = [
   {
@@ -43,10 +44,13 @@ export default function VideoDetailScreen() {
   const insets = useSafeAreaInsets();
   const [purchased, setPurchased] = useState(false);
 
-  const { data: video } = useQuery<any>({
+  const { data: apiVideo } = useQuery<any>({
     queryKey: [`/api/videos/${id}`],
     enabled: !!id,
   });
+
+  const fallbackVideo = VIDEOS.find((v) => v.id === String(id)) ?? VIDEOS[0];
+  const video = (apiVideo as any) ?? fallbackVideo;
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;

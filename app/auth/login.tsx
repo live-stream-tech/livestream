@@ -130,6 +130,24 @@ export default function LoginScreen() {
             >
               <Text style={styles.demoFill}>demo@livestock.jp / password を入力</Text>
             </Pressable>
+            <Pressable
+              style={styles.demoLoginBtn}
+              onPress={async () => {
+                if (loading) return;
+                setLoading(true);
+                try {
+                  await login("demo@livestock.jp", "password");
+                  router.replace("/(tabs)/profile");
+                } catch (e: any) {
+                  Alert.alert("ログイン失敗", e.message ?? "デモアカウントにログインできませんでした");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              <Ionicons name="play-circle-outline" size={16} color={C.accent} />
+              <Text style={styles.demoLoginText}>デモとしてすぐにログイン</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -205,6 +223,13 @@ const styles = StyleSheet.create({
   },
   demoLabel: { color: C.textMuted, fontSize: 11, fontWeight: "600" },
   demoFill: { color: C.accent, fontSize: 12, fontWeight: "600" },
+  demoLoginBtn: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  demoLoginText: { color: C.accent, fontSize: 12, fontWeight: "700" },
 
   registerRow: {
     flexDirection: "row",

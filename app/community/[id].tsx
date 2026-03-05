@@ -418,6 +418,28 @@ export default function CommunityDetailScreen() {
           </Pressable>
         </View>
 
+        {/* Jukebox CTA */}
+        <Pressable
+          style={styles.jukeboxCta}
+          onPress={() => router.push(`/jukebox/${communityId}`)}
+        >
+          <View style={styles.jukeboxCtaLeft}>
+            <View style={styles.jukeboxCtaBadge}>
+              <Ionicons name="musical-notes" size={14} color="#fff" />
+              <Text style={styles.jukeboxCtaBadgeText}>JUKEBOX</Text>
+            </View>
+            <Text style={styles.jukeboxCtaTitle} numberOfLines={2}>
+              このコミュニティで同時視聴をはじめる
+            </Text>
+            <Text style={styles.jukeboxCtaSub} numberOfLines={1}>
+              YouTubeや投稿動画をキューに追加
+            </Text>
+          </View>
+          <View style={styles.jukeboxCtaRight}>
+            <Ionicons name="play-circle" size={26} color="#fff" />
+          </View>
+        </Pressable>
+
         <EmbeddedJukebox communityId={communityId} />
 
         <View style={styles.tabRow}>
@@ -975,5 +997,50 @@ const styles = StyleSheet.create({
   boardDetail: {
     color: C.textSec,
     fontSize: 11,
+  },
+  jukeboxCta: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: C.accentDark,
+    borderWidth: 1,
+    borderColor: C.accent,
+    gap: 10,
+  },
+  jukeboxCtaLeft: {
+    flex: 1,
+    gap: 4,
+  },
+  jukeboxCtaBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  jukeboxCtaBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  jukeboxCtaTitle: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  jukeboxCtaSub: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 11,
+  },
+  jukeboxCtaRight: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

@@ -18,6 +18,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/query-client";
 import { C } from "@/constants/colors";
+import { useAuth } from "@/lib/auth";
 
 type FeeType = "free" | "paid";
 type ScopeType = "public" | "members" | "invite";
@@ -32,6 +33,7 @@ export default function UploadScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   const { data: communities = [] } = useQuery<Community[]>({ queryKey: ["/api/communities"] });
 
@@ -83,13 +85,15 @@ export default function UploadScreen() {
     setUploading(true);
     try {
       const communityName = selectedCommunity?.name ?? "一般";
+      const creatorName = user?.name ?? "ゲストライバー";
       const thumbUrl = photoUri
         ?? selectedCommunity?.thumbnail
         ?? "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=400&fit=crop";
-      const avatarUrl = "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop";
+      const avatarUrl = user?.avatar
+        ?? "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop";
       const newPost = await apiRequest("POST", "/api/videos", {
         title: title.trim(),
-        creator: communityName,
+        creator: creatorName,
         community: communityName,
         duration: "00:00",
         price: fee === "paid" ? price : null,
