@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "LiveStock",
-    "slug": "livestock",
+    "name": "LiveStage",
+    "slug": "livestage",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "livestock",
+    "scheme": "livestage",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
@@ -15,10 +15,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.livestock"
+      "bundleIdentifier": "com.livestage"
     },
     "android": {
-      "package": "com.livestock",
+      "package": "com.livestage",
       "adaptiveIcon": {
         "backgroundColor": "#1B2838",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -30,8 +30,8 @@
       "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/favicon.png",
-      "name": "LiveStock",
-      "shortName": "LiveStock",
+      "name": "LiveStage",
+      "shortName": "LiveStage",
       "description": "ライブ配信・有料動画プラットフォーム",
       "themeColor": "#1B2838",
       "backgroundColor": "#1B2838",

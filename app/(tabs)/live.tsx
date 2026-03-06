@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   ScrollView,
   StyleSheet,
   Pressable,
@@ -15,7 +16,7 @@ import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
 
-const BOOKING_CATEGORY_ICONS: Record<string, string> = {
+const 個別セッション_CATEGORY_ICONS: Record<string, string> = {
   english: "language-outline",
   counselor: "heart-outline",
   fortune: "star-outline",
@@ -25,7 +26,7 @@ const BOOKING_CATEGORY_ICONS: Record<string, string> = {
   yoga: "flower-outline",
 };
 
-const BOOKING_CATEGORY_COLORS: Record<string, string> = {
+const 個別セッション_CATEGORY_COLORS: Record<string, string> = {
   english: "#29B6CF",
   counselor: "#EC407A",
   fortune: "#7C4DFF",
@@ -35,19 +36,8 @@ const BOOKING_CATEGORY_COLORS: Record<string, string> = {
   yoga: "#66BB6A",
 };
 
-const BOOKING_CATEGORIES = [
-  { id: "all", label: "すべて" },
-  { id: "idol", label: "アイドル" },
-  { id: "english", label: "英会話" },
-  { id: "fortune", label: "占い" },
-  { id: "counselor", label: "カウンセラー" },
-  { id: "cooking", label: "料理教室" },
-  { id: "coaching", label: "コーチング" },
-  { id: "yoga", label: "ヨガ" },
-];
-
 function BookingCard({ session }: { session: BookingSession }) {
-  const categoryColor = BOOKING_CATEGORY_COLORS[session.category] ?? C.accent;
+  const categoryColor = 個別セッション_CATEGORY_COLORS[session.category] ?? C.accent;
   const spotsPercent = ((session.spotsTotal - session.spotsLeft) / session.spotsTotal) * 100;
   const isAlmostFull = session.spotsLeft <= 2;
 
@@ -56,7 +46,7 @@ function BookingCard({ session }: { session: BookingSession }) {
       <View style={styles.bookingThumbContainer}>
         <Image source={{ uri: session.thumbnail }} style={styles.bookingThumb} contentFit="cover" />
         <View style={[styles.bookingCategoryBadge, { backgroundColor: categoryColor }]}>
-          <Ionicons name={BOOKING_CATEGORY_ICONS[session.category] as any} size={10} color="#fff" />
+          <Ionicons name={個別セッション_CATEGORY_ICONS[session.category] as any} size={10} color="#fff" />
           <Text style={styles.bookingCategoryText}>{session.categoryLabel}</Text>
         </View>
         {session.tag && (
@@ -188,7 +178,7 @@ function LiveStartModal({ visible, onClose }: { visible: boolean; onClose: () =>
               >
                 <Ionicons name="people-outline" size={22} color={scope === "twoshot" ? C.accent : C.textSec} />
                 <View style={styles.scopeText}>
-                  <Text style={[styles.scopeTitle, scope === "twoshot" && styles.scopeTitleActive]}>ツーショット</Text>
+                  <Text style={[styles.scopeTitle, scope === "twoshot" && styles.scopeTitleActive]}>個別セッション</Text>
                   <Text style={styles.scopeDesc}>1対1のプライベート配信</Text>
                 </View>
               </Pressable>
@@ -273,14 +263,20 @@ export default function LiveScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<"now" | "booking">("now");
   const [modalVisible, setModalVisible] = useState(false);
-  const [bookingCategory, setBookingCategory] = useState("all");
+  const [liveSearch, setLiveSearch] = useState("");
 
   const { data: liveStreams = [] } = useQuery<any[]>({ queryKey: ["/api/live-streams"] });
   const { data: bookingSessions = [] } = useQuery<any[]>({ queryKey: ["/api/booking-sessions"] });
 
-  const filteredBookings = bookingCategory === "all"
-    ? bookingSessions
-    : bookingSessions.filter((s: any) => s.category === bookingCategory);
+  const filteredLiveStreams = liveStreams.filter((s: any) => {
+    const matchSearch = !liveSearch || s.title?.includes(liveSearch) || s.creator?.includes(liveSearch);
+    return matchSearch;
+  });
+
+  const filteredBookings = bookingSessions.filter((s: any) => {
+    const matchSearch = !liveSearch || s.title?.includes(liveSearch) || s.creator?.includes(liveSearch);
+    return matchSearch;
+  });
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -299,6 +295,23 @@ export default function LiveScreen() {
         </Pressable>
       </View>
 
+      {/* 検索バー（両タブ共通） */}
+      <View style={styles.liveSearchWrap}>
+        <Ionicons name="search-outline" size={18} color={C.textMuted} />
+        <TextInput
+          style={styles.liveSearchInput}
+          placeholder="ライバー・配信を検索"
+          placeholderTextColor={C.textMuted}
+          value={liveSearch}
+          onChangeText={setLiveSearch}
+        />
+        {liveSearch.length > 0 && (
+          <Pressable onPress={() => setLiveSearch("")} hitSlop={8}>
+            <Ionicons name="close-circle" size={18} color={C.textMuted} />
+          </Pressable>
+        )}
+      </View>
+
       {/* Tabs */}
       <View style={styles.tabRow}>
         <Pressable
@@ -313,7 +326,7 @@ export default function LiveScreen() {
           onPress={() => setActiveTab("booking")}
         >
           <Ionicons name="calendar-outline" size={13} color={activeTab === "booking" ? C.accent : C.textMuted} />
-          <Text style={[styles.tabText, activeTab === "booking" && styles.tabTextActive]}>BOOKING</Text>
+          <Text style={[styles.tabText, activeTab === "booking" && styles.tabTextActive]}>個別セッション</Text>
         </Pressable>
       </View>
 
@@ -322,62 +335,38 @@ export default function LiveScreen() {
         showsVerticalScrollIndicator={false}
       >
         {activeTab === "now" ? (
-          <View style={styles.liveList}>
-            {liveStreams.map((stream: any) => (
-              <Pressable key={stream.id} style={styles.liveStreamCard} onPress={() => router.push(`/live/${stream.id}`)}>
-                <Image source={{ uri: stream.thumbnail }} style={styles.liveStreamThumb} contentFit="cover" />
-                <View style={styles.liveBadge}>
-                  <View style={styles.liveDot} />
-                  <Text style={styles.liveBadgeText}>LIVE</Text>
-                </View>
-                <View style={styles.viewersBadge}>
-                  <Ionicons name="people-outline" size={12} color="#fff" />
-                  <Text style={styles.viewersText}>{stream.viewers.toLocaleString()}</Text>
-                </View>
-                <View style={styles.streamInfo}>
-                  <Text style={styles.streamTitle} numberOfLines={2}>{stream.title}</Text>
-                  <View style={styles.streamCreatorRow}>
-                    <Image source={{ uri: stream.avatar }} style={styles.streamAvatar} contentFit="cover" />
-                    <Text style={styles.streamCreator}>{stream.creator}</Text>
-                  </View>
-                </View>
-              </Pressable>
-            ))}
+          <View>
+            {filteredLiveStreams.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>配信中のライバーはいません</Text>
+              </View>
+            ) : (
+              <View style={styles.liveList}>
+                {filteredLiveStreams.map((stream: any) => (
+                  <Pressable key={stream.id} style={styles.liveStreamCard} onPress={() => router.push(`/live/${stream.id}`)}>
+                    <Image source={{ uri: stream.thumbnail }} style={styles.liveStreamThumb} contentFit="cover" />
+                    <View style={styles.liveBadge}>
+                      <View style={styles.liveDot} />
+                      <Text style={styles.liveBadgeText}>LIVE</Text>
+                    </View>
+                    <View style={styles.viewersBadge}>
+                      <Ionicons name="people-outline" size={12} color="#fff" />
+                      <Text style={styles.viewersText}>{stream.viewers.toLocaleString()}</Text>
+                    </View>
+                    <View style={styles.streamInfo}>
+                      <Text style={styles.streamTitle} numberOfLines={2}>{stream.title}</Text>
+                      <View style={styles.streamCreatorRow}>
+                        <Image source={{ uri: stream.avatar }} style={styles.streamAvatar} contentFit="cover" />
+                        <Text style={styles.streamCreator}>{stream.creator}</Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </View>
         ) : (
           <View>
-            {/* カテゴリフィルター */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.bookingCatScroll}
-              style={{ marginBottom: 12 }}
-            >
-              {BOOKING_CATEGORIES.map((cat) => {
-                const isActive = bookingCategory === cat.id;
-                const color = cat.id === "all" ? C.accent : (BOOKING_CATEGORY_COLORS[cat.id] ?? C.accent);
-                return (
-                  <Pressable
-                    key={cat.id}
-                    style={[styles.bookingCatPill, isActive && { backgroundColor: color, borderColor: color }]}
-                    onPress={() => setBookingCategory(cat.id)}
-                  >
-                    {cat.id !== "all" && (
-                      <Ionicons
-                        name={BOOKING_CATEGORY_ICONS[cat.id] as any}
-                        size={12}
-                        color={isActive ? "#fff" : C.textSec}
-                      />
-                    )}
-                    <Text style={[styles.bookingCatText, isActive && styles.bookingCatTextActive]}>
-                      {cat.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            {/* 予約カード一覧 */}
             <View style={styles.bookingList}>
               {filteredBookings.map((session) => (
                 <BookingCard key={session.id} session={session} />
@@ -554,6 +543,66 @@ const styles = StyleSheet.create({
   emptySubText: {
     color: C.textMuted,
     fontSize: 13,
+  },
+  emptyCtaBtn: {
+    backgroundColor: C.accent,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  emptyCtaText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  liveSearchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  liveSearchInput: {
+    flex: 1,
+    color: C.text,
+    fontSize: 15,
+    paddingVertical: 4,
+  },
+  liveGenreScrollWrap: {
+    marginBottom: 12,
+  },
+  liveGenreScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+    paddingVertical: 4,
+  },
+  liveGenrePill: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  liveGenrePillActive: {
+    backgroundColor: C.accent,
+    borderColor: C.accent,
+  },
+  liveGenreText: {
+    color: C.textSec,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  liveGenreTextActive: {
+    color: "#fff",
   },
   startFab: {
     position: "absolute",

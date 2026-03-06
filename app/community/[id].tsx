@@ -8,6 +8,8 @@ import {
   TextInput,
   Platform,
   Animated,
+  Modal,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,7 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
-import { COMMUNITIES, VIDEOS, CREATORS } from "@/constants/data";
+import { COMMUNITIES, VIDEOS } from "@/constants/data";
 import { apiRequest } from "@/lib/query-client";
 
 type AdData = { title: string; sub: string; cta: string; bg: string; accent: string; thumb: string };
@@ -175,6 +177,22 @@ type JukeboxData = {
   chat: ChatMsg[];
 };
 
+type VideoEditor = {
+  id: number;
+  name: string;
+  avatar: string;
+  bio: string;
+  communityId: number;
+  genres: string;
+  deliveryDays: number;
+  priceType: "per_minute" | "revenue_share";
+  pricePerMinute: number | null;
+  revenueSharePercent: number | null;
+  rating: number;
+  reviewCount: number;
+  isAvailable: boolean;
+};
+
 function calcProgress(startedAt: string, durationSecs: number): number {
   const elapsed = (Date.now() - new Date(startedAt).getTime()) / 1000;
   if (durationSecs <= 0) return 0;
@@ -329,7 +347,7 @@ function EmbeddedJukebox({ communityId }: { communityId: number }) {
   );
 }
 
-const TABS = ["新着順", "クリエイター", "掲示板"] as const;
+const TABS = ["新着順", "動画編集クリエイター", "掲示板"] as const;
 type Tab = typeof TABS[number];
 
 export default function CommunityDetailScreen() {
@@ -337,12 +355,70 @@ export default function CommunityDetailScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<Tab>("新着順");
   const [following, setFollowing] = useState(false);
+  const [requestEditor, setRequestEditor] = useState<VideoEditor | null>(null);
+  const [requestTitle, setRequestTitle] = useState("");
+  const [requestDescription, setRequestDescription] = useState("");
+  const [requestPriceType, setRequestPriceType] = useState<"per_minute" | "revenue_share">("per_minute");
+  const [requestBudget, setRequestBudget] = useState("");
+  const [requestDeadline, setRequestDeadline] = useState("");
+  const [sendingRequest, setSendingRequest] = useState(false);
 
   const community = COMMUNITIES.find((c) => c.id === id) ?? COMMUNITIES[0];
   const communityId = parseInt(community.id);
   const ad = getAd(community.name);
 
   const bottomInset = Platform.OS === "web" ? 34 : 0;
+
+  const { data: editors = [], isLoading: editorsLoading } = useQuery<VideoEditor[]>({
+    queryKey: [`/api/communities/${communityId}/editors`],
+  });
+
+  const topEditors = [...editors].sort((a, b) => b.rating - a.rating).slice(0, 3);
+
+  const openRequestModal = (editor: VideoEditor) => {
+    setRequestEditor(editor);
+    setRequestTitle("");
+    setRequestDescription("");
+    setRequestPriceType("per_minute");
+    setRequestBudget("");
+    setRequestDeadline("");
+  };
+
+  const closeRequestModal = () => {
+    if (sendingRequest) return;
+    setRequestEditor(null);
+  };
+
+  const handleSendRequest = async () => {
+    if (!requestEditor) return;
+    const title = requestTitle.trim();
+    const description = requestDescription.trim();
+    if (!title || !description) {
+      Alert.alert("エラー", "依頼タイトルと内容を入力してください。");
+      return;
+    }
+
+    const budgetNumber = requestBudget ? Number(requestBudget.replace(/[^0-9]/g, "")) : undefined;
+
+    setSendingRequest(true);
+    try {
+      await apiRequest("POST", `/api/editors/${requestEditor.id}/request`, {
+        requesterName: "ゲストユーザー",
+        title,
+        description,
+        priceType: requestPriceType,
+        budget: budgetNumber,
+        deadline: requestDeadline.trim() || undefined,
+      });
+      Alert.alert("送信完了", "依頼を送りました！");
+      setRequestEditor(null);
+    } catch (e: any) {
+      console.error(e);
+      Alert.alert("エラー", "依頼の送信に失敗しました。時間をおいて再度お試しください。");
+    } finally {
+      setSendingRequest(false);
+    }
+  };
 
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
@@ -495,24 +571,107 @@ export default function CommunityDetailScreen() {
           </View>
         )}
 
-        {activeTab === "クリエイター" && (
-          <View style={styles.creatorList}>
-            {CREATORS.slice(0, 4).map((creator) => (
-              <View key={creator.id} style={styles.creatorItem}>
-                <Image source={{ uri: creator.avatar }} style={styles.creatorAvatar} contentFit="cover" />
-                <View style={styles.creatorInfo}>
-                  <Text style={styles.creatorName}>{creator.name}</Text>
-                  <Text style={styles.creatorCommunity}>{creator.community}</Text>
-                  <View style={styles.creatorStats}>
-                    <Text style={styles.creatorStat}>{(creator.followers / 1000).toFixed(0)}千フォロワー</Text>
-                    <Text style={styles.creatorStat}>配信{creator.streamCount}回</Text>
-                  </View>
+        {activeTab === "動画編集クリエイター" && (
+          <View style={styles.editorTab}>
+            {/* ランキング（上位3名） */}
+            <Text style={styles.editorSectionTitle}>ランキング</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.editorRankingScroll}
+            >
+              {topEditors.map((editor, index) => {
+                const mainGenre = editor.genres.split(",")[0]?.trim() || "マルチジャンル";
+                return (
+                  <Pressable
+                    key={editor.id}
+                    style={styles.editorRankCard}
+                    onPress={() => openRequestModal(editor)}
+                  >
+                    <View style={styles.editorRankBadge}>
+                      <Text style={styles.editorRankBadgeText}>#{index + 1}</Text>
+                    </View>
+                    <Image source={{ uri: editor.avatar }} style={styles.editorRankAvatar} contentFit="cover" />
+                    <Text style={styles.editorRankName} numberOfLines={1}>{editor.name}</Text>
+                    <View style={styles.editorRatingRow}>
+                      <Ionicons name="star" size={12} color={C.orange} />
+                      <Text style={styles.editorRatingText}>{editor.rating.toFixed(1)}</Text>
+                      <Text style={styles.editorReviewText}>({editor.reviewCount})</Text>
+                    </View>
+                    <Text style={styles.editorGenreText} numberOfLines={1}>{mainGenre}</Text>
+                    <View style={[styles.editorAvailabilityBadge, editor.isAvailable ? styles.editorAvailable : styles.editorMaybe]}>
+                      <Text style={[styles.editorAvailabilityText, editor.isAvailable ? styles.editorAvailableText : styles.editorMaybeText]}>
+                        {editor.isAvailable ? "空きあり" : "応相談"}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+              {!editorsLoading && topEditors.length === 0 && (
+                <View style={styles.editorEmptyRanking}>
+                  <Text style={styles.editorEmptyText}>まだ登録された編集者がいません</Text>
                 </View>
-                <Pressable style={styles.followSmallBtn}>
-                  <Text style={styles.followSmallText}>フォロー</Text>
-                </Pressable>
-              </View>
-            ))}
+              )}
+            </ScrollView>
+
+            {/* 一覧リスト */}
+            <View style={styles.editorList}>
+              {editorsLoading && editors.length === 0 ? (
+                <Text style={styles.editorEmptyText}>読み込み中...</Text>
+              ) : editors.length === 0 ? (
+                <Text style={styles.editorEmptyText}>このコミュニティにはまだ動画編集クリエイターがいません</Text>
+              ) : (
+                editors.map((editor) => {
+                  const genres = editor.genres.split(",").map((g) => g.trim()).filter(Boolean);
+                  return (
+                    <View key={editor.id} style={styles.editorCard}>
+                      <Image source={{ uri: editor.avatar }} style={styles.editorAvatar} contentFit="cover" />
+                      <View style={styles.editorBody}>
+                        <View style={styles.editorHeaderRow}>
+                          <Text style={styles.editorName} numberOfLines={1}>{editor.name}</Text>
+                          <View style={[styles.editorAvailabilityBadge, editor.isAvailable ? styles.editorAvailable : styles.editorMaybe]}>
+                            <Text style={[styles.editorAvailabilityText, editor.isAvailable ? styles.editorAvailableText : styles.editorMaybeText]}>
+                              {editor.isAvailable ? "空きあり" : "応相談"}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.editorRatingRow}>
+                          <Ionicons name="star" size={12} color={C.orange} />
+                          <Text style={styles.editorRatingText}>{editor.rating.toFixed(1)}</Text>
+                          <Text style={styles.editorReviewText}>({editor.reviewCount})</Text>
+                        </View>
+                        {genres.length > 0 && (
+                          <View style={styles.editorGenresRow}>
+                            {genres.map((g) => (
+                              <View key={g} style={styles.editorGenreTag}>
+                                <Text style={styles.editorGenreTagText}>{g}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                        <View style={styles.editorMetaRow}>
+                          <Text style={styles.editorMetaText}>納期目安: {editor.deliveryDays}日</Text>
+                          <Text style={styles.editorMetaText}>
+                            料金:{" "}
+                            {editor.priceType === "per_minute" && editor.pricePerMinute
+                              ? `¥${editor.pricePerMinute.toLocaleString()}/分`
+                              : editor.priceType === "revenue_share" && editor.revenueSharePercent
+                              ? `${editor.revenueSharePercent}%レベニューシェア`
+                              : "要相談"}
+                          </Text>
+                        </View>
+                      </View>
+                      <Pressable
+                        style={styles.editorRequestBtn}
+                        onPress={() => openRequestModal(editor)}
+                      >
+                        <Text style={styles.editorRequestBtnText}>依頼する</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })
+              )}
+            </View>
           </View>
         )}
 
@@ -541,6 +700,132 @@ export default function CommunityDetailScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* 編集依頼モーダル */}
+      <Modal
+        visible={!!requestEditor}
+        transparent
+        animationType="slide"
+        onRequestClose={closeRequestModal}
+      >
+        <Pressable style={styles.requestModalOverlay} onPress={closeRequestModal}>
+          <Pressable
+            style={styles.requestModalSheet}
+            onPress={() => {}}
+          >
+            <View style={styles.requestModalHandle} />
+            {requestEditor && (
+              <>
+                <View style={styles.requestModalHeader}>
+                  <View style={styles.requestModalEditorRow}>
+                    <Image source={{ uri: requestEditor.avatar }} style={styles.requestModalAvatar} contentFit="cover" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.requestModalTitle}>{requestEditor.name} に依頼する</Text>
+                      <View style={styles.editorRatingRow}>
+                        <Ionicons name="star" size={12} color={C.orange} />
+                        <Text style={styles.editorRatingText}>{requestEditor.rating.toFixed(1)}</Text>
+                        <Text style={styles.editorReviewText}>({requestEditor.reviewCount})</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                <ScrollView
+                  style={styles.requestModalScroll}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <Text style={styles.requestLabel}>依頼タイトル</Text>
+                  <TextInput
+                    style={styles.requestInput}
+                    placeholder="例: 毎週のゲーム配信ハイライト編集"
+                    placeholderTextColor={C.textMuted}
+                    value={requestTitle}
+                    onChangeText={setRequestTitle}
+                  />
+
+                  <Text style={styles.requestLabel}>依頼内容</Text>
+                  <TextInput
+                    style={[styles.requestInput, styles.requestInputMultiline]}
+                    placeholder="チャンネルの雰囲気や、尺・テイスト・参考URLなどを記載してください。"
+                    placeholderTextColor={C.textMuted}
+                    value={requestDescription}
+                    onChangeText={setRequestDescription}
+                    multiline
+                    textAlignVertical="top"
+                  />
+
+                  <Text style={styles.requestLabel}>料金形式</Text>
+                  <View style={styles.requestPriceTypeRow}>
+                    <Pressable
+                      style={[
+                        styles.requestPriceTypePill,
+                        requestPriceType === "per_minute" && styles.requestPriceTypePillActive,
+                      ]}
+                      onPress={() => setRequestPriceType("per_minute")}
+                    >
+                      <Text
+                        style={[
+                          styles.requestPriceTypeText,
+                          requestPriceType === "per_minute" && styles.requestPriceTypeTextActive,
+                        ]}
+                      >
+                        1分あたり
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        styles.requestPriceTypePill,
+                        requestPriceType === "revenue_share" && styles.requestPriceTypePillActive,
+                      ]}
+                      onPress={() => setRequestPriceType("revenue_share")}
+                    >
+                      <Text
+                        style={[
+                          styles.requestPriceTypeText,
+                          requestPriceType === "revenue_share" && styles.requestPriceTypeTextActive,
+                        ]}
+                      >
+                        レベニューシェア
+                      </Text>
+                    </Pressable>
+                  </View>
+
+                  <Text style={styles.requestLabel}>
+                    {requestPriceType === "per_minute" ? "希望単価（¥/分）" : "希望レベニューシェア（%）"}
+                  </Text>
+                  <TextInput
+                    style={styles.requestInput}
+                    placeholder={requestPriceType === "per_minute" ? "例: 1500" : "例: 40"}
+                    placeholderTextColor={C.textMuted}
+                    value={requestBudget}
+                    onChangeText={setRequestBudget}
+                    keyboardType="numeric"
+                  />
+
+                  <Text style={styles.requestLabel}>納期希望</Text>
+                  <TextInput
+                    style={styles.requestInput}
+                    placeholder="例: 初回納品は3月末まで"
+                    placeholderTextColor={C.textMuted}
+                    value={requestDeadline}
+                    onChangeText={setRequestDeadline}
+                  />
+
+                  <Pressable
+                    style={[styles.requestSubmitBtn, sendingRequest && styles.requestSubmitBtnDisabled]}
+                    onPress={handleSendRequest}
+                    disabled={sendingRequest}
+                  >
+                    <Text style={styles.requestSubmitBtnText}>
+                      {sendingRequest ? "送信中..." : "依頼を送信"}
+                    </Text>
+                  </Pressable>
+                </ScrollView>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -953,6 +1238,180 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   followSmallText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+
+  /* Video editors */
+  editorTab: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  editorSectionTitle: {
+    color: C.text,
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  editorRankingScroll: {
+    paddingVertical: 4,
+    paddingRight: 8,
+    gap: 8,
+  },
+  editorRankCard: {
+    width: 140,
+    padding: 10,
+    marginRight: 8,
+    borderRadius: 12,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+  },
+  editorRankBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: C.accent,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  editorRankBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  editorRankAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginBottom: 6,
+  },
+  editorRankName: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  editorGenreText: {
+    color: C.textMuted,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  editorRatingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  editorRatingText: {
+    color: C.orange,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  editorReviewText: {
+    color: C.textMuted,
+    fontSize: 11,
+  },
+  editorAvailabilityBadge: {
+    marginTop: 6,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  editorAvailabilityText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  editorAvailable: {
+    backgroundColor: "#1B5E20",
+  },
+  editorAvailableText: {
+    color: "#C8E6C9",
+  },
+  editorMaybe: {
+    backgroundColor: "#263238",
+  },
+  editorMaybeText: {
+    color: C.textSec,
+  },
+  editorEmptyRanking: {
+    paddingVertical: 16,
+  },
+  editorEmptyText: {
+    color: C.textMuted,
+    fontSize: 13,
+  },
+  editorList: {
+    marginTop: 16,
+    gap: 10,
+  },
+  editorCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+    gap: 10,
+  },
+  editorAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+  },
+  editorBody: {
+    flex: 1,
+    gap: 4,
+  },
+  editorHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  editorName: {
+    color: C.text,
+    fontSize: 14,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  editorGenresRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  editorGenreTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: C.surface3,
+  },
+  editorGenreTagText: {
+    color: C.textSec,
+    fontSize: 11,
+  },
+  editorMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 4,
+  },
+  editorMetaText: {
+    color: C.textMuted,
+    fontSize: 11,
+  },
+  editorRequestBtn: {
+    alignSelf: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: C.accent,
+  },
+  editorRequestBtnText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
   boardList: { padding: 16, gap: 10 },
   boardCard: {
     flexDirection: "row",
@@ -1042,5 +1501,108 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.35)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  requestModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
+  },
+  requestModalSheet: {
+    backgroundColor: C.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    maxHeight: "90%",
+  },
+  requestModalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: C.border,
+    alignSelf: "center",
+    marginBottom: 8,
+  },
+  requestModalHeader: {
+    marginBottom: 8,
+  },
+  requestModalEditorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  requestModalAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  requestModalTitle: {
+    color: C.text,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  requestModalScroll: {
+    marginTop: 8,
+  },
+  requestLabel: {
+    color: C.textSec,
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  requestInput: {
+    backgroundColor: C.surface2,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    color: C.text,
+    fontSize: 13,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  requestInputMultiline: {
+    height: 90,
+  },
+  requestPriceTypeRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  requestPriceTypePill: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+    backgroundColor: C.surface2,
+  },
+  requestPriceTypePillActive: {
+    borderColor: C.accent,
+    backgroundColor: "rgba(41,182,207,0.1)",
+  },
+  requestPriceTypeText: {
+    color: C.textSec,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  requestPriceTypeTextActive: {
+    color: C.text,
+  },
+  requestSubmitBtn: {
+    marginTop: 16,
+    backgroundColor: C.accent,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  requestSubmitBtnDisabled: {
+    opacity: 0.6,
+  },
+  requestSubmitBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
   },
 });

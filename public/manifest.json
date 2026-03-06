@@ -1,6 +1,6 @@
 {
-  "name": "LiveStock",
-  "short_name": "LiveStock",
+  "name": "LiveStage",
+  "short_name": "LiveStage",
   "description": "ライブ配信・有料動画プラットフォーム",
   "start_url": "/",
   "display": "standalone",

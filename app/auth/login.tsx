@@ -124,11 +124,11 @@ export default function LoginScreen() {
             <Text style={styles.demoLabel}>デモアカウント</Text>
             <Pressable
               onPress={() => {
-                setEmail("demo@livestock.jp");
+                setEmail("demo@livestage.jp");
                 setPassword("password");
               }}
             >
-              <Text style={styles.demoFill}>demo@livestock.jp / password を入力</Text>
+              <Text style={styles.demoFill}>demo@livestage.jp / password を入力</Text>
             </Pressable>
             <Pressable
               style={styles.demoLoginBtn}
@@ -136,7 +136,7 @@ export default function LoginScreen() {
                 if (loading) return;
                 setLoading(true);
                 try {
-                  await login("demo@livestock.jp", "password");
+                  await login("demo@livestage.jp", "password");
                   router.replace("/(tabs)/profile");
                 } catch (e: any) {
                   Alert.alert("ログイン失敗", e.message ?? "デモアカウントにログインできませんでした");

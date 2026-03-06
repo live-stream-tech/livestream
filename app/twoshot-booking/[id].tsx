@@ -216,14 +216,14 @@ export default function TwoshotBookingScreen() {
             <Text style={styles.sectionTitle}>特定商取引法に基づく表示</Text>
             <View style={styles.tokushoCard}>
               {[
-                ["事業者名", "LiveStock運営事務局"],
+                ["事業者名", "LiveStage運営事務局"],
                 ["サービス名", "ツーショット撮影予約（ライブ内）"],
                 ["販売価格", `¥${TWOSHOT_PRICE.toLocaleString()}（税込）`],
                 ["支払時期", "予約時（クレジットカード事前決済）"],
                 ["提供時期", "予約したライブ配信中・順番が回ってきた時"],
                 ["キャンセル規定", "お客様都合のキャンセルは原則返金不可。クリエイター側事由の場合は全額返金。"],
                 ["決済方法", "クレジットカード（Stripe決済）"],
-                ["お問い合わせ", "support@livestock-app.jp"],
+                ["お問い合わせ", "support@livestage-app.jp"],
               ].map(([label, value]) => (
                 <View key={label} style={styles.tokushoRow}>
                   <Text style={styles.tokushoLabel}>{label}</Text>
@@ -306,7 +306,7 @@ export default function TwoshotBookingScreen() {
             </View>
 
             <Text style={styles.stripeNote}>
-              決済はStripeの安全なページで行われます。カード情報はLiveStockには送信されません。
+              決済はStripeの安全なページで行われます。カード情報はLiveStageには送信されません。
             </Text>
           </View>
         )}

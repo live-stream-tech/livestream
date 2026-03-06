@@ -196,7 +196,7 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <Text style={styles.versionText}>LiveStock v1.0.0</Text>
+        <Text style={styles.versionText}>LiveStage v1.0.0</Text>
         <View style={{ height: 80 }} />
       </ScrollView>
     </View>

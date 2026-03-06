@@ -308,7 +308,7 @@ export default function ProfileScreen() {
         "登録完了",
         role === "editor"
           ? "動画編集クリエイターとして登録されました。ライバー検索などに表示されます。"
-          : "ツーショットライバーとして登録されました。ライバー検索などに表示されます。",
+          : "個別セッションライバーとして登録されました。ライバー検索などに表示されます。",
       );
     } catch (e: any) {
       Alert.alert("エラー", e?.message ?? "登録に失敗しました");
@@ -331,7 +331,11 @@ export default function ProfileScreen() {
     return (
       <View style={[styles.container, styles.guestContainer, { paddingTop: topInset + 40 }]}>
         <Ionicons name="person-circle-outline" size={80} color={C.textMuted} />
-        <Text style={styles.guestTitle}>LiveStock</Text>
+        <Text style={styles.guestTitle}>
+          <Text style={styles.logoLive}>Live</Text>
+          <Text style={styles.logoS}>S</Text>
+          <Text style={styles.logoLive}>tage</Text>
+        </Text>
         <Text style={styles.guestSub}>ログインしてマイページを確認しよう</Text>
         <Pressable style={styles.lineLoginBtn} onPress={handleLineLogin}>
           <Image source={{ uri: "https://upload.wikimedia.org/wikipedia/commons/4/41/LINE_logo.svg" }} style={styles.lineIcon} contentFit="contain" />
@@ -475,7 +479,7 @@ export default function ProfileScreen() {
         <View style={styles.roleCard}>
           <Text style={styles.roleTitle}>クリエイター登録</Text>
           <Text style={styles.roleSub}>
-            動画編集クリエイター / ツーショットライバーとして、検索一覧などに表示できるようにします。
+            動画編集クリエイター / 個別セッションライバーとして、検索一覧などに表示できるようにします。
           </Text>
           <View style={styles.roleButtonsRow}>
             <Pressable
@@ -519,7 +523,7 @@ export default function ProfileScreen() {
                   roleStatus?.isTwoshot && styles.roleButtonTextActive,
                 ]}
               >
-                ツーショットライバー
+                個別セッションライバー
               </Text>
             </Pressable>
           </View>
@@ -781,6 +785,7 @@ const styles = StyleSheet.create({
   },
   logo: { fontSize: 22, fontWeight: "800" },
   logoLive: { color: C.text },
+  logoS: { color: C.accent },
   logoStock: { color: C.accent },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
   identityBtn: {

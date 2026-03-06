@@ -262,7 +262,7 @@ export default function LiveStreamScreen() {
                   },
                 ]}
               >
-                {MY_USER_ID} • LiveStock
+                {MY_USER_ID} • LiveStage
               </Text>
             ))}
           </View>

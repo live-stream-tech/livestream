@@ -289,13 +289,10 @@ export default function HomeScreen() {
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <Text style={styles.logo}>
           <Text style={styles.logoLive}>Live</Text>
-          <Text style={styles.logoStock}>Stock</Text>
+          <Text style={styles.logoS}>S</Text>
+          <Text style={styles.logoLive}>tage</Text>
         </Text>
         <View style={styles.headerRight}>
-          <View style={styles.liveButton}>
-            <Ionicons name="radio-outline" size={14} color={C.accent} />
-            <Text style={styles.liveButtonText}>LIVE</Text>
-          </View>
           <Pressable style={styles.notifButton} onPress={() => router.push("/notifications?filter=purchase")}>
             <Ionicons name="notifications-outline" size={22} color={C.text} />
             {unreadCount > 0 && (
@@ -353,7 +350,7 @@ export default function HomeScreen() {
               <Text style={styles.proText}>PRO</Text>
             </View>
             <View>
-              <Text style={styles.premiumTitle}>LiveStock Premium</Text>
+              <Text style={styles.premiumTitle}>LiveStage Premium</Text>
               <Text style={styles.premiumSub}>30日間の無料トライアル実施中。すべての機能を解放。</Text>
             </View>
           </View>
@@ -522,6 +519,9 @@ const styles = StyleSheet.create({
   },
   logoLive: {
     color: C.text,
+  },
+  logoS: {
+    color: C.accent,
   },
   logoStock: {
     color: C.accent,

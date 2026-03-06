@@ -295,16 +295,17 @@ export default function JukeboxScreen() {
     refetchInterval: 3000,
   });
 
-  const { data: apiVideos = [] } = useQuery<Video[]>({ queryKey: ["/api/videos"] });
+  const { data: myVideos = [] } = useQuery<Video[]>({
+    queryKey: ["/api/videos/my"],
+    enabled: !!user,
+  });
 
   const state = data?.state ?? null;
   const queue = data?.queue ?? [];
   const chat = data?.chat ?? [];
 
-  const purchasedVideos: Video[] = (apiVideos as any[]).filter((v) => v.price && v.price > 0);
-  const uploadedVideos: Video[] = user
-    ? (apiVideos as any[]).filter((v) => v.creator === user.name)
-    : [];
+  const uploadedVideos: Video[] = myVideos;
+  const purchasedVideos: Video[] = (myVideos as any[]).filter((v) => v.price && v.price > 0);
 
   const chatMutation = useMutation({
     mutationFn: (msg: string) =>
@@ -352,7 +353,7 @@ export default function JukeboxScreen() {
       return;
     }
     const video: Video & { youtubeId: string } = {
-      id: Date.now(),
+      id: Math.floor(Math.random() * 2000000),
       title: "YouTube リクエスト",
       thumbnail: `https://img.youtube.com/vi/${idPart}/hqdefault.jpg`,
       duration: "0:00",

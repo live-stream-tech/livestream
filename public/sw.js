@@ -1,4 +1,4 @@
-const CACHE_NAME = "livestock-v1";
+const CACHE_NAME = "livestage-v1";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",

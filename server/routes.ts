@@ -6,6 +6,8 @@ import {
   videos,
   liveStreams,
   creators,
+  videoEditors,
+  videoEditRequests,
   bookingSessions,
   dmMessages,
   notifications,
@@ -20,13 +22,14 @@ import {
   userAccounts,
   liverReviews,
   liverAvailability,
+  announcements,
 } from "./schema";
 import { eq, asc, desc, count, sql, and } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.SESSION_SECRET ?? "livestock-dev-secret";
+const JWT_SECRET = process.env.SESSION_SECRET ?? "livestage-dev-secret";
 
 function makeToken(userId: number) {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "90d" });
@@ -90,8 +93,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── LINE OAuth ────────────────────────────────────────────────────
   const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID ?? "";
   const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET ?? "";
-  const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "https://livestock.replit.app/api/auth/callback/line";
-  const LINE_STATE = "livestock-line-state";
+  const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "https://livestage.replit.app/api/auth/callback/line";
+  const LINE_STATE = "livestage-line-state";
 
   app.get("/api/auth/line", (_req: Request, res: Response) => {
     const params = new URLSearchParams({
@@ -175,6 +178,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(row);
   });
 
+  // ── Video Editors ───────────────────────────────────────────────────
+  app.get("/api/communities/:id/editors", async (req: Request, res: Response) => {
+    const communityId = parseInt(req.params.id);
+    const rows = await db
+      .select()
+      .from(videoEditors)
+      .where(eq(videoEditors.communityId, communityId))
+      .orderBy(desc(videoEditors.isAvailable), desc(videoEditors.rating));
+    res.json(rows);
+  });
+
+  app.get("/api/editors/:id", async (req: Request, res: Response) => {
+    const id = parseInt(req.params.id);
+    const [editor] = await db.select().from(videoEditors).where(eq(videoEditors.id, id));
+    if (!editor) return res.status(404).json({ error: "Not found" });
+    res.json(editor);
+  });
+
+  app.post("/api/editors/:id/request", async (req: Request, res: Response) => {
+    const editorId = parseInt(req.params.id);
+    const { requesterName, title, description, priceType, budget, deadline } = req.body as {
+      requesterName?: string;
+      title?: string;
+      description?: string;
+      priceType?: string;
+      budget?: number;
+      deadline?: string;
+    };
+
+    if (!title || !description || !priceType) {
+      return res.status(400).json({ error: "必須項目を入力してください" });
+    }
+    if (priceType !== "per_minute" && priceType !== "revenue_share") {
+      return res.status(400).json({ error: "不正な料金形式です" });
+    }
+
+    const [editor] = await db.select().from(videoEditors).where(eq(videoEditors.id, editorId));
+    if (!editor) {
+      return res.status(404).json({ error: "Editor not found" });
+    }
+
+    const user = await getAuthUser(req);
+    const requestUserId = user ? `user-${user.id}` : "guest";
+    const requestUserName = requesterName ?? user?.name ?? "ゲストユーザー";
+
+    const [requestRow] = await db
+      .insert(videoEditRequests)
+      .values({
+        editorId,
+        requesterId: requestUserId,
+        requesterName: requestUserName,
+        title,
+        description,
+        priceType,
+        budget: budget ?? null,
+        deadline: deadline ?? null,
+      })
+      .returning();
+
+    // 通知テーブルに編集者向けの通知を追加（エディタIDはタイトル/本文に含める）
+    await db.insert(notifications).values({
+      type: "editor_request",
+      title: `${requestUserName} から編集依頼`,
+      body: `${title}（編集者ID: ${editorId}）`,
+      amount: budget ?? null,
+      avatar: editor.avatar,
+      thumbnail: null,
+      timeAgo: "たった今",
+    });
+
+    res.status(201).json(requestRow);
+  });
+
   app.post("/api/communities", async (req: Request, res: Response) => {
     const { name, description, bannerUrl, iconUrl, categories } = req.body as {
       name?: string;
@@ -241,6 +317,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .from(videos)
       .where(eq(videos.isRanked, false))
       .orderBy(desc(videos.createdAt));
+    res.json(rows);
+  });
+
+  app.get("/api/videos/my", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const rows = await db.select().from(videos).where(eq(videos.creator, user.name)).orderBy(desc(videos.createdAt));
     res.json(rows);
   });
 
@@ -776,6 +859,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(row);
   });
 
+  // ── Announcements ───────────────────────────────────────────────────
+  app.get("/api/announcements", async (_req: Request, res: Response) => {
+    // 現在日時が startAt〜endAt の範囲内のもののみ取得（endAt が NULL の場合は無期限）
+    const rows = await db
+      .select()
+      .from(announcements)
+      .where(
+        sql`(start_at IS NULL OR start_at <= now()) AND (end_at IS NULL OR end_at >= now())`,
+      )
+      .orderBy(desc(announcements.isPinned), desc(announcements.createdAt));
+    res.json(rows);
+  });
+
   // ── Livers (Creators extended) ────────────────────────────────────
   app.get("/api/livers", async (req: Request, res: Response) => {
     const { name, minScore, category, date } = req.query;
@@ -944,7 +1040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Seed demo user accounts (including a shared demo account) ----------
     const existingUsers = await db.select().from(userAccounts);
     if (existingUsers.length < 10) {
-      const demoEmail = "demo@livestock.jp";
+      const demoEmail = "demo@livestage.jp";
       const demoPasswordHash = await bcrypt.hash("password", 10);
 
       const baseUsers = [
@@ -1296,6 +1392,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     res.json({ ok: true, created: insertedCreators.length });
+  });
+
+  app.post("/api/seed-editors", async (_req: Request, res: Response) => {
+    const existing = await db.select().from(videoEditors);
+    if (existing.length >= 5) {
+      return res.json({ ok: true, message: "Already seeded" });
+    }
+
+    const demoEditors = [
+      {
+        name: "映像編集マン",
+        avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop",
+        bio: "テロップ・カット・サムネまでワンストップで対応する動画編集クリエイター。",
+        communityId: 1,
+        genres: "YouTube,バラエティ,ゲーム",
+        deliveryDays: 3,
+        priceType: "per_minute",
+        pricePerMinute: 1500,
+        revenueSharePercent: null,
+        rating: 4.9,
+        reviewCount: 128,
+        isAvailable: true,
+      },
+      {
+        name: "シネマ編集スタジオ",
+        avatar: "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=150&h=150&fit=crop",
+        bio: "映画風のシネマティックなMV制作が得意です。",
+        communityId: 1,
+        genres: "MV,アーティスト,シネマティック",
+        deliveryDays: 7,
+        priceType: "revenue_share",
+        pricePerMinute: null,
+        revenueSharePercent: 40,
+        rating: 4.8,
+        reviewCount: 76,
+        isAvailable: false,
+      },
+      {
+        name: "ショート動画職人",
+        avatar: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=150&h=150&fit=crop",
+        bio: "TikTok・YouTubeショートの伸びる構成を提案します。",
+        communityId: 1,
+        genres: "ショート動画,縦型,SNS運用",
+        deliveryDays: 2,
+        priceType: "per_minute",
+        pricePerMinute: 2000,
+        revenueSharePercent: null,
+        rating: 5.0,
+        reviewCount: 54,
+        isAvailable: true,
+      },
+      {
+        name: "ゲーム実況エディター",
+        avatar: "https://images.unsplash.com/photo-1533236897111-3e94666b2dde?w=150&h=150&fit=crop",
+        bio: "APEX/VALORANTなどFPS系実況の編集が中心です。",
+        communityId: 1,
+        genres: "ゲーム実況,FPS,切り抜き",
+        deliveryDays: 4,
+        priceType: "per_minute",
+        pricePerMinute: 1200,
+        revenueSharePercent: null,
+        rating: 4.6,
+        reviewCount: 90,
+        isAvailable: false,
+      },
+      {
+        name: "教育チャンネル編集室",
+        avatar: "https://images.unsplash.com/photo-1525134479668-1bee5c7c6845?w=150&h=150&fit=crop",
+        bio: "ビジネス・教育系の分かりやすい図解動画を制作します。",
+        communityId: 1,
+        genres: "ビジネス,教育,セミナー",
+        deliveryDays: 5,
+        priceType: "revenue_share",
+        pricePerMinute: null,
+        revenueSharePercent: 30,
+        rating: 4.7,
+        reviewCount: 33,
+        isAvailable: true,
+      },
+    ];
+
+    await db.insert(videoEditors).values(demoEditors);
+    res.json({ ok: true, count: demoEditors.length });
   });
 
   const httpServer = createServer(app);

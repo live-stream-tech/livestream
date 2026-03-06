@@ -250,3 +250,14 @@ export const liverAvailability = pgTable("liver_availability", {
   note: text("note").notNull().default(""),
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+export const announcements = pgTable("announcements", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  type: text("type").notNull(),
+  isPinned: boolean("is_pinned").notNull().default(false),
+  startAt: timestamp("start_at"),
+  endAt: timestamp("end_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
