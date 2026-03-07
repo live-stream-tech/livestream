@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
+import { getApiUrl } from "@/lib/query-client";
 
 /** LINEログインのみ。メール/パスワードは廃止。 */
 export default function LoginScreen() {
@@ -20,7 +21,9 @@ export default function LoginScreen() {
 
   function handleLineLogin() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.location.href = "/api/auth/line";
+      // 本番ではAPIサーバー（EXPO_PUBLIC_DOMAIN）の /api/auth/line へ遷移する
+      const apiBase = getApiUrl();
+      window.location.href = new URL("api/auth/line", apiBase).toString();
     } else {
       // ネイティブでは WebView や LINE SDK で /api/auth/line を開く
       router.replace("/(tabs)");

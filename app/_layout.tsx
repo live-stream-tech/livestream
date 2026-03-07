@@ -25,6 +25,7 @@ function LineTokenHandler() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const webToken = params.get("line_token");
+      const lineError = params.get("line_error");
       if (webToken) {
         loginWithToken(webToken)
           .then(() => {
@@ -34,6 +35,12 @@ function LineTokenHandler() {
             router.replace("/(tabs)/profile");
           })
           .catch(() => {});
+      } else if (lineError) {
+        // LINEログインエラー時はクエリを削除してログイン画面へ（ルート "/" にいると404に見えないよう遷移）
+        const url = new URL(window.location.href);
+        url.searchParams.delete("line_error");
+        window.history.replaceState({}, "", url.toString());
+        router.replace("/auth/login");
       }
     }
   }, []);
@@ -44,7 +51,7 @@ function LineTokenHandler() {
         .then(() => router.replace("/(tabs)/profile"))
         .catch(() => {});
     }
-  }, [line_token]);
+  }, [line_token, loginWithToken]);
 
   return null;
 }

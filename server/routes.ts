@@ -1,5 +1,4 @@
 import type { Express, Request, Response } from "express";
-import { createServer, type Server } from "node:http";
 import { db } from "./db";
 import {
   communities,
@@ -85,7 +84,7 @@ async function recordRevenue(walletId: number, amount: number, source: string, r
   });
 }
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express): Promise<void> {
   // ── Auth（LINEログインのみ。メール/パスワードは廃止）──────────────────────────────────
   app.get("/api/auth/me", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
@@ -314,12 +313,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── LINE OAuth ────────────────────────────────────────────────────
+  // LINE_CALLBACK_URL: LINE Developers に登録するコールバックURL（本番: https://<APIのドメイン>/api/auth/callback/line）
+  // FRONTEND_URL: ログイン完了後のリダイレクト先（ExpoアプリのURL。本番: https://<Vercelのドメイン>）
   const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID ?? "";
   const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET ?? "";
-  const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "https://livestream-nu-ten.vercel.app/api/auth/callback/line";
+  const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "";
+  const FRONTEND_URL = (process.env.FRONTEND_URL ?? "").replace(/\/$/, "");
+  const lineRedirect = (path: string) => (FRONTEND_URL ? `${FRONTEND_URL}${path}` : path);
   const LINE_STATE = "livestage-line-state";
 
   app.get("/api/auth/line", (_req: Request, res: Response) => {
+    if (!LINE_CALLBACK_URL) {
+      return res.status(500).json({ error: "LINE_CALLBACK_URL is not configured" });
+    }
     const params = new URLSearchParams({
       response_type: "code",
       client_id: LINE_CHANNEL_ID,
@@ -333,7 +339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/auth/callback/line", async (req: Request, res: Response) => {
     const { code, state } = req.query as { code?: string; state?: string };
     if (!code || state !== LINE_STATE) {
-      return res.redirect("/?line_error=invalid_state");
+      return res.redirect(lineRedirect("/?line_error=invalid_state"));
     }
     try {
       const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
@@ -349,7 +355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const tokenData = await tokenRes.json() as { access_token?: string; error?: string };
       if (!tokenData.access_token) {
-        return res.redirect("/?line_error=token_failed");
+        return res.redirect(lineRedirect("/?line_error=token_failed"));
       }
 
       const profileRes = await fetch("https://api.line.me/v2/profile", {
@@ -357,7 +363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const profile = await profileRes.json() as { userId?: string; displayName?: string; pictureUrl?: string };
       if (!profile.userId) {
-        return res.redirect("/?line_error=profile_failed");
+        return res.redirect(lineRedirect("/?line_error=profile_failed"));
       }
 
       const lineId = profile.userId;
@@ -384,10 +390,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const jwtToken = makeToken(existing.id);
-      res.redirect(`/?line_token=${encodeURIComponent(jwtToken)}`);
+      res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
     } catch (err) {
       console.error("LINE callback error:", err);
-      res.redirect("/?line_error=server_error");
+      res.redirect(lineRedirect("/?line_error=server_error"));
     }
   });
 
@@ -1655,7 +1661,4 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await db.insert(videoEditors).values(demoEditors);
     res.json({ ok: true, count: demoEditors.length });
   });
-
-  const httpServer = createServer(app);
-  return httpServer;
 }
