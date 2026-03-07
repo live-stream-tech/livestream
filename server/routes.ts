@@ -314,7 +314,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // ── LINE OAuth ────────────────────────────────────────────────────
   // LINE_CALLBACK_URL: LINE Developers に登録するコールバックURL（本番: https://<APIのドメイン>/api/auth/callback/line）
-  // FRONTEND_URL: ログイン完了後のリダイレクト先（ExpoアプリのURL。本番: https://<Vercelのドメイン>）
+  // FRONTEND_URL: ログイン完了後のリダイレクト先。同一オリジン（フロントとAPIが同じVercelドメイン）なら未設定でOK（相対パスでリダイレクト）。別ドメインの場合は https://フロントのドメイン を指定（末尾スラッシュなし）。
   const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID ?? "";
   const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET ?? "";
   const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "";

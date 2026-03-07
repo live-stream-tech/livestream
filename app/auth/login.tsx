@@ -21,9 +21,9 @@ export default function LoginScreen() {
 
   function handleLineLogin() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      // 本番ではAPIサーバー（EXPO_PUBLIC_DOMAIN）の /api/auth/line へ遷移する
+      // 本番ではAPIサーバー（EXPO_PUBLIC_DOMAIN または同一オリジン）の /api/auth/line へ遷移する
       const apiBase = getApiUrl();
-      window.location.href = new URL("api/auth/line", apiBase).toString();
+      window.location.href = new URL("/api/auth/line", apiBase).toString();
     } else {
       // ネイティブでは WebView や LINE SDK で /api/auth/line を開く
       router.replace("/(tabs)");
