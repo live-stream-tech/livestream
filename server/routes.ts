@@ -316,7 +316,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── LINE OAuth ────────────────────────────────────────────────────
   const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID ?? "";
   const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET ?? "";
-  const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "https://livestage.replit.app/api/auth/callback/line";
+  const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "https://livestream-nu-ten.vercel.app/api/auth/callback/line";
   const LINE_STATE = "livestage-line-state";
 
   app.get("/api/auth/line", (_req: Request, res: Response) => {
