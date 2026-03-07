@@ -18,9 +18,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { C } from "@/constants/colors";
 import { apiRequest } from "@/lib/query-client";
-
-const MY_USER_ID = "guest-001";
-const MY_USERNAME = "あなた";
+import { useAuth } from "@/lib/auth";
 
 type LiveStream = {
   id: number;
@@ -88,6 +86,10 @@ export default function LiveStreamScreen() {
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
+  const { user, requireAuth } = useAuth();
+
+  const myUserId = user ? `user-${user.id}` : "guest";
+  const myUsername = user?.name ?? "ゲスト";
 
   const { data: stream } = useQuery<LiveStream>({
     queryKey: [`/api/live-streams/${streamId}`],
@@ -103,7 +105,7 @@ export default function LiveStreamScreen() {
     queryKey: [`/api/twoshot/${streamId}/bookings`],
     refetchInterval: 5000,
     select: (bookings: TwoshotBooking[]) =>
-      bookings.find((b) => b.userId === MY_USER_ID) ?? null,
+      bookings.find((b) => b.userId === myUserId) ?? null,
   });
 
   useEffect(() => {
@@ -116,8 +118,8 @@ export default function LiveStreamScreen() {
   const chatMutation = useMutation({
     mutationFn: ({ message, isGift, giftAmount }: { message: string; isGift?: boolean; giftAmount?: number }) =>
       apiRequest("POST", `/api/live-streams/${streamId}/chat`, {
-        username: MY_USERNAME,
-        avatar: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=80&h=80&fit=crop",
+        username: myUsername,
+        avatar: user?.avatar ?? user?.profileImageUrl ?? null,
         message, isGift: isGift ?? false, giftAmount: giftAmount ?? null,
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: [`/api/live-streams/${streamId}/chat`] }),
@@ -126,18 +128,20 @@ export default function LiveStreamScreen() {
   const sendChat = useCallback(() => {
     const msg = chatInput.trim();
     if (!msg) return;
+    if (!requireAuth("コメント")) return;
     setChatInput("");
     chatMutation.mutate({ message: msg });
-  }, [chatInput]);
+  }, [chatInput, requireAuth]);
 
   const sendGift = useCallback((amount: number, emoji: string) => {
+    if (!requireAuth("投げ銭")) return;
     setShowGiftModal(false);
     chatMutation.mutate({
       message: `${emoji} ¥${amount.toLocaleString()} ギフトを贈りました！`,
       isGift: true,
       giftAmount: amount,
     });
-  }, []);
+  }, [requireAuth]);
 
   useEffect(() => {
     if (chat.length > 0) {

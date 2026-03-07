@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/query-client";
+import { useAuth } from "@/lib/auth";
 import { C } from "@/constants/colors";
 
 type LiveStream = {
@@ -68,6 +69,7 @@ export default function TwoshotBookingScreen() {
   const [step, setStep] = useState<Step>("terms");
   const [agreed, setAgreed] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
+  const { user, requireAuth } = useAuth();
 
   const { data: stream } = useQuery<LiveStream>({
     queryKey: [`/api/live-streams/${streamId}`],
@@ -81,11 +83,12 @@ export default function TwoshotBookingScreen() {
 
   async function handleProceedToPayment() {
     if (!allAgreed) return;
+    if (!requireAuth("ツーショット予約")) return;
     setLoading(true);
     try {
       const res = await apiRequest("POST", `/api/twoshot/${streamId}/checkout`, {
-        userName: "ゲストユーザー",
-        userAvatar: null,
+        userName: user?.name ?? "ユーザー",
+        userAvatar: user?.avatar ?? user?.profileImageUrl ?? null,
         price: TWOSHOT_PRICE,
       });
       if (res.checkoutUrl) {

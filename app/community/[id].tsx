@@ -10,6 +10,8 @@ import {
   Animated,
   Modal,
   Alert,
+  Linking,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,7 +20,8 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
 import { COMMUNITIES, VIDEOS } from "@/constants/data";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { useAuth } from "@/lib/auth";
 
 type AdData = { title: string; sub: string; cta: string; bg: string; accent: string; thumb: string };
 
@@ -362,7 +365,9 @@ export default function CommunityDetailScreen() {
   const [requestBudget, setRequestBudget] = useState("");
   const [requestDeadline, setRequestDeadline] = useState("");
   const [sendingRequest, setSendingRequest] = useState(false);
+  const [bannerCheckoutLoading, setBannerCheckoutLoading] = useState(false);
 
+  const { token, requireAuth } = useAuth();
   const community = COMMUNITIES.find((c) => c.id === id) ?? COMMUNITIES[0];
   const communityId = parseInt(community.id);
   const ad = getAd(community.name);
@@ -387,6 +392,40 @@ export default function CommunityDetailScreen() {
   const closeRequestModal = () => {
     if (sendingRequest) return;
     setRequestEditor(null);
+  };
+
+  const handleBannerCheckout = async () => {
+    if (!requireAuth("広告バナーを出稿する")) return;
+    if (!token) return;
+    setBannerCheckoutLoading(true);
+    try {
+      const baseUrl = getApiUrl();
+      const res = await fetch(new URL("/api/banner/checkout-session", baseUrl).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? "決済の準備に失敗しました");
+      }
+      const data = await res.json();
+      const url = data.checkoutUrl;
+      if (url) {
+        if (Platform.OS === "web") {
+          window.location.href = url;
+        } else {
+          await Linking.openURL(url);
+        }
+      } else {
+        throw new Error("決済URLを取得できませんでした");
+      }
+    } catch (e: any) {
+      console.error(e);
+      Alert.alert("エラー", e.message ?? "決済の開始に失敗しました。時間をおいて再度お試しください。");
+    } finally {
+      setBannerCheckoutLoading(false);
+    }
   };
 
   const handleSendRequest = async () => {
@@ -446,6 +485,21 @@ export default function CommunityDetailScreen() {
           <View style={[styles.adCtaBtn, { backgroundColor: ad.accent }]}>
             <Text style={styles.adCtaText}>{ad.cta}</Text>
           </View>
+        </Pressable>
+
+        <Pressable
+          style={[styles.bannerCheckoutBtn, bannerCheckoutLoading && styles.bannerCheckoutBtnDisabled]}
+          onPress={handleBannerCheckout}
+          disabled={bannerCheckoutLoading}
+        >
+          {bannerCheckoutLoading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="megaphone" size={18} color="#fff" />
+              <Text style={styles.bannerCheckoutBtnText}>広告バナーを出稿する（3日間 ¥15,000）</Text>
+            </>
+          )}
         </Pressable>
 
         <View style={styles.profileSection}>
@@ -1067,6 +1121,20 @@ const styles = StyleSheet.create({
   adSub: { color: "rgba(255,255,255,0.55)", fontSize: 11 },
   adCtaBtn: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 6 },
   adCtaText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  bannerCheckoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: C.accent,
+  },
+  bannerCheckoutBtnDisabled: { opacity: 0.7 },
+  bannerCheckoutBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
   profileSection: { padding: 16, gap: 10 },
   profileRow: {
     flexDirection: "row",

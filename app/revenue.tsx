@@ -17,6 +17,7 @@ import { router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Svg, { Rect, Text as SvgText } from "react-native-svg";
 import { apiRequest } from "@/lib/query-client";
+import { AuthGuard } from "@/lib/auth";
 import { C } from "@/constants/colors";
 
 type Summary = {
@@ -116,7 +117,7 @@ function BarChart({ data }: { data: { month: string; amount: number }[] }) {
 
 const ACCOUNT_TYPES = ["普通", "当座"];
 
-export default function RevenueScreen() {
+function RevenueScreenContent() {
   const insets = useSafeAreaInsets();
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -452,6 +453,14 @@ export default function RevenueScreen() {
         </KeyboardAvoidingView>
       </Modal>
     </View>
+  );
+}
+
+export default function RevenueScreen() {
+  return (
+    <AuthGuard>
+      <RevenueScreenContent />
+    </AuthGuard>
   );
 }
 

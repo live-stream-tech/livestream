@@ -62,7 +62,10 @@ function RootLayoutNav() {
       <Stack.Screen name="dm/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="twoshot-booking/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="twoshot-success" options={{ headerShown: false }} />
+      <Stack.Screen name="success" options={{ headerShown: false }} />
       <Stack.Screen name="revenue" options={{ headerShown: false }} />
+      <Stack.Screen name="settings" options={{ headerShown: false }} />
+      <Stack.Screen name="payout-settings" options={{ headerShown: false }} />
       <Stack.Screen name="auth/login" options={{ headerShown: false }} />
       <Stack.Screen name="auth/register" options={{ headerShown: false }} />
     </Stack>

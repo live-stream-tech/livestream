@@ -8,6 +8,10 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 
+/** ユーザー権限（ライバーランク・分配ロジック等で使用） */
+export const USER_ROLES = ["USER", "LIVER", "EDITOR", "MODERATOR", "ADMIN"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
 export const communities = pgTable("communities", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -164,16 +168,77 @@ export const dmMessages = pgTable("dm_messages", {
   sortOrder: integer("sort_order").notNull().default(0),
 });
 
-export const userAccounts = pgTable("user_accounts", {
+/** 認証はLINEログインのみ。email/password は廃止。 */
+export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  email: text("email").unique().notNull(),
-  passwordHash: text("password_hash").notNull(),
-  name: text("name").notNull().default("ユーザー"),
+  lineId: text("line_id").notNull().unique(),
+  displayName: text("display_name").notNull().default("ユーザー"),
+  profileImageUrl: text("profile_image_url"),
+  role: text("role").notNull().default("USER"),
   bio: text("bio").notNull().default(""),
-  avatar: text("avatar"),
-  lineId: text("line_id").unique(),
+  /** Stripe Connect 連結アカウントID（Express/Custom）。連携済みなら設定される */
+  stripeConnectId: text("stripe_connect_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/** 分配・出金用ウォレット（ライバーランク月末確定・バナー広告15,000円等の計算基盤） */
+export const wallets = pgTable("wallets", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id"), // システムウォレットは null
+  /** ユーザーウォレットは null。システム用: 'MODERATOR' | 'ADMIN' | 'EVENT_RESERVE' | 'PLATFORM' */
+  kind: text("kind"),
+  balanceAvailable: integer("balance_available").notNull().default(0),
+  balancePending: integer("balance_pending").notNull().default(0),
+  currency: text("currency").notNull().default("JPY"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/** 取引ステータス（分配は PENDING → 確定後に SETTLED） */
+export const TRANSACTION_STATUSES = ["PENDING", "SETTLED", "CANCELLED"] as const;
+export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
+
+/** 入出金・分配の取引履歴（月末確定・バナー広告ロジック用） */
+export const transactions = pgTable("transactions", {
+  id: serial("id").primaryKey(),
+  walletId: integer("wallet_id").notNull(),
+  amount: integer("amount").notNull(),
+  type: text("type").notNull(), // 'tip' | 'gift' | 'twoshot' | 'banner_ad' | 'payout' | 'revenue_share' | 'REVENUE' 等
+  status: text("status").notNull().default("PENDING"), // PENDING | SETTLED | CANCELLED
+  referenceId: text("reference_id"),
+  settledAt: timestamp("settled_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+/** 動画編集者（編集者一覧・依頼用） */
+export const videoEditors = pgTable("video_editors", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  avatar: text("avatar"),
+  bio: text("bio").notNull().default(""),
+  communityId: integer("community_id").notNull(),
+  genres: text("genres").notNull().default(""),
+  deliveryDays: integer("delivery_days").notNull().default(3),
+  priceType: text("price_type").notNull(),
+  pricePerMinute: integer("price_per_minute"),
+  revenueSharePercent: integer("revenue_share_percent"),
+  rating: real("rating").notNull().default(0),
+  reviewCount: integer("review_count").notNull().default(0),
+  isAvailable: boolean("is_available").notNull().default(true),
+});
+
+/** 動画編集依頼 */
+export const videoEditRequests = pgTable("video_edit_requests", {
+  id: serial("id").primaryKey(),
+  editorId: integer("editor_id").notNull(),
+  requesterId: text("requester_id").notNull(),
+  requesterName: text("requester_name").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  priceType: text("price_type").notNull(),
+  budget: integer("budget"),
+  deadline: text("deadline"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const earnings = pgTable("earnings", {

@@ -33,7 +33,7 @@ export default function UploadScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, requireAuth } = useAuth();
 
   const { data: communities = [] } = useQuery<Community[]>({ queryKey: ["/api/communities"] });
 
@@ -82,6 +82,7 @@ export default function UploadScreen() {
 
   async function handleSubmit() {
     if (!canUpload) return;
+    if (!requireAuth("投稿")) return;
     setUploading(true);
     try {
       const communityName = selectedCommunity?.name ?? "一般";

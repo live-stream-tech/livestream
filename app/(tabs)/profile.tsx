@@ -341,9 +341,6 @@ export default function ProfileScreen() {
           <Image source={{ uri: "https://upload.wikimedia.org/wikipedia/commons/4/41/LINE_logo.svg" }} style={styles.lineIcon} contentFit="contain" />
           <Text style={styles.lineLoginText}>LINEでログイン</Text>
         </Pressable>
-        <Pressable style={styles.guestRegisterBtn} onPress={() => router.push("/auth/login")}>
-          <Text style={styles.guestRegisterText}>メールアドレスでログイン</Text>
-        </Pressable>
       </View>
     );
   }

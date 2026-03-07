@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useAuth } from "@/lib/auth";
+import { useAuth, AuthGuard } from "@/lib/auth";
 import { C } from "@/constants/colors";
 
 function SettingRow({
@@ -62,51 +62,38 @@ export default function SettingsScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: topInset }]}>
-      <View style={styles.header}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={22} color={C.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>設定</Text>
-        <View style={{ width: 36 }} />
-      </View>
-
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {user && (
-          <View style={styles.profileCard}>
-            <View style={styles.profileAvatar}>
-              <Ionicons name="person-circle" size={48} color={C.accent} />
-            </View>
-            <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{user.name}</Text>
-              <Text style={styles.profileEmail}>{user.email}</Text>
-            </View>
-          </View>
-        )}
-
-        <SectionHeader title="アカウント" />
-        <View style={styles.section}>
-          <SettingRow
-            icon="person-outline"
-            label="プロフィール編集"
-            sublabel="名前・プロフィール文・アイコン"
-            onPress={() => router.push("/(tabs)/profile")}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="lock-closed-outline"
-            label="パスワード変更"
-            sublabel="現在未実装"
-            onPress={() => Alert.alert("準備中", "この機能は近日公開予定です")}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="mail-outline"
-            label="メールアドレス変更"
-            sublabel="現在未実装"
-            onPress={() => Alert.alert("準備中", "この機能は近日公開予定です")}
-          />
+    <AuthGuard>
+      <View style={[styles.container, { paddingTop: topInset }]}>
+        <View style={styles.header}>
+          <Pressable style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={22} color={C.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>設定</Text>
+          <View style={{ width: 36 }} />
         </View>
+
+        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+          {user && (
+            <View style={styles.profileCard}>
+              <View style={styles.profileAvatar}>
+                <Ionicons name="person-circle" size={48} color={C.accent} />
+              </View>
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileName}>{user.name}</Text>
+                <Text style={styles.profileSub}>LINEでログイン中</Text>
+              </View>
+            </View>
+          )}
+
+          <SectionHeader title="アカウント" />
+          <View style={styles.section}>
+            <SettingRow
+              icon="person-outline"
+              label="プロフィール編集"
+              sublabel="表示名・プロフィール文・アイコン"
+              onPress={() => router.push("/(tabs)/profile")}
+            />
+          </View>
 
         <SectionHeader title="収益・お支払い" />
         <View style={styles.section}>
@@ -200,6 +187,7 @@ export default function SettingsScreen() {
         <View style={{ height: 80 }} />
       </ScrollView>
     </View>
+    </AuthGuard>
   );
 }
 
@@ -245,7 +233,7 @@ const styles = StyleSheet.create({
   profileAvatar: {},
   profileInfo: { flex: 1 },
   profileName: { fontSize: 16, fontWeight: "700", color: C.text, marginBottom: 2 },
-  profileEmail: { fontSize: 12, color: C.textMuted },
+  profileSub: { fontSize: 12, color: C.textMuted },
   sectionHeader: {
     fontSize: 11,
     fontWeight: "700",

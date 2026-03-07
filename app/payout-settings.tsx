@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,17 +9,22 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
+import { AuthGuard, useAuth } from "@/lib/auth";
 import { C } from "@/constants/colors";
+import { getApiUrl } from "@/lib/query-client";
 
 const ACCOUNT_TYPES = ["普通", "当座"];
 
 export default function PayoutSettingsScreen() {
   const insets = useSafeAreaInsets();
   const topInset = Platform.OS === "web" ? 67 : insets.top;
+  const { token } = useAuth();
+  const params = useLocalSearchParams<{ connect?: string }>();
 
   const [bankName, setBankName] = useState("");
   const [bankBranch, setBankBranch] = useState("");
@@ -28,6 +33,68 @@ export default function PayoutSettingsScreen() {
   const [accountName, setAccountName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const [connectStatus, setConnectStatus] = useState<{
+    connected: boolean;
+    chargesEnabled: boolean;
+    detailsSubmitted: boolean;
+  } | null>(null);
+  const [connectLoading, setConnectLoading] = useState(false);
+  const [connectLinking, setConnectLinking] = useState(false);
+
+  const fetchConnectStatus = useCallback(async () => {
+    if (!token) return;
+    try {
+      const base = getApiUrl();
+      const res = await fetch(new URL("/api/connect/status", base).toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setConnectStatus({
+        connected: !!data.connected,
+        chargesEnabled: !!data.chargesEnabled,
+        detailsSubmitted: !!data.detailsSubmitted,
+      });
+    } catch {
+      setConnectStatus({ connected: false, chargesEnabled: false, detailsSubmitted: false });
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchConnectStatus();
+  }, [fetchConnectStatus]);
+
+  useEffect(() => {
+    if (params.connect === "return" || params.connect === "refresh") {
+      fetchConnectStatus();
+    }
+  }, [params.connect, fetchConnectStatus]);
+
+  async function handleStripeConnect() {
+    if (!token) return;
+    setConnectLinking(true);
+    try {
+      const base = getApiUrl();
+      const res = await fetch(new URL("/api/connect/onboard", base).toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "連携の開始に失敗しました");
+      const url = data.url;
+      if (Platform.OS === "web") {
+        window.location.href = url;
+      } else {
+        const can = await Linking.canOpenURL(url);
+        if (can) await Linking.openURL(url);
+        else Alert.alert("エラー", "Stripeのページを開けません");
+      }
+    } catch (e: any) {
+      Alert.alert("エラー", e.message ?? "Stripe Connect の開始に失敗しました");
+    } finally {
+      setConnectLinking(false);
+    }
+  }
 
   async function handleSave() {
     if (!bankName || !bankBranch || !accountNumber || !accountName) {
@@ -42,6 +109,7 @@ export default function PayoutSettingsScreen() {
   }
 
   return (
+    <AuthGuard>
     <View style={[styles.container, { paddingTop: topInset }]}>
       <View style={styles.header}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
@@ -57,6 +125,45 @@ export default function PayoutSettingsScreen() {
           <Text style={styles.infoText}>
             収益の振込先となる銀行口座を登録してください。出金申請は月に2回まで可能です。最低引き出し額は¥1,000です。
           </Text>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="card-outline" size={16} color={C.accent} />
+            <Text style={styles.cardTitle}>Stripe で口座連携</Text>
+          </View>
+          {connectStatus === null ? (
+            <ActivityIndicator size="small" color={C.accent} style={{ marginVertical: 12 }} />
+          ) : connectStatus.connected ? (
+            <View style={styles.connectStatusRow}>
+              <Ionicons name="checkmark-circle" size={20} color={C.green} />
+              <Text style={styles.connectStatusText}>
+                {connectStatus.chargesEnabled
+                  ? "Stripe と連携済みです。出金を受け付けられます。"
+                  : "Stripe と連携済みです。審査完了後、出金可能になります。"}
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.securityText}>
+                Stripe の連結アカウントを登録すると、収益を安全に振り込めます。ボタンから Stripe の画面へ進んで口座情報を登録してください。
+              </Text>
+              <Pressable
+                style={[styles.stripeConnectBtn, connectLinking && { opacity: 0.6 }]}
+                onPress={handleStripeConnect}
+                disabled={connectLinking}
+              >
+                {connectLinking ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="link-outline" size={18} color="#fff" />
+                    <Text style={styles.stripeConnectBtnText}>Stripe で口座を連携する</Text>
+                  </>
+                )}
+              </Pressable>
+            </>
+          )}
         </View>
 
         <View style={styles.card}>
@@ -172,6 +279,7 @@ export default function PayoutSettingsScreen() {
         <View style={{ height: 80 }} />
       </ScrollView>
     </View>
+    </AuthGuard>
   );
 }
 
@@ -229,6 +337,19 @@ const styles = StyleSheet.create({
   typePillText: { fontSize: 14, color: C.textSec, fontWeight: "600" },
   typePillTextActive: { color: "#fff" },
   securityText: { fontSize: 12, color: C.textMuted, lineHeight: 18, marginBottom: 12 },
+  connectStatusRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  connectStatusText: { flex: 1, fontSize: 13, color: C.textSec },
+  stripeConnectBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#635BFF",
+    borderRadius: 10,
+    paddingVertical: 12,
+    marginTop: 8,
+  },
+  stripeConnectBtnText: { fontSize: 14, fontWeight: "600", color: "#fff" },
   securityBadgeRow: { flexDirection: "row", gap: 8 },
   securityBadge: {
     flexDirection: "row", alignItems: "center", gap: 4,

@@ -19,14 +19,16 @@ import {
   twoshotBookings,
   earnings,
   withdrawals,
-  userAccounts,
+  users,
+  wallets,
+  transactions,
   liverReviews,
   liverAvailability,
   announcements,
 } from "./schema";
-import { eq, asc, desc, count, sql, and } from "drizzle-orm";
-import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
-import bcrypt from "bcryptjs";
+import { eq, asc, desc, count, sql, and, gte, lte, isNull } from "drizzle-orm";
+import { getUncachableStripeClient, getStripePublishableKey, createConnectExpressAccount, createConnectAccountLink, getConnectAccount, createBannerPaymentIntent, getPaymentIntentStatus } from "./stripeClient";
+import { getMonthlyRevenueRank } from "./aggregateRevenue";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.SESSION_SECRET ?? "livestage-dev-secret";
@@ -35,59 +37,280 @@ function makeToken(userId: number) {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "90d" });
 }
 
-async function getAuthUser(req: Request): Promise<{ id: number; email: string; name: string; bio: string; avatar: string | null } | null> {
+async function getAuthUser(req: Request): Promise<{ id: number; displayName: string; profileImageUrl: string | null; role: string; bio: string; stripeConnectId: string | null } | null> {
   const auth = (req as any).headers?.authorization ?? "";
   if (!auth.startsWith("Bearer ")) return null;
   try {
     const payload = jwt.verify(auth.slice(7), JWT_SECRET) as { sub: number };
-    const [user] = await db.select().from(userAccounts).where(eq(userAccounts.id, payload.sub));
+    const [user] = await db.select().from(users).where(eq(users.id, payload.sub));
     return user ?? null;
   } catch {
     return null;
   }
 }
 
+const SYSTEM_WALLET_KINDS = ["MODERATOR", "ADMIN", "EVENT_RESERVE", "PLATFORM"] as const;
+
+/** システムウォレットを取得。なければ作成する */
+async function getOrCreateSystemWallets(): Promise<Record<(typeof SYSTEM_WALLET_KINDS)[number], number>> {
+  const result = {} as Record<(typeof SYSTEM_WALLET_KINDS)[number], number>;
+  for (const kind of SYSTEM_WALLET_KINDS) {
+    const [w] = await db.select().from(wallets).where(eq(wallets.kind, kind));
+    if (w) {
+      result[kind] = w.id;
+    } else {
+      const [created] = await db.insert(wallets).values({ kind, userId: null }).returning();
+      result[kind] = created.id;
+    }
+  }
+  return result;
+}
+
+/** ユーザー用ウォレットを取得。なければ作成する */
+async function getOrCreateUserWallet(userId: number): Promise<number> {
+  const [w] = await db.select().from(wallets).where(and(eq(wallets.userId, userId), isNull(wallets.kind)));
+  if (w) return w.id;
+  const [created] = await db.insert(wallets).values({ userId, kind: null }).returning();
+  return created.id;
+}
+
+/** 収益を transactions に type: 'REVENUE' で記録（月末ランク集計用） */
+async function recordRevenue(walletId: number, amount: number, source: string, referenceId: string | null) {
+  await db.insert(transactions).values({
+    walletId,
+    amount,
+    type: "REVENUE",
+    status: "PENDING",
+    referenceId,
+  });
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  // ── Auth ──────────────────────────────────────────────────────────
-  app.post("/api/auth/register", async (req: Request, res: Response) => {
-    const { email, password, name } = req.body;
-    if (!email || !password || !name) return res.status(400).json({ error: "必須項目を入力してください" });
-    if (password.length < 6) return res.status(400).json({ error: "パスワードは6文字以上で設定してください" });
-    const existing = await db.select().from(userAccounts).where(eq(userAccounts.email, email.toLowerCase()));
-    if (existing.length > 0) return res.status(409).json({ error: "このメールアドレスはすでに登録されています" });
-    const passwordHash = await bcrypt.hash(password, 10);
-    const [user] = await db.insert(userAccounts).values({ email: email.toLowerCase(), passwordHash, name }).returning();
-    const token = makeToken(user.id);
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, bio: user.bio, avatar: user.avatar } });
-  });
-
-  app.post("/api/auth/login", async (req: Request, res: Response) => {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "メールアドレスとパスワードを入力してください" });
-    const [user] = await db.select().from(userAccounts).where(eq(userAccounts.email, email.toLowerCase()));
-    if (!user) return res.status(401).json({ error: "メールアドレスまたはパスワードが正しくありません" });
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: "メールアドレスまたはパスワードが正しくありません" });
-    const token = makeToken(user.id);
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, bio: user.bio, avatar: user.avatar } });
-  });
-
+  // ── Auth（LINEログインのみ。メール/パスワードは廃止）──────────────────────────────────
   app.get("/api/auth/me", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
-    res.json({ id: user.id, email: user.email, name: user.name, bio: user.bio, avatar: user.avatar });
+    res.json({
+      id: user.id,
+      name: user.displayName,
+      displayName: user.displayName,
+      profileImageUrl: user.profileImageUrl,
+      avatar: user.profileImageUrl,
+      role: user.role,
+      bio: user.bio,
+      stripeConnectId: user.stripeConnectId ?? null,
+    });
+  });
+
+  // ── Stripe Connect（出金先連携）────────────────────────────────────────
+  app.post("/api/connect/onboard", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    try {
+      const baseUrl = process.env.REPLIT_DOMAINS
+        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+        : process.env.APP_URL ?? "http://localhost:8081";
+      const returnUrl = `${baseUrl}/payout-settings?connect=return`;
+      const refreshUrl = `${baseUrl}/payout-settings?connect=refresh`;
+
+      let accountId = user.stripeConnectId;
+      if (!accountId) {
+        accountId = await createConnectExpressAccount({ country: "JP" });
+        await db.update(users).set({ stripeConnectId: accountId, updatedAt: new Date() }).where(eq(users.id, user.id));
+      }
+
+      const url = await createConnectAccountLink({ accountId, returnUrl, refreshUrl });
+      res.json({ url, accountId });
+    } catch (e: any) {
+      console.error("Connect onboard error:", e);
+      res.status(500).json({ error: e.message ?? "Stripe Connect の準備に失敗しました" });
+    }
+  });
+
+  app.get("/api/connect/status", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    if (!user.stripeConnectId) {
+      return res.json({ connected: false, stripeConnectId: null, chargesEnabled: false });
+    }
+    const account = await getConnectAccount(user.stripeConnectId);
+    const chargesEnabled = account?.charges_enabled ?? false;
+    res.json({
+      connected: !!account,
+      stripeConnectId: user.stripeConnectId,
+      chargesEnabled,
+      detailsSubmitted: account?.details_submitted ?? false,
+    });
+  });
+
+  // ── バナー広告：決済・分配（人数×5円×日数、最低15,000円）────────────────────
+  const BANNER_MIN_AMOUNT = 15_000;
+  const BANNER_RATE_MODERATOR = 0.2;
+  const BANNER_RATE_ADMIN = 0.2;
+  const BANNER_RATE_EVENT = 0.1;
+  const BANNER_RATE_PLATFORM = 0.5;
+
+  app.post("/api/banner/checkout", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const { people, days } = req.body as { people?: number; days?: number };
+    const p = Math.max(1, Number(people) || 1);
+    const d = Math.max(1, Number(days) || 1);
+    const amountYen = Math.max(BANNER_MIN_AMOUNT, p * 5 * d);
+
+    try {
+      const { clientSecret, paymentIntentId } = await createBannerPaymentIntent({
+        amountYen,
+        metadata: { userId: String(user.id), people: String(p), days: String(d), type: "banner_ad" },
+      });
+      res.json({ clientSecret, paymentIntentId, amountYen });
+    } catch (e: any) {
+      console.error("Banner checkout error:", e);
+      res.status(500).json({ error: e.message ?? "決済の準備に失敗しました" });
+    }
+  });
+
+  app.post("/api/banner/confirm", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const { paymentIntentId } = req.body as { paymentIntentId?: string };
+    if (!paymentIntentId) return res.status(400).json({ error: "paymentIntentId が必要です" });
+
+    const status = await getPaymentIntentStatus(paymentIntentId);
+    if (status !== "succeeded") {
+      return res.status(400).json({ error: "決済が完了していません" });
+    }
+
+    const stripe = await getUncachableStripeClient();
+    const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+    const amountYen = pi.amount;
+
+    const sys = await getOrCreateSystemWallets();
+    const amountMod = Math.floor(amountYen * BANNER_RATE_MODERATOR);
+    const amountAdmin = Math.floor(amountYen * BANNER_RATE_ADMIN);
+    const amountEvent = Math.floor(amountYen * BANNER_RATE_EVENT);
+    const amountPlatform = amountYen - amountMod - amountAdmin - amountEvent;
+
+    await db.insert(transactions).values([
+      { walletId: sys.MODERATOR, amount: amountMod, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+      { walletId: sys.ADMIN, amount: amountAdmin, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+      { walletId: sys.EVENT_RESERVE, amount: amountEvent, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+      { walletId: sys.PLATFORM, amount: amountPlatform, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+    ]);
+
+    res.json({ ok: true, amountYen, split: { moderator: amountMod, admin: amountAdmin, eventReserve: amountEvent, platform: amountPlatform } });
+  });
+
+  // コミュニティ広告バナー用 Stripe Checkout（3日間 15,000円）
+  const BANNER_CHECKOUT_DAYS = 3;
+  const BANNER_CHECKOUT_AMOUNT_YEN = 15_000;
+
+  app.post("/api/banner/checkout-session", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    try {
+      const stripe = await getUncachableStripeClient();
+      const baseUrl = process.env.REPLIT_DOMAINS
+        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+        : process.env.APP_URL ?? "http://localhost:8081";
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "jpy",
+              unit_amount: BANNER_CHECKOUT_AMOUNT_YEN,
+              product_data: {
+                name: "コミュニティ広告バナー（3日間）",
+                description: `コミュニティページの広告バナー枠 3日間出稿（¥${BANNER_CHECKOUT_AMOUNT_YEN.toLocaleString()}）`,
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/community`,
+        metadata: {
+          type: "banner_ad",
+          days: String(BANNER_CHECKOUT_DAYS),
+          userId: String(user.id),
+        },
+      });
+
+      res.json({ checkoutUrl: session.url });
+    } catch (e: any) {
+      console.error("Banner checkout session error:", e);
+      res.status(500).json({ error: e.message ?? "決済の準備に失敗しました" });
+    }
+  });
+
+  app.post("/api/banner/confirm-session", async (req: Request, res: Response) => {
+    const { sessionId } = req.body as { sessionId?: string };
+    if (!sessionId) return res.status(400).json({ error: "sessionId が必要です" });
+
+    try {
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+      if (session.payment_status !== "paid") {
+        return res.status(400).json({ error: "決済が完了していません" });
+      }
+
+      const amountYen = session.amount_total ?? BANNER_CHECKOUT_AMOUNT_YEN;
+      const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? session.id;
+
+      const sys = await getOrCreateSystemWallets();
+      const amountMod = Math.floor(amountYen * BANNER_RATE_MODERATOR);
+      const amountAdmin = Math.floor(amountYen * BANNER_RATE_ADMIN);
+      const amountEvent = Math.floor(amountYen * BANNER_RATE_EVENT);
+      const amountPlatform = amountYen - amountMod - amountAdmin - amountEvent;
+
+      await db.insert(transactions).values([
+        { walletId: sys.MODERATOR, amount: amountMod, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+        { walletId: sys.ADMIN, amount: amountAdmin, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+        { walletId: sys.EVENT_RESERVE, amount: amountEvent, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+        { walletId: sys.PLATFORM, amount: amountPlatform, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+      ]);
+
+      res.json({
+        ok: true,
+        amountYen,
+        split: { moderator: amountMod, admin: amountAdmin, eventReserve: amountEvent, platform: amountPlatform },
+      });
+    } catch (e: any) {
+      console.error("Banner confirm-session error:", e);
+      res.status(500).json({ error: e.message ?? "決済の確認に失敗しました" });
+    }
   });
 
   app.put("/api/auth/profile", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
-    const { name, bio, avatar } = req.body;
+    const { name, displayName, bio, avatar, profileImageUrl } = req.body;
+    const newName = name ?? displayName ?? user.displayName;
+    const newBio = bio ?? user.bio;
+    const newAvatar = avatar ?? profileImageUrl ?? user.profileImageUrl;
     const [updated] = await db
-      .update(userAccounts)
-      .set({ name: name ?? user.name, bio: bio ?? user.bio, avatar: avatar !== undefined ? avatar : user.avatar, updatedAt: new Date() })
-      .where(eq(userAccounts.id, user.id))
+      .update(users)
+      .set({ displayName: newName, bio: newBio, profileImageUrl: newAvatar !== undefined ? newAvatar : null, updatedAt: new Date() })
+      .where(eq(users.id, user.id))
       .returning();
-    res.json({ id: updated.id, email: updated.email, name: updated.name, bio: updated.bio, avatar: updated.avatar });
+    res.json({
+      id: updated.id,
+      name: updated.displayName,
+      displayName: updated.displayName,
+      profileImageUrl: updated.profileImageUrl,
+      avatar: updated.profileImageUrl,
+      role: updated.role,
+      bio: updated.bio,
+    });
   });
 
   // ── LINE OAuth ────────────────────────────────────────────────────
@@ -140,20 +363,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const lineId = profile.userId;
       const lineName = profile.displayName ?? "LINEユーザー";
       const lineAvatar = profile.pictureUrl ?? null;
-      const lineEmail = `line_${lineId}@line.local`;
 
-      let [existing] = await db.select().from(userAccounts).where(eq(userAccounts.lineId, lineId));
+      let [existing] = await db.select().from(users).where(eq(users.lineId, lineId));
       if (!existing) {
         [existing] = await db
-          .insert(userAccounts)
-          .values({ email: lineEmail, passwordHash: "line-oauth", name: lineName, avatar: lineAvatar, lineId })
-          .onConflictDoUpdate({ target: userAccounts.email, set: { lineId, name: lineName, avatar: lineAvatar, updatedAt: new Date() } })
+          .insert(users)
+          .values({
+            lineId,
+            displayName: lineName,
+            profileImageUrl: lineAvatar,
+            role: "USER",
+          })
           .returning();
       } else {
         [existing] = await db
-          .update(userAccounts)
-          .set({ name: lineName, avatar: lineAvatar, updatedAt: new Date() })
-          .where(eq(userAccounts.id, existing.id))
+          .update(users)
+          .set({ displayName: lineName, profileImageUrl: lineAvatar, updatedAt: new Date() })
+          .where(eq(users.id, existing.id))
           .returning();
       }
 
@@ -221,7 +447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const user = await getAuthUser(req);
     const requestUserId = user ? `user-${user.id}` : "guest";
-    const requestUserName = requesterName ?? user?.name ?? "ゲストユーザー";
+    const requestUserName = requesterName ?? user?.displayName ?? "ゲストユーザー";
 
     const [requestRow] = await db
       .insert(videoEditRequests)
@@ -323,7 +549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/videos/my", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
-    const rows = await db.select().from(videos).where(eq(videos.creator, user.name)).orderBy(desc(videos.createdAt));
+    const rows = await db.select().from(videos).where(eq(videos.creator, user.displayName)).orderBy(desc(videos.createdAt));
     res.json(rows);
   });
 
@@ -730,6 +956,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Payment not completed" });
       }
 
+      const [booking] = await db
+        .select()
+        .from(twoshotBookings)
+        .where(eq(twoshotBookings.stripeSessionId, sessionId));
+      if (!booking) return res.status(404).json({ error: "Booking not found" });
+
       await db
         .update(twoshotBookings)
         .set({
@@ -738,10 +970,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .where(eq(twoshotBookings.stripeSessionId, sessionId));
 
-      const [booking] = await db
-        .select()
-        .from(twoshotBookings)
-        .where(eq(twoshotBookings.stripeSessionId, sessionId));
+      // 共通スコア集計用：REVENUE を transactions に記録（ライバー＝配信者に紐づくウォレット）
+      const [stream] = await db.select().from(liveStreams).where(eq(liveStreams.id, booking.streamId));
+      if (stream) {
+        const [creatorUser] = await db.select().from(users).where(eq(users.displayName, stream.creator));
+        if (creatorUser) {
+          const walletId = await getOrCreateUserWallet(creatorUser.id);
+          await recordRevenue(walletId, booking.price, "twoshot", String(booking.id));
+        }
+      }
 
       res.json({ ok: true, booking });
     } catch (e: any) {
@@ -782,9 +1019,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ ok: true });
   });
 
-  // ── Revenue ───────────────────────────────────────────────────────
-  app.get("/api/revenue/summary", async (_req: Request, res: Response) => {
-    const userId = "guest-001";
+  // ── 収益記録（投げ銭・有料ライブ・個別セッション → type: REVENUE、月末ランク集計用）
+  app.post("/api/revenue/record", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインが必要です" });
+
+    const { amount, source, referenceId } = req.body as { amount?: number; source?: string; referenceId?: string };
+    if (!amount || amount <= 0) return res.status(400).json({ error: "amount は正の数で指定してください" });
+    const src = source ?? "tip"; // tip | paid_live | twoshot
+
+    const walletId = await getOrCreateUserWallet(user.id);
+    await recordRevenue(walletId, amount, src, referenceId ?? null);
+    res.status(201).json({ ok: true, amount, source: src });
+  });
+
+  // ── Revenue（ログイン必須）──────────────────────────────────────────
+  app.get("/api/revenue/summary", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインが必要です" });
+    const userId = `user-${user.id}`;
     const earningRows = await db.select().from(earnings).where(eq(earnings.userId, userId));
     const withdrawalRows = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId));
 
@@ -815,8 +1068,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ totalEarned, totalWithdrawn, pendingWithdrawal, available, monthly });
   });
 
-  app.get("/api/revenue/earnings", async (_req: Request, res: Response) => {
-    const userId = "guest-001";
+  app.get("/api/revenue/earnings", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインが必要です" });
+    const userId = `user-${user.id}`;
     const rows = await db
       .select()
       .from(earnings)
@@ -825,8 +1080,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(rows);
   });
 
-  app.get("/api/revenue/withdrawals", async (_req: Request, res: Response) => {
-    const userId = "guest-001";
+  /** 月末ランク集計用クエリの雛形（バッチの土台）。?month=YYYY-MM で指定月の REVENUE 合計ランキングを返す */
+  app.get("/api/revenue/monthly-rank", async (req: Request, res: Response) => {
+    const month = (req.query.month as string) ?? "";
+    const match = /^(\d{4})-(\d{2})$/.exec(month);
+    if (!match) {
+      return res.status(400).json({ error: "month は YYYY-MM 形式で指定してください" });
+    }
+    const rankings = await getMonthlyRevenueRank(month);
+    res.json({ month, rankings });
+  });
+
+  app.get("/api/revenue/withdrawals", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインが必要です" });
+    const userId = `user-${user.id}`;
     const rows = await db
       .select()
       .from(withdrawals)
@@ -836,7 +1104,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/revenue/withdraw", async (req: Request, res: Response) => {
-    const userId = "guest-001";
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインが必要です" });
+    const userId = `user-${user.id}`;
     const { amount, bankName, bankBranch, accountType, accountNumber, accountName } = req.body;
     if (!amount || amount < 1000) {
       return res.status(400).json({ error: "最低引き出し額は¥1,000です" });
@@ -907,7 +1177,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
 
-    const rows = await db.select().from(creators).where(eq(creators.name, user.name));
+    const rows = await db.select().from(creators).where(eq(creators.name, user.displayName));
     const isEditor = rows.some((r) => r.category === "editor");
     const isTwoshot = rows.some((r) => r.category === "twoshot");
 
@@ -931,7 +1201,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       .from(creators)
       .where(
         and(
-          eq(creators.name, user.name),
+          eq(creators.name, user.displayName),
           eq(creators.category, category),
         ),
       );
@@ -946,7 +1216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const [created] = await db
       .insert(creators)
       .values({
-        name: user.name,
+        name: user.displayName,
         community: communityLabel,
         avatar,
         rank: 999,
@@ -1037,98 +1307,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Seed Demo Data ────────────────────────────────────────────────
   app.post("/api/seed", async (_req: Request, res: Response) => {
-    // Seed demo user accounts (including a shared demo account) ----------
-    const existingUsers = await db.select().from(userAccounts);
-    if (existingUsers.length < 10) {
-      const demoEmail = "demo@livestage.jp";
-      const demoPasswordHash = await bcrypt.hash("password", 10);
-
-      const baseUsers = [
-        {
-          email: demoEmail,
-          passwordHash: demoPasswordHash,
-          name: "デモアカウント",
-          bio: "誰でも編集できるデモユーザーです。プロフィールや肩書きを自由に変更してお試しください。",
-          avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop",
-        },
-        {
-          email: "idol1@example.com",
-          passwordHash: demoPasswordHash,
-          name: "星空みゆ",
-          bio: "地下アイドルとして活動中。ライブとチェキ会でみんなに元気を届けます。",
-          avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop",
-        },
-        {
-          email: "comedian@example.com",
-          passwordHash: demoPasswordHash,
-          name: "ダブルパンチ山本",
-          bio: "お笑いコンビ「ダブルパンチ」のツッコミ担当。",
-          avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop",
-        },
-        {
-          email: "host@example.com",
-          passwordHash: demoPasswordHash,
-          name: "麗華 -REIKA-",
-          bio: "キャバクラと配信を両立するカリスマホステス。",
-          avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=150&h=150&fit=crop",
-        },
-        {
-          email: "jk@example.com",
-          passwordHash: demoPasswordHash,
-          name: "まいまい17歳",
-          bio: "放課後トーク配信が人気のJKライバー。",
-          avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&h=150&fit=crop",
-        },
-        {
-          email: "english@example.com",
-          passwordHash: demoPasswordHash,
-          name: "田中 ゆうき",
-          bio: "英会話クラブ主宰。ビジネス英語から日常会話まで。",
-          avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
-        },
-        {
-          email: "fortune@example.com",
-          passwordHash: demoPasswordHash,
-          name: "神崎 リナ",
-          bio: "タロットと西洋占星術を組み合わせた占い配信。",
-          avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop",
-        },
-        {
-          email: "fitness@example.com",
-          passwordHash: demoPasswordHash,
-          name: "松本 こうた",
-          bio: "元プロサッカー選手のフィットネスライバー。",
-          avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop",
-        },
-        {
-          email: "counselor@example.com",
-          passwordHash: demoPasswordHash,
-          name: "伊藤 さやか",
-          bio: "心のケアを届けるオンラインカウンセラー。",
-          avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop",
-        },
-        {
-          email: "cooking@example.com",
-          passwordHash: demoPasswordHash,
-          name: "中村 あおい",
-          bio: "自宅でできる本格レシピを配信する料理ライバー。",
-          avatar: "https://images.unsplash.com/photo-1502767089025-6572583495b9?w=150&h=150&fit=crop",
-        },
-        {
-          email: "editor@example.com",
-          passwordHash: demoPasswordHash,
-          name: "映像編集マン",
-          bio: "テロップ・カット・サムネまでワンストップで対応する動画編集クリエイター。",
-          avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop",
-        },
-      ];
-
-      const existingEmails = new Set(existingUsers.map((u) => u.email.toLowerCase()));
-      const toInsertUsers = baseUsers.filter((u) => !existingEmails.has(u.email.toLowerCase()));
-      if (toInsertUsers.length > 0) {
-        await db.insert(userAccounts).values(toInsertUsers);
-      }
-    }
+    // ユーザーはLINEログインでのみ作成。メール/パスワードのシードは廃止。
 
     // Seed creators / livers -------------------------------------------------
     const existingCreators = await db.select().from(creators);
