@@ -16,6 +16,7 @@
    - **Functions タブ**で `api/index` と `api/[...path]` が表示されているか。  
    - **Root Directory** が `.` または未設定か。  
    - `vercel.json` の `rewrites` で `/api/*` が先にマッチし、SPA フォールバックに飲み込まれていないか。
+   - **重要**: SPA 用の正規表現は `(?!api/)` ではなく `(?!api(/|$))` にすること。`/api`（末尾スラッシュなし）だけだと `api/` にマッチせず、`/api` が SPA に送られて NOT_FOUND になる。
 
 4. **デプロイログ**  
    該当デプロイの [Deployment Logs](https://vercel.com/docs/deployments/logs) で、ビルド失敗やランタイムエラーがないか確認する。
