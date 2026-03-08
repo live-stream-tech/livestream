@@ -36,13 +36,30 @@ function makeToken(userId: number) {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "90d" });
 }
 
-async function getAuthUser(req: Request): Promise<{ id: number; displayName: string; profileImageUrl: string | null; role: string; bio: string; stripeConnectId: string | null } | null> {
+/** req.params / req.query を string に正規化（Express は string | string[]） */
+function paramStr(req: Request, key: string): string {
+  const v = req.params[key];
+  return Array.isArray(v) ? v[0] ?? "" : (v ?? "");
+}
+function paramNum(req: Request, key: string): number {
+  return parseInt(paramStr(req, key), 10) || 0;
+}
+/** req.query の値を string に正規化 */
+function queryStr(req: Request, key: string): string {
+  const v = req.query[key];
+  return Array.isArray(v) ? v[0] ?? "" : (v ?? "");
+}
+
+async function getAuthUser(req: Request): Promise<{ id: number; displayName: string; profileImageUrl: string | null; avatar: string | null; role: string; bio: string; stripeConnectId: string | null } | null> {
   const auth = (req as any).headers?.authorization ?? "";
   if (!auth.startsWith("Bearer ")) return null;
   try {
-    const payload = jwt.verify(auth.slice(7), JWT_SECRET) as { sub: number };
-    const [user] = await db.select().from(users).where(eq(users.id, payload.sub));
-    return user ?? null;
+    const payload = jwt.verify(auth.slice(7), JWT_SECRET);
+    if (typeof payload === "string" || !payload || typeof (payload as { sub?: number }).sub !== "number") return null;
+    const sub = (payload as { sub: number }).sub;
+    const [user] = await db.select().from(users).where(eq(users.id, sub));
+    if (!user) return null;
+    return { ...user, avatar: user.profileImageUrl };
   } catch {
     return null;
   }
@@ -58,7 +75,7 @@ async function getOrCreateSystemWallets(): Promise<Record<(typeof SYSTEM_WALLET_
     if (w) {
       result[kind] = w.id;
     } else {
-      const [created] = await db.insert(wallets).values({ kind, userId: null }).returning();
+      const [created] = await db.insert(wallets).values({ kind, userId: null } as typeof wallets.$inferInsert).returning();
       result[kind] = created.id;
     }
   }
@@ -69,7 +86,7 @@ async function getOrCreateSystemWallets(): Promise<Record<(typeof SYSTEM_WALLET_
 async function getOrCreateUserWallet(userId: number): Promise<number> {
   const [w] = await db.select().from(wallets).where(and(eq(wallets.userId, userId), isNull(wallets.kind)));
   if (w) return w.id;
-  const [created] = await db.insert(wallets).values({ userId, kind: null }).returning();
+  const [created] = await db.insert(wallets).values({ userId, kind: null } as typeof wallets.$inferInsert).returning();
   return created.id;
 }
 
@@ -81,7 +98,7 @@ async function recordRevenue(walletId: number, amount: number, source: string, r
     type: "REVENUE",
     status: "PENDING",
     referenceId,
-  });
+  } as typeof transactions.$inferInsert);
 }
 
 export async function registerRoutes(app: Express): Promise<void> {
@@ -116,7 +133,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       let accountId = user.stripeConnectId;
       if (!accountId) {
         accountId = await createConnectExpressAccount({ country: "JP" });
-        await db.update(users).set({ stripeConnectId: accountId, updatedAt: new Date() }).where(eq(users.id, user.id));
+        await db.update(users).set({ stripeConnectId: accountId, updatedAt: new Date() } as Partial<typeof users.$inferInsert>).where(eq(users.id, user.id));
       }
 
       const url = await createConnectAccountLink({ accountId, returnUrl, refreshUrl });
@@ -199,7 +216,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       { walletId: sys.ADMIN, amount: amountAdmin, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
       { walletId: sys.EVENT_RESERVE, amount: amountEvent, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
       { walletId: sys.PLATFORM, amount: amountPlatform, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
-    ]);
+    ] as typeof transactions.$inferInsert[]);
 
     res.json({ ok: true, amountYen, split: { moderator: amountMod, admin: amountAdmin, eventReserve: amountEvent, platform: amountPlatform } });
   });
@@ -276,7 +293,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         { walletId: sys.ADMIN, amount: amountAdmin, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
         { walletId: sys.EVENT_RESERVE, amount: amountEvent, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
         { walletId: sys.PLATFORM, amount: amountPlatform, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
-      ]);
+      ] as typeof transactions.$inferInsert[]);
 
       res.json({
         ok: true,
@@ -298,7 +315,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const newAvatar = avatar ?? profileImageUrl ?? user.profileImageUrl;
     const [updated] = await db
       .update(users)
-      .set({ displayName: newName, bio: newBio, profileImageUrl: newAvatar !== undefined ? newAvatar : null, updatedAt: new Date() })
+      .set({ displayName: newName, bio: newBio, profileImageUrl: newAvatar !== undefined ? newAvatar : undefined, updatedAt: new Date() } as Partial<typeof users.$inferInsert>)
       .where(eq(users.id, user.id))
       .returning();
     res.json({
@@ -379,12 +396,12 @@ export async function registerRoutes(app: Express): Promise<void> {
             displayName: lineName,
             profileImageUrl: lineAvatar,
             role: "USER",
-          })
+          } as typeof users.$inferInsert)
           .returning();
       } else {
         [existing] = await db
           .update(users)
-          .set({ displayName: lineName, profileImageUrl: lineAvatar, updatedAt: new Date() })
+          .set({ displayName: lineName, profileImageUrl: lineAvatar, updatedAt: new Date() } as Partial<typeof users.$inferInsert>)
           .where(eq(users.id, existing.id))
           .returning();
       }
@@ -404,7 +421,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.get("/api/communities/:id", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const [row] = await db.select().from(communities).where(eq(communities.id, id));
     if (!row) return res.status(404).json({ message: "Not found" });
     res.json(row);
@@ -412,7 +429,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // ── Video Editors ───────────────────────────────────────────────────
   app.get("/api/communities/:id/editors", async (req: Request, res: Response) => {
-    const communityId = parseInt(req.params.id);
+    const communityId = paramNum(req, "id");
     const rows = await db
       .select()
       .from(videoEditors)
@@ -422,14 +439,14 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.get("/api/editors/:id", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const [editor] = await db.select().from(videoEditors).where(eq(videoEditors.id, id));
     if (!editor) return res.status(404).json({ error: "Not found" });
     res.json(editor);
   });
 
   app.post("/api/editors/:id/request", async (req: Request, res: Response) => {
-    const editorId = parseInt(req.params.id);
+    const editorId = paramNum(req, "id");
     const { requesterName, title, description, priceType, budget, deadline } = req.body as {
       requesterName?: string;
       title?: string;
@@ -466,7 +483,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         priceType,
         budget: budget ?? null,
         deadline: deadline ?? null,
-      })
+      } as typeof videoEditRequests.$inferInsert)
       .returning();
 
     // 通知テーブルに編集者向けの通知を追加（エディタIDはタイトル/本文に含める）
@@ -475,10 +492,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       title: `${requestUserName} から編集依頼`,
       body: `${title}（編集者ID: ${editorId}）`,
       amount: budget ?? null,
-      avatar: editor.avatar,
+      avatar: editor.avatar ?? null,
       thumbnail: null,
       timeAgo: "たった今",
-    });
+    } as typeof notifications.$inferInsert);
 
     res.status(201).json(requestRow);
   });
@@ -525,7 +542,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           thumbnail: banner,
           online: false,
           category: primaryCategory,
-        })
+        } as typeof communities.$inferInsert)
         .returning();
 
       // フロントで扱いやすいよう、リクエスト情報もそのまま返す
@@ -569,7 +586,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.get("/api/videos/:id", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const [row] = await db.select().from(videos).where(eq(videos.id, id));
     if (!row) return res.status(404).json({ message: "Not found" });
     res.json(row);
@@ -593,7 +610,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         thumbnail,
         avatar,
         isRanked: false,
-      })
+      } as typeof videos.$inferInsert)
       .returning();
     res.status(201).json(row);
   });
@@ -616,21 +633,21 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // ── Booking Sessions ──────────────────────────────────────────────
   app.get("/api/booking-sessions", async (req: Request, res: Response) => {
-    const { category } = req.query;
+    const category = queryStr(req, "category");
     const rows = category && category !== "all"
-      ? await db.select().from(bookingSessions).where(eq(bookingSessions.category, category as string))
+      ? await db.select().from(bookingSessions).where(eq(bookingSessions.category, category))
       : await db.select().from(bookingSessions);
     res.json(rows);
   });
 
   app.post("/api/booking-sessions/:id/book", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const [session] = await db.select().from(bookingSessions).where(eq(bookingSessions.id, id));
     if (!session) return res.status(404).json({ message: "Not found" });
     if (session.spotsLeft <= 0) return res.status(400).json({ message: "満席です" });
     const [updated] = await db
       .update(bookingSessions)
-      .set({ spotsLeft: session.spotsLeft - 1 })
+      .set({ spotsLeft: session.spotsLeft - 1 } as Partial<typeof bookingSessions.$inferInsert>)
       .where(eq(bookingSessions.id, id))
       .returning();
     res.json(updated);
@@ -643,10 +660,10 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.post("/api/dm-messages/:id/read", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const [updated] = await db
       .update(dmMessages)
-      .set({ unread: 0 })
+      .set({ unread: 0 } as Partial<typeof dmMessages.$inferInsert>)
       .where(eq(dmMessages.id, id))
       .returning();
     res.json(updated);
@@ -654,23 +671,23 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // ── Notifications ─────────────────────────────────────────────────
   app.get("/api/notifications", async (req: Request, res: Response) => {
-    const { type } = req.query;
+    const type = queryStr(req, "type");
     const rows = type && type !== "all"
-      ? await db.select().from(notifications).where(eq(notifications.type, type as string)).orderBy(desc(notifications.createdAt))
+      ? await db.select().from(notifications).where(eq(notifications.type, type)).orderBy(desc(notifications.createdAt))
       : await db.select().from(notifications).orderBy(desc(notifications.createdAt));
     res.json(rows);
   });
 
   app.post("/api/notifications/read-all", async (_req: Request, res: Response) => {
-    await db.update(notifications).set({ isRead: true });
+    await db.update(notifications).set({ isRead: true } as Partial<typeof notifications.$inferInsert>);
     res.json({ ok: true });
   });
 
   app.post("/api/notifications/:id/read", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const [updated] = await db
       .update(notifications)
-      .set({ isRead: true })
+      .set({ isRead: true } as Partial<typeof notifications.$inferInsert>)
       .where(eq(notifications.id, id))
       .returning();
     res.json(updated);
@@ -678,14 +695,14 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // ── Live Stream single + chat ─────────────────────────────────────
   app.get("/api/live-streams/:id", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const [stream] = await db.select().from(liveStreams).where(eq(liveStreams.id, id));
     if (!stream) return res.status(404).json({ error: "Not found" });
     res.json(stream);
   });
 
   app.get("/api/live-streams/:id/chat", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const msgs = await db.select().from(liveStreamChat)
       .where(eq(liveStreamChat.streamId, id))
       .orderBy(asc(liveStreamChat.createdAt));
@@ -693,18 +710,18 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.post("/api/live-streams/:id/chat", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const { username, avatar, message, isGift, giftAmount } = req.body;
     const [msg] = await db.insert(liveStreamChat).values({
       streamId: id, username: username ?? "あなた", avatar, message,
       isGift: isGift ?? false, giftAmount: giftAmount ?? null,
-    }).returning();
+    } as typeof liveStreamChat.$inferInsert).returning();
     res.json(msg);
   });
 
   // ── DM Conversations ──────────────────────────────────────────────
   app.get("/api/dm-messages/:id/conversation", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const msgs = await db.select().from(dmConversationMessages)
       .where(eq(dmConversationMessages.dmId, id))
       .orderBy(asc(dmConversationMessages.createdAt));
@@ -712,19 +729,19 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.post("/api/dm-messages/:id/conversation", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const { text } = req.body;
     const [msg] = await db.insert(dmConversationMessages).values({
       dmId: id, sender: "me", text, isRead: true,
-    }).returning();
+    } as typeof dmConversationMessages.$inferInsert).returning();
     // Update last message in dm_messages
-    await db.update(dmMessages).set({ lastMessage: text, unread: 0 }).where(eq(dmMessages.id, id));
+    await db.update(dmMessages).set({ lastMessage: text, unread: 0 } as Partial<typeof dmMessages.$inferInsert>).where(eq(dmMessages.id, id));
     res.json(msg);
   });
 
   // ── Jukebox ───────────────────────────────────────────────────────
   app.get("/api/jukebox/:communityId", async (req: Request, res: Response) => {
-    const communityId = parseInt(req.params.communityId);
+    const communityId = paramNum(req, "communityId");
     const [state] = await db.select().from(jukeboxState).where(eq(jukeboxState.communityId, communityId));
     const queue = await db.select().from(jukeboxQueue)
       .where(eq(jukeboxQueue.communityId, communityId))
@@ -736,7 +753,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.post("/api/jukebox/:communityId/add", async (req: Request, res: Response) => {
-    const communityId = parseInt(req.params.communityId);
+    const communityId = paramNum(req, "communityId");
     const { videoId, videoTitle, videoThumbnail, videoDurationSecs, addedBy, addedByAvatar, youtubeId } = req.body;
     const existing = await db.select().from(jukeboxQueue)
       .where(eq(jukeboxQueue.communityId, communityId))
@@ -750,7 +767,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       videoDurationSecs: videoDurationSecs ?? 0,
       youtubeId: youtubeId ?? null,
       addedBy: addedBy ?? "あなた", addedByAvatar, position: nextPos, isPlayed: false,
-    }).returning();
+    } as typeof jukeboxQueue.$inferInsert).returning();
 
     // 最初の1件が追加されたときは自動で再生を開始する
     if (existing.length === 0) {
@@ -767,7 +784,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           startedAt: new Date(),
           isPlaying: true,
           watchersCount: watchers,
-        })
+        } as typeof jukeboxState.$inferInsert)
         .onConflictDoUpdate({
           target: jukeboxState.communityId,
           set: {
@@ -779,7 +796,7 @@ export async function registerRoutes(app: Express): Promise<void> {
             startedAt: new Date(),
             isPlaying: true,
             watchersCount: watchers,
-          },
+          } as Partial<typeof jukeboxState.$inferInsert>,
         });
     }
 
@@ -787,13 +804,13 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.post("/api/jukebox/:communityId/next", async (req: Request, res: Response) => {
-    const communityId = parseInt(req.params.communityId);
+    const communityId = paramNum(req, "communityId");
     const queue = await db.select().from(jukeboxQueue)
       .where(eq(jukeboxQueue.communityId, communityId))
       .orderBy(asc(jukeboxQueue.position));
     const next = queue.find((q) => !q.isPlayed);
     if (next) {
-      await db.update(jukeboxQueue).set({ isPlayed: true }).where(eq(jukeboxQueue.id, next.id));
+      await db.update(jukeboxQueue).set({ isPlayed: true } as Partial<typeof jukeboxQueue.$inferInsert>).where(eq(jukeboxQueue.id, next.id));
       const watchers = Math.floor(Math.random() * 80) + 20;
       await db
         .insert(jukeboxState)
@@ -807,7 +824,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           startedAt: new Date(),
           isPlaying: true,
           watchersCount: watchers,
-        })
+        } as typeof jukeboxState.$inferInsert)
         .onConflictDoUpdate({
           target: jukeboxState.communityId,
           set: {
@@ -819,7 +836,7 @@ export async function registerRoutes(app: Express): Promise<void> {
             startedAt: new Date(),
             isPlaying: true,
             watchersCount: watchers,
-          },
+          } as Partial<typeof jukeboxState.$inferInsert>,
         });
     } else {
       // 再生キューが空になった場合は再生状態をリセット
@@ -832,18 +849,18 @@ export async function registerRoutes(app: Express): Promise<void> {
           currentVideoDurationSecs: 0,
           currentVideoYoutubeId: null,
           isPlaying: false,
-        })
+        } as Partial<typeof jukeboxState.$inferInsert>)
         .where(eq(jukeboxState.communityId, communityId));
     }
     res.json({ ok: true });
   });
 
   app.post("/api/jukebox/:communityId/chat", async (req: Request, res: Response) => {
-    const communityId = parseInt(req.params.communityId);
+    const communityId = paramNum(req, "communityId");
     const { username, avatar, message } = req.body;
     const [msg] = await db.insert(jukeboxChat).values({
       communityId, username: username ?? "あなた", avatar, message,
-    }).returning();
+    } as typeof jukeboxChat.$inferInsert).returning();
     res.json(msg);
   });
 
@@ -859,7 +876,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.get("/api/twoshot/:streamId/bookings", async (req: Request, res: Response) => {
-    const streamId = parseInt(req.params.streamId);
+    const streamId = paramNum(req, "streamId");
     const rows = await db
       .select()
       .from(twoshotBookings)
@@ -869,7 +886,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.get("/api/twoshot/:streamId/queue-count", async (req: Request, res: Response) => {
-    const streamId = parseInt(req.params.streamId);
+    const streamId = paramNum(req, "streamId");
     const [{ total }] = await db
       .select({ total: count() })
       .from(twoshotBookings)
@@ -878,7 +895,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.post("/api/twoshot/:streamId/checkout", async (req: Request, res: Response) => {
-    const streamId = parseInt(req.params.streamId);
+    const streamId = paramNum(req, "streamId");
     const { userName, userAvatar, price = 3000 } = req.body;
 
     if (!userName) return res.status(400).json({ error: "userName required" });
@@ -940,7 +957,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           agreedToTerms: true,
           agreedAt: new Date(),
           refundable: false,
-        })
+        } as typeof twoshotBookings.$inferInsert)
         .returning();
 
       res.json({ checkoutUrl: session.url, bookingId: booking.id, queuePosition: queuePos });
@@ -973,7 +990,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         .set({
           status: "paid",
           stripePaymentIntentId: session.payment_intent as string,
-        })
+        } as Partial<typeof twoshotBookings.$inferInsert>)
         .where(eq(twoshotBookings.stripeSessionId, sessionId));
 
       // 共通スコア集計用：REVENUE を transactions に記録（ライバー＝配信者に紐づくウォレット）
@@ -993,25 +1010,25 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.post("/api/twoshot/:bookingId/notify", async (req: Request, res: Response) => {
-    const bookingId = parseInt(req.params.bookingId);
+    const bookingId = paramNum(req, "bookingId");
     await db
       .update(twoshotBookings)
-      .set({ status: "notified", notifiedAt: new Date() })
+      .set({ status: "notified", notifiedAt: new Date() } as Partial<typeof twoshotBookings.$inferInsert>)
       .where(eq(twoshotBookings.id, bookingId));
     res.json({ ok: true });
   });
 
   app.post("/api/twoshot/:bookingId/complete", async (req: Request, res: Response) => {
-    const bookingId = parseInt(req.params.bookingId);
+    const bookingId = paramNum(req, "bookingId");
     await db
       .update(twoshotBookings)
-      .set({ status: "completed", completedAt: new Date() })
+      .set({ status: "completed", completedAt: new Date() } as Partial<typeof twoshotBookings.$inferInsert>)
       .where(eq(twoshotBookings.id, bookingId));
     res.json({ ok: true });
   });
 
   app.post("/api/twoshot/:bookingId/cancel", async (req: Request, res: Response) => {
-    const bookingId = parseInt(req.params.bookingId);
+    const bookingId = paramNum(req, "bookingId");
     const { reason, isSelfCancel } = req.body;
     await db
       .update(twoshotBookings)
@@ -1020,7 +1037,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         cancelledAt: new Date(),
         cancelReason: reason ?? "ユーザーキャンセル",
         refundable: !isSelfCancel,
-      })
+      } as Partial<typeof twoshotBookings.$inferInsert>)
       .where(eq(twoshotBookings.id, bookingId));
     res.json({ ok: true });
   });
@@ -1130,7 +1147,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
     const [row] = await db
       .insert(withdrawals)
-      .values({ userId, amount, bankName, bankBranch, accountType, accountNumber, accountName, status: "pending" })
+      .values({ userId, amount, bankName, bankBranch, accountType, accountNumber, accountName, status: "pending" } as typeof withdrawals.$inferInsert)
       .returning();
     res.json(row);
   });
@@ -1150,21 +1167,24 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // ── Livers (Creators extended) ────────────────────────────────────
   app.get("/api/livers", async (req: Request, res: Response) => {
-    const { name, minScore, category, date } = req.query;
+    const name = queryStr(req, "name");
+    const minScore = queryStr(req, "minScore");
+    const category = queryStr(req, "category");
+    const date = queryStr(req, "date");
     let rows = await db.select().from(creators).orderBy(asc(creators.rank));
     if (name) {
-      const q = (name as string).toLowerCase();
+      const q = name.toLowerCase();
       rows = rows.filter((r) => r.name.toLowerCase().includes(q));
     }
     if (category && category !== "all") {
       rows = rows.filter((r) => r.category === category);
     }
     if (minScore) {
-      const ms = parseFloat(minScore as string);
+      const ms = parseFloat(minScore);
       rows = rows.filter((r) => r.satisfactionScore >= ms);
     }
     if (date) {
-      const avail = await db.select().from(liverAvailability).where(eq(liverAvailability.date, date as string));
+      const avail = await db.select().from(liverAvailability).where(eq(liverAvailability.date, date));
       const availIds = new Set(avail.map((a) => a.liverId));
       rows = rows.filter((r) => availIds.has(r.id));
     }
@@ -1172,7 +1192,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.get("/api/livers/:id", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const [liver] = await db.select().from(creators).where(eq(creators.id, id));
     if (!liver) return res.status(404).json({ error: "Not found" });
     res.json(liver);
@@ -1236,7 +1256,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         attendanceRate: 5,
         bio: user.bio ?? "",
         category,
-      })
+      } as typeof creators.$inferInsert)
       .returning();
 
     res.status(201).json({ ok: true, creator: created });
@@ -1244,7 +1264,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // ── Liver Reviews ─────────────────────────────────────────────────
   app.get("/api/livers/:id/reviews", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const rows = await db.select().from(liverReviews)
       .where(eq(liverReviews.liverId, id))
       .orderBy(desc(liverReviews.createdAt));
@@ -1252,7 +1272,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.post("/api/livers/:id/reviews", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const { userId, userName, userAvatar, satisfactionScore, streamCountScore, attendanceScore, comment, sessionDate } = req.body;
     if (!userName || !comment) return res.status(400).json({ error: "必須項目を入力してください" });
     const overall = ((satisfactionScore ?? 5) + (streamCountScore ?? 5) + (attendanceScore ?? 5)) / 3;
@@ -1267,7 +1287,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       overallScore: parseFloat(overall.toFixed(1)),
       comment,
       sessionDate: sessionDate ?? new Date().toISOString().slice(0, 10),
-    }).returning();
+    } as typeof liverReviews.$inferInsert).returning();
     const allReviews = await db.select().from(liverReviews).where(eq(liverReviews.liverId, id));
     const avgOverall = allReviews.reduce((s, r) => s + r.overallScore, 0) / allReviews.length;
     const avgSatisfaction = allReviews.reduce((s, r) => s + r.satisfactionScore, 0) / allReviews.length;
@@ -1276,13 +1296,13 @@ export async function registerRoutes(app: Express): Promise<void> {
       heatScore: parseFloat(avgOverall.toFixed(1)),
       satisfactionScore: parseFloat(avgSatisfaction.toFixed(1)),
       attendanceRate: parseFloat(avgAttendance.toFixed(1)),
-    }).where(eq(creators.id, id));
+    } as Partial<typeof creators.$inferInsert>).where(eq(creators.id, id));
     res.status(201).json(row);
   });
 
   // ── Liver Availability ────────────────────────────────────────────
   app.get("/api/livers/:id/availability", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const rows = await db.select().from(liverAvailability)
       .where(eq(liverAvailability.liverId, id))
       .orderBy(asc(liverAvailability.date), asc(liverAvailability.startTime));
@@ -1290,7 +1310,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.post("/api/livers/:id/availability", async (req: Request, res: Response) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const { date, startTime, endTime, maxSlots, note } = req.body;
     if (!date || !startTime || !endTime) return res.status(400).json({ error: "日付と時間を入力してください" });
     const [row] = await db.insert(liverAvailability).values({
@@ -1301,12 +1321,12 @@ export async function registerRoutes(app: Express): Promise<void> {
       maxSlots: maxSlots ?? 3,
       bookedSlots: 0,
       note: note ?? "",
-    }).returning();
+    } as typeof liverAvailability.$inferInsert).returning();
     res.status(201).json(row);
   });
 
   app.delete("/api/livers/:id/availability/:slotId", async (req: Request, res: Response) => {
-    const slotId = parseInt(req.params.slotId);
+    const slotId = paramNum(req, "slotId");
     await db.delete(liverAvailability).where(eq(liverAvailability.id, slotId));
     res.json({ ok: true });
   });
