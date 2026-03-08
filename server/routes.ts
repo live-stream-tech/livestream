@@ -505,7 +505,10 @@ export async function registerRoutes(app: Express): Promise<void> {
 
     const { adminId, moderatorIds } = req.body as { adminId?: number | null; moderatorIds?: number[] };
     if (adminId !== undefined) {
-      await db.update(communities).set({ adminId: adminId ?? null }).where(eq(communities.id, communityId));
+      await db
+        .update(communities)
+        .set({ adminId: adminId ?? null } as Partial<typeof communities.$inferInsert>)
+        .where(eq(communities.id, communityId));
     }
     if (moderatorIds !== undefined && Array.isArray(moderatorIds)) {
       await db.delete(communityModerators).where(eq(communityModerators.communityId, communityId));
@@ -586,7 +589,12 @@ export async function registerRoutes(app: Express): Promise<void> {
       userId: user.id,
     } as typeof communityMembers.$inferInsert);
     const [c] = await db.select({ m: communities.members }).from(communities).where(eq(communities.id, communityId));
-    if (c) await db.update(communities).set({ members: c.m + 1 }).where(eq(communities.id, communityId));
+    if (c) {
+      await db
+        .update(communities)
+        .set({ members: c.m + 1 } as Partial<typeof communities.$inferInsert>)
+        .where(eq(communities.id, communityId));
+    }
     res.status(201).json({ ok: true });
   });
 
