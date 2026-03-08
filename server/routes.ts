@@ -44,10 +44,11 @@ function paramStr(req: Request, key: string): string {
 function paramNum(req: Request, key: string): number {
   return parseInt(paramStr(req, key), 10) || 0;
 }
-/** req.query の値を string に正規化 */
+/** req.query の値を string に正規化（Express の ParsedQs を string に統一） */
 function queryStr(req: Request, key: string): string {
   const v = req.query[key];
-  return Array.isArray(v) ? v[0] ?? "" : (v ?? "");
+  if (Array.isArray(v)) return typeof v[0] === "string" ? v[0] : "";
+  return typeof v === "string" ? v : "";
 }
 
 async function getAuthUser(req: Request): Promise<{ id: number; displayName: string; profileImageUrl: string | null; avatar: string | null; role: string; bio: string; stripeConnectId: string | null } | null> {

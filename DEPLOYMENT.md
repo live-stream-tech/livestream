@@ -1,6 +1,27 @@
-# Vercel デプロイ手順（/api が 404 になる場合）
+# Vercel デプロイ手順
 
-## 必須確認
+## DEPLOYMENT_NOT_FOUND（404）が出る場合
+
+**原因**: 指定したデプロイメント URL や ID が存在しない・削除された・タイポのどれかです。
+
+1. **デプロイメント URL の確認**  
+   Vercel ダッシュボード → プロジェクト → **Deployments** で、実際の URL をコピー（例: `https://your-project-xxx.vercel.app` や Production Domain）。  
+   `.env` / Vercel の Environment Variables の `EXPO_PUBLIC_DOMAIN`・`FRONTEND_URL`・`LINE_CALLBACK_URL` がこの URL と**完全に一致**しているか確認する（`https://` の有無、サブドメイン、末尾スラッシュの有無に注意）。
+
+2. **デプロイメントの存在確認**  
+   **Deployments** 一覧で、参照しているコミット/ブランチのデプロイが存在するか確認。古いデプロイは自動削除されることがあるため、**本番は Production ブランチの「最新デプロイ」の URL を参照**する。
+
+3. **権限**  
+   チーム/組織のプロジェクトなら、そのデプロイメントへのアクセス権があるか確認。
+
+4. **コード側で参照している URL**  
+   - ログイン: `getApiUrl()` → `EXPO_PUBLIC_DOMAIN` で `/api/auth/line` に遷移。  
+   - LINE コールバック: `LINE_CALLBACK_URL` が「今あるデプロイの URL + `/api/auth/callback/line`」になっているか。  
+   いずれかが古い・別プロジェクトの URL だと、Vercel が `DEPLOYMENT_NOT_FOUND` を返します。
+
+---
+
+## /api が 404 になる場合
 
 ### 1. Root Directory（プロジェクトのルート）
 
