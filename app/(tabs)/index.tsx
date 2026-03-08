@@ -276,6 +276,18 @@ export default function HomeScreen() {
   type Announcement = { id: number; title: string; body: string; type: string; isPinned: boolean; createdAt: string };
   const { data: announcements = [] } = useQuery<Announcement[]>({ queryKey: ["/api/announcements"] });
 
+  const DUMMY_ANNOUNCEMENT: Announcement[] = [
+    {
+      id: 0,
+      title: "【イベント】「アイドル界隈コミュニティ」で賞金100万円イベント開催中",
+      body: "参加条件など詳細はコミュニティ内でご確認ください。",
+      type: "event",
+      isPinned: true,
+      createdAt: "",
+    },
+  ];
+  const displayAnnouncements = announcements.length > 0 ? announcements : DUMMY_ANNOUNCEMENT;
+
   const videos = apiVideos.length > 0 ? apiVideos : DUMMY_VIDEOS;
   const liveStreams = apiLive.length > 0 ? apiLive : DUMMY_LIVE;
   const rankedVideos = DUMMY_RANKED[rankFilter];
@@ -362,13 +374,17 @@ export default function HomeScreen() {
         </Pressable>
 
         {/* 運営からのお知らせ */}
-        {announcements.length > 0 && (
-          <View style={styles.announcementSection}>
-            <View style={styles.announcementSectionHeader}>
-              <Ionicons name="megaphone-outline" size={16} color={C.accent} />
-              <Text style={styles.announcementSectionTitle}>運営からのお知らせ</Text>
+        <View style={styles.announcementSection}>
+          <View style={styles.announcementSectionHeader}>
+            <Ionicons name="megaphone-outline" size={16} color={C.accent} />
+            <Text style={styles.announcementSectionTitle}>運営からのお知らせ</Text>
+          </View>
+          {displayAnnouncements.length === 0 ? (
+            <View style={styles.announcementCard}>
+              <Text style={styles.announcementBody}>現在お知らせはありません</Text>
             </View>
-            {announcements.slice(0, 5).map((a) => (
+          ) : (
+            displayAnnouncements.slice(0, 5).map((a) => (
               <View key={a.id} style={styles.announcementCard}>
                 {a.isPinned && (
                   <View style={styles.announcementPinned}>
@@ -379,9 +395,9 @@ export default function HomeScreen() {
                 <Text style={styles.announcementTitle} numberOfLines={1}>{a.title}</Text>
                 <Text style={styles.announcementBody} numberOfLines={2}>{a.body}</Text>
               </View>
-            ))}
-          </View>
-        )}
+            ))
+          )}
+        </View>
 
         {/* 新着動画 */}
         <View style={styles.sectionHeader}>
