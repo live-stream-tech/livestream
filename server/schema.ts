@@ -19,6 +19,23 @@ export const communities = pgTable("communities", {
   thumbnail: text("thumbnail").notNull(),
   online: boolean("online").notNull().default(false),
   category: text("category").notNull(),
+  /** 管理人（users.id）。広告収益10%の受け取り対象 */
+  adminId: integer("admin_id"),
+});
+
+/** コミュニティのモデレーター（複数可）。広告収益10%の分配対象 */
+export const communityModerators = pgTable("community_moderators", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  userId: integer("user_id").notNull(),
+});
+
+/** コミュニティに参加しているメンバー（管理人・モデレーター選択の候補） */
+export const communityMembers = pgTable("community_members", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  userId: integer("user_id").notNull(),
+  joinedAt: timestamp("joined_at").defaultNow(),
 });
 
 export const videos = pgTable("videos", {

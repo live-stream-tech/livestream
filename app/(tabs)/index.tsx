@@ -273,6 +273,8 @@ export default function HomeScreen() {
   };
   type JukeData = { state: JukeState | null; queue: any[]; chat: any[] };
   const { data: jukeData } = useQuery<JukeData>({ queryKey: ["/api/jukebox/1"] });
+  type Announcement = { id: number; title: string; body: string; type: string; isPinned: boolean; createdAt: string };
+  const { data: announcements = [] } = useQuery<Announcement[]>({ queryKey: ["/api/announcements"] });
 
   const videos = apiVideos.length > 0 ? apiVideos : DUMMY_VIDEOS;
   const liveStreams = apiLive.length > 0 ? apiLive : DUMMY_LIVE;
@@ -358,6 +360,28 @@ export default function HomeScreen() {
             <Text style={styles.detailButtonText}>詳細</Text>
           </Pressable>
         </Pressable>
+
+        {/* 運営からのお知らせ */}
+        {announcements.length > 0 && (
+          <View style={styles.announcementSection}>
+            <View style={styles.announcementSectionHeader}>
+              <Ionicons name="megaphone-outline" size={16} color={C.accent} />
+              <Text style={styles.announcementSectionTitle}>運営からのお知らせ</Text>
+            </View>
+            {announcements.slice(0, 5).map((a) => (
+              <View key={a.id} style={styles.announcementCard}>
+                {a.isPinned && (
+                  <View style={styles.announcementPinned}>
+                    <Ionicons name="pin" size={10} color={C.orange} />
+                    <Text style={styles.announcementPinnedText}>固定</Text>
+                  </View>
+                )}
+                <Text style={styles.announcementTitle} numberOfLines={1}>{a.title}</Text>
+                <Text style={styles.announcementBody} numberOfLines={2}>{a.body}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* 新着動画 */}
         <View style={styles.sectionHeader}>
@@ -618,6 +642,51 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "700",
+  },
+  announcementSection: {
+    marginHorizontal: 16,
+    marginBottom: 20,
+  },
+  announcementSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+  },
+  announcementSectionTitle: {
+    color: C.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  announcementCard: {
+    backgroundColor: C.surface,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  announcementPinned: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 6,
+  },
+  announcementPinnedText: {
+    color: C.orange,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  announcementTitle: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  announcementBody: {
+    color: C.textMuted,
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 18,
   },
   sectionHeader: {
     flexDirection: "row",

@@ -350,14 +350,26 @@ function EmbeddedJukebox({ communityId }: { communityId: number }) {
   );
 }
 
-const TABS = ["新着順", "動画編集クリエイター", "掲示板"] as const;
+const TABS = ["新着順", "クリエイター", "掲示板"] as const;
 type Tab = typeof TABS[number];
+
+type CommunityCreatorsResponse = {
+  editors: (VideoEditor & { kind: "editor" })[];
+  livers: ({ id: number; name: string; avatar: string; community: string; rank: number; heatScore: number; totalViews: number; followers: number; category: string; bio: string } & { kind: "liver" })[];
+};
 
 export default function CommunityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<Tab>("新着順");
   const [following, setFollowing] = useState(false);
+  const { data: meMemberData } = useQuery<{ isMember: boolean }>({
+    queryKey: [`/api/communities/${communityId}/members/me`],
+    enabled: !!user?.id,
+  });
+  useEffect(() => {
+    if (meMemberData?.isMember !== undefined) setFollowing(meMemberData.isMember);
+  }, [meMemberData?.isMember]);
   const [requestEditor, setRequestEditor] = useState<VideoEditor | null>(null);
   const [requestTitle, setRequestTitle] = useState("");
   const [requestDescription, setRequestDescription] = useState("");
@@ -367,18 +379,40 @@ export default function CommunityDetailScreen() {
   const [sendingRequest, setSendingRequest] = useState(false);
   const [bannerCheckoutLoading, setBannerCheckoutLoading] = useState(false);
 
-  const { token, requireAuth } = useAuth();
+  const { user, token, requireAuth } = useAuth();
   const community = COMMUNITIES.find((c) => c.id === id) ?? COMMUNITIES[0];
   const communityId = parseInt(community.id);
   const ad = getAd(community.name);
 
   const bottomInset = Platform.OS === "web" ? 34 : 0;
 
+  type StaffData = { adminId: number | null; admin: { id: number; displayName: string; profileImageUrl: string | null } | null; moderatorIds: number[]; moderators: { id: number; displayName: string; profileImageUrl: string | null }[] };
+  type MemberItem = { id: number; displayName: string; profileImageUrl: string | null };
+  const { data: staffData } = useQuery<StaffData>({
+    queryKey: [`/api/communities/${communityId}/staff`],
+  });
+  const { data: members = [], isLoading: membersLoading } = useQuery<MemberItem[]>({
+    queryKey: [`/api/communities/${communityId}/members`],
+    enabled: staffModalVisible,
+  });
+  const [staffModalVisible, setStaffModalVisible] = useState(false);
+  const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null);
+  const [selectedModeratorIds, setSelectedModeratorIds] = useState<number[]>([]);
+  const [savingStaff, setSavingStaff] = useState(false);
+  const qc = useQueryClient();
+  const isCommunityAdmin = !!staffData?.adminId && user?.id === staffData.adminId;
+
   const { data: editors = [], isLoading: editorsLoading } = useQuery<VideoEditor[]>({
     queryKey: [`/api/communities/${communityId}/editors`],
   });
 
+  const { data: creatorsData, isLoading: creatorsLoading } = useQuery<CommunityCreatorsResponse>({
+    queryKey: [`/api/communities/${communityId}/creators`],
+  });
+
   const topEditors = [...editors].sort((a, b) => b.rating - a.rating).slice(0, 3);
+  const creatorsEditors = creatorsData?.editors ?? [];
+  const creatorsLivers = creatorsData?.livers ?? [];
 
   const openRequestModal = (editor: VideoEditor) => {
     setRequestEditor(editor);
@@ -392,6 +426,29 @@ export default function CommunityDetailScreen() {
   const closeRequestModal = () => {
     if (sendingRequest) return;
     setRequestEditor(null);
+  };
+
+  const saveStaff = async () => {
+    if (!requireAuth("スタッフを設定する") || !isCommunityAdmin) return;
+    setSavingStaff(true);
+    try {
+      await apiRequest("PATCH", `/api/communities/${communityId}/staff`, {
+        adminId: selectedAdminId,
+        moderatorIds: selectedModeratorIds,
+      });
+      qc.invalidateQueries({ queryKey: [`/api/communities/${communityId}/staff`] });
+      setStaffModalVisible(false);
+    } catch (e: any) {
+      Alert.alert("エラー", e?.message ?? "保存に失敗しました");
+    } finally {
+      setSavingStaff(false);
+    }
+  };
+
+  const toggleModerator = (userId: number) => {
+    setSelectedModeratorIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
   };
 
   const handleBannerCheckout = async () => {
@@ -535,7 +592,21 @@ export default function CommunityDetailScreen() {
 
           <Pressable
             style={[styles.followBtn, following && styles.followBtnActive]}
-            onPress={() => setFollowing(!following)}
+            onPress={async () => {
+              if (following) {
+                setFollowing(false);
+                return;
+              }
+              if (!requireAuth("フォローする")) return;
+              try {
+                await apiRequest("POST", `/api/communities/${communityId}/join`);
+                setFollowing(true);
+                qc.invalidateQueries({ queryKey: [`/api/communities/${communityId}/members`] });
+              } catch {
+                // 既にメンバーなど
+                setFollowing(true);
+              }
+            }}
           >
             <Ionicons
               name={following ? "checkmark" : "add"}
@@ -546,7 +617,41 @@ export default function CommunityDetailScreen() {
               {following ? "フォロー中" : "フォローする"}
             </Text>
           </Pressable>
-        </View>
+
+          {(staffData?.admin || (staffData?.moderators && staffData.moderators.length > 0)) && (
+            <View style={styles.staffSection}>
+              <View style={styles.staffSectionHeader}>
+                <Text style={styles.staffSectionTitle}>管理人・モデレーター</Text>
+                {isCommunityAdmin && (
+                  <Pressable
+                    onPress={() => {
+                      setSelectedAdminId(staffData?.adminId ?? null);
+                      setSelectedModeratorIds(staffData?.moderatorIds ?? []);
+                      setStaffModalVisible(true);
+                    }}
+                  >
+                    <Text style={styles.staffEditLink}>編集</Text>
+                  </Pressable>
+                )}
+              </View>
+              {staffData?.admin && (
+                <View style={styles.staffRow}>
+                  <Image source={{ uri: staffData.admin.profileImageUrl ?? undefined }} style={styles.staffAvatar} contentFit="cover" />
+                  <Text style={styles.staffLabel}>管理人</Text>
+                  <Text style={styles.staffName}>{staffData.admin.displayName}</Text>
+                </View>
+              )}
+              {staffData?.moderators && staffData.moderators.length > 0 && (
+                staffData.moderators.map((m) => (
+                  <View key={m.id} style={styles.staffRow}>
+                    <Image source={{ uri: m.profileImageUrl ?? undefined }} style={styles.staffAvatar} contentFit="cover" />
+                    <Text style={styles.staffLabel}>モデレーター</Text>
+                    <Text style={styles.staffName}>{m.displayName}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+          )}
 
         {/* Jukebox CTA */}
         <Pressable
@@ -625,107 +730,93 @@ export default function CommunityDetailScreen() {
           </View>
         )}
 
-        {activeTab === "動画編集クリエイター" && (
+        {activeTab === "クリエイター" && (
           <View style={styles.editorTab}>
-            {/* ランキング（上位3名） */}
-            <Text style={styles.editorSectionTitle}>ランキング</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.editorRankingScroll}
-            >
-              {topEditors.map((editor, index) => {
-                const mainGenre = editor.genres.split(",")[0]?.trim() || "マルチジャンル";
-                return (
-                  <Pressable
-                    key={editor.id}
-                    style={styles.editorRankCard}
-                    onPress={() => openRequestModal(editor)}
-                  >
-                    <View style={styles.editorRankBadge}>
-                      <Text style={styles.editorRankBadgeText}>#{index + 1}</Text>
-                    </View>
-                    <Image source={{ uri: editor.avatar }} style={styles.editorRankAvatar} contentFit="cover" />
-                    <Text style={styles.editorRankName} numberOfLines={1}>{editor.name}</Text>
-                    <View style={styles.editorRatingRow}>
-                      <Ionicons name="star" size={12} color={C.orange} />
-                      <Text style={styles.editorRatingText}>{editor.rating.toFixed(1)}</Text>
-                      <Text style={styles.editorReviewText}>({editor.reviewCount})</Text>
-                    </View>
-                    <Text style={styles.editorGenreText} numberOfLines={1}>{mainGenre}</Text>
-                    <View style={[styles.editorAvailabilityBadge, editor.isAvailable ? styles.editorAvailable : styles.editorMaybe]}>
-                      <Text style={[styles.editorAvailabilityText, editor.isAvailable ? styles.editorAvailableText : styles.editorMaybeText]}>
-                        {editor.isAvailable ? "空きあり" : "応相談"}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-              {!editorsLoading && topEditors.length === 0 && (
-                <View style={styles.editorEmptyRanking}>
-                  <Text style={styles.editorEmptyText}>まだ登録された編集者がいません</Text>
-                </View>
-              )}
-            </ScrollView>
-
-            {/* 一覧リスト */}
-            <View style={styles.editorList}>
-              {editorsLoading && editors.length === 0 ? (
-                <Text style={styles.editorEmptyText}>読み込み中...</Text>
-              ) : editors.length === 0 ? (
-                <Text style={styles.editorEmptyText}>このコミュニティにはまだ動画編集クリエイターがいません</Text>
-              ) : (
-                editors.map((editor) => {
-                  const genres = editor.genres.split(",").map((g) => g.trim()).filter(Boolean);
-                  return (
-                    <View key={editor.id} style={styles.editorCard}>
-                      <Image source={{ uri: editor.avatar }} style={styles.editorAvatar} contentFit="cover" />
-                      <View style={styles.editorBody}>
-                        <View style={styles.editorHeaderRow}>
-                          <Text style={styles.editorName} numberOfLines={1}>{editor.name}</Text>
-                          <View style={[styles.editorAvailabilityBadge, editor.isAvailable ? styles.editorAvailable : styles.editorMaybe]}>
-                            <Text style={[styles.editorAvailabilityText, editor.isAvailable ? styles.editorAvailableText : styles.editorMaybeText]}>
-                              {editor.isAvailable ? "空きあり" : "応相談"}
-                            </Text>
+            {creatorsLoading && creatorsEditors.length === 0 && creatorsLivers.length === 0 ? (
+              <Text style={styles.editorEmptyText}>読み込み中...</Text>
+            ) : creatorsEditors.length === 0 && creatorsLivers.length === 0 ? (
+              <Text style={styles.editorEmptyText}>このコミュニティにはまだ登録されているクリエイターがいません</Text>
+            ) : (
+              <>
+                {creatorsLivers.length > 0 && (
+                  <>
+                    <Text style={styles.editorSectionTitle}>ライバー・クリエイター</Text>
+                    <View style={styles.editorList}>
+                      {creatorsLivers.map((liver) => (
+                        <Pressable
+                          key={`liver-${liver.id}`}
+                          style={styles.editorCard}
+                          onPress={() => router.push(`/livers/${liver.id}`)}
+                        >
+                          <Image source={{ uri: liver.avatar }} style={styles.editorAvatar} contentFit="cover" />
+                          <View style={styles.editorBody}>
+                            <Text style={styles.editorName} numberOfLines={1}>{liver.name}</Text>
+                            <View style={styles.editorMetaRow}>
+                              <Text style={styles.editorMetaText}>フォロワー {liver.followers.toLocaleString()}</Text>
+                              <Text style={styles.editorMetaText}>視聴数 {liver.totalViews.toLocaleString()}</Text>
+                            </View>
+                            {liver.bio ? <Text style={styles.editorGenreText} numberOfLines={2}>{liver.bio}</Text> : null}
                           </View>
-                        </View>
-                        <View style={styles.editorRatingRow}>
-                          <Ionicons name="star" size={12} color={C.orange} />
-                          <Text style={styles.editorRatingText}>{editor.rating.toFixed(1)}</Text>
-                          <Text style={styles.editorReviewText}>({editor.reviewCount})</Text>
-                        </View>
-                        {genres.length > 0 && (
-                          <View style={styles.editorGenresRow}>
-                            {genres.map((g) => (
-                              <View key={g} style={styles.editorGenreTag}>
-                                <Text style={styles.editorGenreTagText}>{g}</Text>
+                          <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
+                        </Pressable>
+                      ))}
+                    </View>
+                  </>
+                )}
+                {creatorsEditors.length > 0 && (
+                  <>
+                    <Text style={styles.editorSectionTitle}>動画編集クリエイター</Text>
+                    <View style={styles.editorList}>
+                      {creatorsEditors.map((editor) => {
+                        const genres = editor.genres.split(",").map((g) => g.trim()).filter(Boolean);
+                        return (
+                          <View key={editor.id} style={styles.editorCard}>
+                            <Image source={{ uri: editor.avatar }} style={styles.editorAvatar} contentFit="cover" />
+                            <View style={styles.editorBody}>
+                              <View style={styles.editorHeaderRow}>
+                                <Text style={styles.editorName} numberOfLines={1}>{editor.name}</Text>
+                                <View style={[styles.editorAvailabilityBadge, editor.isAvailable ? styles.editorAvailable : styles.editorMaybe]}>
+                                  <Text style={[styles.editorAvailabilityText, editor.isAvailable ? styles.editorAvailableText : styles.editorMaybeText]}>
+                                    {editor.isAvailable ? "空きあり" : "応相談"}
+                                  </Text>
+                                </View>
                               </View>
-                            ))}
+                              <View style={styles.editorRatingRow}>
+                                <Ionicons name="star" size={12} color={C.orange} />
+                                <Text style={styles.editorRatingText}>{editor.rating.toFixed(1)}</Text>
+                                <Text style={styles.editorReviewText}>({editor.reviewCount})</Text>
+                              </View>
+                              {genres.length > 0 && (
+                                <View style={styles.editorGenresRow}>
+                                  {genres.slice(0, 3).map((g) => (
+                                    <View key={g} style={styles.editorGenreTag}>
+                                      <Text style={styles.editorGenreTagText}>{g}</Text>
+                                    </View>
+                                  ))}
+                                </View>
+                              )}
+                              <View style={styles.editorMetaRow}>
+                                <Text style={styles.editorMetaText}>納期目安: {editor.deliveryDays}日</Text>
+                                <Text style={styles.editorMetaText}>
+                                  {editor.priceType === "per_minute" && editor.pricePerMinute
+                                    ? `¥${editor.pricePerMinute.toLocaleString()}/分`
+                                    : editor.priceType === "revenue_share" && editor.revenueSharePercent
+                                    ? `${editor.revenueSharePercent}%レベニューシェア`
+                                    : "要相談"}
+                                </Text>
+                              </View>
+                            </View>
+                            <Pressable style={styles.editorRequestBtn} onPress={() => openRequestModal(editor)}>
+                              <Text style={styles.editorRequestBtnText}>依頼する</Text>
+                            </Pressable>
                           </View>
-                        )}
-                        <View style={styles.editorMetaRow}>
-                          <Text style={styles.editorMetaText}>納期目安: {editor.deliveryDays}日</Text>
-                          <Text style={styles.editorMetaText}>
-                            料金:{" "}
-                            {editor.priceType === "per_minute" && editor.pricePerMinute
-                              ? `¥${editor.pricePerMinute.toLocaleString()}/分`
-                              : editor.priceType === "revenue_share" && editor.revenueSharePercent
-                              ? `${editor.revenueSharePercent}%レベニューシェア`
-                              : "要相談"}
-                          </Text>
-                        </View>
-                      </View>
-                      <Pressable
-                        style={styles.editorRequestBtn}
-                        onPress={() => openRequestModal(editor)}
-                      >
-                        <Text style={styles.editorRequestBtnText}>依頼する</Text>
-                      </Pressable>
+                        );
+                      })}
                     </View>
-                  );
-                })
-              )}
-            </View>
+                  </>
+                )}
+              </>
+            )}
           </View>
         )}
 
@@ -877,6 +968,63 @@ export default function CommunityDetailScreen() {
                 </ScrollView>
               </>
             )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* 管理人・モデレーター設定モーダル（メンバーから選択） */}
+      <Modal visible={staffModalVisible} transparent animationType="slide">
+        <Pressable style={styles.requestModalOverlay} onPress={() => !savingStaff && setStaffModalVisible(false)}>
+          <Pressable style={[styles.requestModalSheet, styles.staffModalSheet]} onPress={() => {}}>
+            <View style={styles.requestModalHandle} />
+            <Text style={styles.requestModalTitle}>管理人・モデレーター</Text>
+            <Text style={styles.staffModalHint}>メンバーから選択してください。フォローしたユーザーがメンバーに表示されます。</Text>
+
+            {membersLoading ? (
+              <ActivityIndicator size="small" color={C.accent} style={{ marginVertical: 24 }} />
+            ) : members.length === 0 ? (
+              <View style={styles.staffEmptyWrap}>
+                <Ionicons name="people-outline" size={32} color={C.textMuted} />
+                <Text style={styles.staffEmptyText}>メンバーがいません</Text>
+                <Text style={styles.staffEmptySub}>フォローするとメンバーに追加され、ここから選択できます</Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.staffPickerScroll} showsVerticalScrollIndicator={false}>
+                <Text style={styles.staffPickerSectionTitle}>管理人（1名）</Text>
+                {members.map((m) => (
+                  <Pressable
+                    key={m.id}
+                    style={[styles.staffPickerRow, selectedAdminId === m.id && styles.staffPickerRowSelected]}
+                    onPress={() => setSelectedAdminId(selectedAdminId === m.id ? null : m.id)}
+                  >
+                    <Image source={{ uri: m.profileImageUrl ?? undefined }} style={styles.staffPickerAvatar} contentFit="cover" />
+                    <Text style={styles.staffPickerName} numberOfLines={1}>{m.displayName}</Text>
+                    {selectedAdminId === m.id && <Ionicons name="checkmark-circle" size={22} color={C.accent} />}
+                  </Pressable>
+                ))}
+                <Text style={[styles.staffPickerSectionTitle, { marginTop: 16 }]}>モデレーター（複数可）</Text>
+                {members.map((m) => (
+                  <Pressable
+                    key={`mod-${m.id}`}
+                    style={[styles.staffPickerRow, selectedModeratorIds.includes(m.id) && styles.staffPickerRowSelected]}
+                    onPress={() => toggleModerator(m.id)}
+                  >
+                    <Image source={{ uri: m.profileImageUrl ?? undefined }} style={styles.staffPickerAvatar} contentFit="cover" />
+                    <Text style={styles.staffPickerName} numberOfLines={1}>{m.displayName}</Text>
+                    {selectedModeratorIds.includes(m.id) && <Ionicons name="checkmark-circle" size={22} color={C.accent} />}
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
+              <Pressable style={styles.cancelBtn} onPress={() => !savingStaff && setStaffModalVisible(false)}>
+                <Text style={styles.cancelBtnText}>キャンセル</Text>
+              </Pressable>
+              <Pressable style={[styles.requestSubmitBtn, savingStaff && styles.requestSubmitBtnDisabled]} onPress={saveStaff} disabled={savingStaff}>
+                <Text style={styles.requestSubmitBtnText}>{savingStaff ? "保存中..." : "保存"}</Text>
+              </Pressable>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1177,6 +1325,42 @@ const styles = StyleSheet.create({
   officialText: { color: C.textSec, fontSize: 9, fontWeight: "700" },
   categoryText: { color: C.textSec, fontSize: 12 },
   description: { color: C.textSec, fontSize: 13, lineHeight: 19 },
+  staffSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: C.border,
+    gap: 10,
+  },
+  staffSectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  staffSectionTitle: { color: C.textMuted, fontSize: 12, fontWeight: "600" },
+  staffEditLink: { color: C.accent, fontSize: 13, fontWeight: "600" },
+  staffRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  staffAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.surface3 },
+  staffLabel: { color: C.textMuted, fontSize: 11, width: 72 },
+  staffName: { color: C.text, fontSize: 13, fontWeight: "600" },
+  staffModalHint: { color: C.textMuted, fontSize: 11, marginBottom: 8 },
+  staffModalSheet: { maxHeight: "80%" },
+  staffEmptyWrap: { alignItems: "center", paddingVertical: 32, gap: 8 },
+  staffEmptyText: { color: C.textMuted, fontSize: 15, fontWeight: "600" },
+  staffEmptySub: { color: C.textMuted, fontSize: 12 },
+  staffPickerScroll: { maxHeight: 280 },
+  staffPickerSectionTitle: { color: C.textMuted, fontSize: 12, fontWeight: "700", marginBottom: 8 },
+  staffPickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: C.surface3,
+    marginBottom: 6,
+  },
+  staffPickerRowSelected: { backgroundColor: C.accent + "22", borderWidth: 1, borderColor: C.accent + "66" },
+  staffPickerAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.surface3 },
+  staffPickerName: { flex: 1, color: C.text, fontSize: 14, fontWeight: "600" },
+  cancelBtn: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, backgroundColor: C.surface3 },
+  cancelBtnText: { color: C.textSec, fontSize: 14, fontWeight: "700" },
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
