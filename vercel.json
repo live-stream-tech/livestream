@@ -3,8 +3,9 @@
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
   "functions": {
-    "api/index.ts": { "runtime": "nodejs", "maxDuration": 30 },
-    "api/[...path].ts": { "runtime": "nodejs", "maxDuration": 30 }
+    "api/**/*.ts": {
+      "runtime": "nodejs20.x"
+    }
   },
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/:path*" },
