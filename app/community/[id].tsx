@@ -653,6 +653,8 @@ export default function CommunityDetailScreen() {
             </View>
           )}
 
+        </View>
+
         {/* Jukebox CTA */}
         <Pressable
           style={styles.jukeboxCta}
