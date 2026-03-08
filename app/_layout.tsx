@@ -1,8 +1,8 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import React, { useEffect } from "react";
-import { Platform } from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -17,34 +17,75 @@ if (Platform.OS === "web" && typeof window !== "undefined" && "serviceWorker" in
   });
 }
 
-function LineTokenHandler() {
+/** URL に line_token があるか（web のみ）。初回から正しく検知してフラッシュを防ぐ */
+function useHasLineTokenInUrl(): boolean {
+  const [hasToken] = useState(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return false;
+    return !!new URLSearchParams(window.location.search).get("line_token");
+  });
+  return hasToken;
+}
+
+/**
+ * LINE コールバックで戻ったとき、line_token を最優先で処理する。
+ * 処理が終わるまでメインUIを出さずローディングを表示し、認証ガードによるログインリダイレクトの無限ループを防ぐ。
+ */
+function LineTokenHandler({ children }: { children: React.ReactNode }) {
   const { line_token } = useLocalSearchParams<{ line_token?: string }>();
   const { loginWithToken } = useAuth();
+  const hasLineTokenInUrl = useHasLineTokenInUrl();
+  const [webTokenProcessed, setWebTokenProcessed] = useState(false);
 
+  // Web: URL の line_token を処理（メインUIより先に実行）
   useEffect(() => {
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const webToken = params.get("line_token");
-      const lineError = params.get("line_error");
-      if (webToken) {
-        loginWithToken(webToken)
-          .then(() => {
-            const url = new URL(window.location.href);
-            url.searchParams.delete("line_token");
-            window.history.replaceState({}, "", url.toString());
-            router.replace("/(tabs)/profile");
-          })
-          .catch(() => {});
-      } else if (lineError) {
-        // LINEログインエラー時はクエリを削除してログイン画面へ（ルート "/" にいると404に見えないよう遷移）
-        const url = new URL(window.location.href);
-        url.searchParams.delete("line_error");
-        window.history.replaceState({}, "", url.toString());
-        router.replace("/auth/login");
-      }
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const webToken = params.get("line_token");
+    const lineError = params.get("line_error");
+    if (lineError) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("line_error");
+      window.history.replaceState({}, "", url.toString());
+      router.replace("/auth/login");
+      return;
     }
-  }, []);
+    if (!webToken) {
+      setWebTokenProcessed(true);
+      return;
+    }
+    let cancelled = false;
+    loginWithToken(webToken)
+      .then(() => {
+        if (cancelled) return;
+        const url = new URL(window.location.href);
+        url.searchParams.delete("line_token");
+        window.history.replaceState({}, "", url.toString());
+        router.replace("/(tabs)/profile");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        const url = new URL(window.location.href);
+        url.searchParams.delete("line_token");
+        window.history.replaceState({}, "", url.toString());
+      })
+      .finally(() => {
+        if (!cancelled) setWebTokenProcessed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loginWithToken]);
 
+  // Web: line_token が URL にあるあいだはローディング表示（認証ガードでログインに飛ばされないようにする）
+  if (Platform.OS === "web" && hasLineTokenInUrl && !webTokenProcessed) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0a0a0a" }}>
+        <ActivityIndicator size="large" color="#06C755" />
+      </View>
+    );
+  }
+
+  // ネイティブ: line_token パラメータを処理
   useEffect(() => {
     if (Platform.OS !== "web" && line_token) {
       loginWithToken(line_token as string)
@@ -53,7 +94,7 @@ function LineTokenHandler() {
     }
   }, [line_token, loginWithToken]);
 
-  return null;
+  return <>{children}</>;
 }
 
 function RootLayoutNav() {
@@ -90,8 +131,9 @@ export default function RootLayout() {
         <AuthProvider>
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
-              <LineTokenHandler />
-              <RootLayoutNav />
+              <LineTokenHandler>
+                <RootLayoutNav />
+              </LineTokenHandler>
             </KeyboardProvider>
           </GestureHandlerRootView>
         </AuthProvider>

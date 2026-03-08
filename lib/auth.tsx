@@ -115,6 +115,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const requireAuth = useCallback(
     (actionLabel?: string): boolean => {
       if (user) return true;
+      if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("line_token")) {
+        return false; // LINEコールバック処理中はリダイレクトしない（無限ループ防止）
+      }
       router.replace("/auth/login");
       return false;
     },
@@ -132,12 +135,19 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+/** URL に line_token があるか（LINEコールバック処理中はログインへ飛ばさない） */
+function hasLineTokenInUrl(): boolean {
+  if (typeof window === "undefined") return false;
+  return !!new URLSearchParams(window.location.search).get("line_token");
+}
+
 /** ログイン必須画面で未ログインならLINEログインへリダイレクトするガード */
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
 
   useEffect(() => {
     if (loading) return;
+    if (hasLineTokenInUrl()) return; // コールバック処理中はリダイレクトしない
     if (!user) {
       router.replace("/auth/login");
     }
