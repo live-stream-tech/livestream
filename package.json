@@ -2,6 +2,9 @@
   "name": "expo-app",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "postinstall": "patch-package",
     "dev": "npx expo start --localhost",
