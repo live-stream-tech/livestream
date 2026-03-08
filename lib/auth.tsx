@@ -118,6 +118,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("line_token")) {
         return false; // LINEコールバック処理中はリダイレクトしない（無限ループ防止）
       }
+      if (typeof window !== "undefined") {
+        const returnTo = window.location.pathname + window.location.search;
+        if (returnTo && returnTo !== "/auth/login") {
+          try {
+            sessionStorage.setItem("line_login_return", returnTo);
+          } catch {}
+        }
+      }
       router.replace("/auth/login");
       return false;
     },
@@ -149,6 +157,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (loading) return;
     if (hasLineTokenInUrl()) return; // コールバック処理中はリダイレクトしない
     if (!user) {
+      if (typeof window !== "undefined") {
+        const returnTo = window.location.pathname + window.location.search;
+        if (returnTo && returnTo !== "/auth/login") {
+          try {
+            sessionStorage.setItem("line_login_return", returnTo);
+          } catch {}
+        }
+      }
       router.replace("/auth/login");
     }
   }, [user, loading]);

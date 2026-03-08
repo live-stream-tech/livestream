@@ -60,9 +60,18 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
         const url = new URL(window.location.href);
         url.searchParams.delete("line_token");
         window.history.replaceState({}, "", url.toString());
+        // 認証前にいたページへ戻る（保存されていれば）
+        let returnTo = "/(tabs)/profile";
+        try {
+          const saved = typeof window !== "undefined" ? sessionStorage.getItem("line_login_return") : null;
+          if (saved && saved.startsWith("/") && !saved.startsWith("//")) {
+            returnTo = saved;
+            sessionStorage.removeItem("line_login_return");
+          }
+        } catch {}
         // 状態更新がコンテキストに反映されてから遷移する（反映前に profile が user=null で描画されるのを防ぐ）
         setTimeout(() => {
-          if (!cancelled) router.replace("/(tabs)/profile");
+          if (!cancelled) router.replace(returnTo as any);
         }, 100);
       })
       .catch(() => {
