@@ -60,7 +60,10 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
         const url = new URL(window.location.href);
         url.searchParams.delete("line_token");
         window.history.replaceState({}, "", url.toString());
-        router.replace("/(tabs)/profile");
+        // 状態更新がコンテキストに反映されてから遷移する（反映前に profile が user=null で描画されるのを防ぐ）
+        setTimeout(() => {
+          if (!cancelled) router.replace("/(tabs)/profile");
+        }, 100);
       })
       .catch(() => {
         if (cancelled) return;
