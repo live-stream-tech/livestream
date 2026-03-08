@@ -1,12 +1,13 @@
 /**
  * /api へのリクエストを Express API に転送する。
+ * Vercel サーバーレス関数形式: export default (VercelRequest, VercelResponse)
  */
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getApp, normalizeReqUrl } from "./_shared";
 
 export default async function handler(
-  req: IncomingMessage,
-  res: ServerResponse
+  req: VercelRequest,
+  res: VercelResponse
 ): Promise<void> {
   normalizeReqUrl(req);
   const app = await getApp();
