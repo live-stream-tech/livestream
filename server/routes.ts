@@ -55,8 +55,8 @@ async function getAuthUser(req: Request): Promise<{ id: number; displayName: str
   if (!auth.startsWith("Bearer ")) return null;
   try {
     const payload = jwt.verify(auth.slice(7), JWT_SECRET);
-    if (typeof payload === "string" || !payload || typeof (payload as { sub?: number }).sub !== "number") return null;
-    const sub = (payload as { sub: number }).sub;
+    if (typeof payload === "string" || !payload || typeof (payload as unknown as { sub?: number }).sub !== "number") return null;
+    const sub = (payload as unknown as { sub: number }).sub;
     const [user] = await db.select().from(users).where(eq(users.id, sub));
     if (!user) return null;
     return { ...user, avatar: user.profileImageUrl };
@@ -211,12 +211,12 @@ export async function registerRoutes(app: Express): Promise<void> {
     const amountEvent = Math.floor(amountYen * BANNER_RATE_EVENT);
     const amountPlatform = amountYen - amountMod - amountAdmin - amountEvent;
 
-    await db.insert(transactions).values([
+    await db.insert(transactions).values(([
       { walletId: sys.MODERATOR, amount: amountMod, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
       { walletId: sys.ADMIN, amount: amountAdmin, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
       { walletId: sys.EVENT_RESERVE, amount: amountEvent, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
       { walletId: sys.PLATFORM, amount: amountPlatform, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
-    ] as typeof transactions.$inferInsert[]);
+    ] as unknown) as typeof transactions.$inferInsert[]);
 
     res.json({ ok: true, amountYen, split: { moderator: amountMod, admin: amountAdmin, eventReserve: amountEvent, platform: amountPlatform } });
   });
@@ -288,12 +288,12 @@ export async function registerRoutes(app: Express): Promise<void> {
       const amountEvent = Math.floor(amountYen * BANNER_RATE_EVENT);
       const amountPlatform = amountYen - amountMod - amountAdmin - amountEvent;
 
-      await db.insert(transactions).values([
+      await db.insert(transactions).values(([
         { walletId: sys.MODERATOR, amount: amountMod, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
         { walletId: sys.ADMIN, amount: amountAdmin, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
         { walletId: sys.EVENT_RESERVE, amount: amountEvent, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
         { walletId: sys.PLATFORM, amount: amountPlatform, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
-      ] as typeof transactions.$inferInsert[]);
+      ] as unknown) as typeof transactions.$inferInsert[]);
 
       res.json({
         ok: true,
@@ -354,7 +354,8 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.get("/api/auth/callback/line", async (req: Request, res: Response) => {
-    const { code, state } = req.query as { code?: string; state?: string };
+    const code = req.query.code as string;
+    const state = req.query.state as string;
     if (!code || state !== LINE_STATE) {
       return res.redirect(lineRedirect("/?line_error=invalid_state"));
     }
