@@ -590,6 +590,11 @@ export default function CommunityDetailScreen() {
             </Text>
           </View>
 
+          <View style={styles.staffHintRow}>
+            <Ionicons name="shield-checkmark-outline" size={13} color={C.accent} />
+            <Text style={styles.staffHintText}>このコミュニティには管理人とモデレーターがいます</Text>
+          </View>
+
           <Pressable
             style={[styles.followBtn, following && styles.followBtnActive]}
             onPress={async () => {
@@ -1371,6 +1376,13 @@ const styles = StyleSheet.create({
   statText: { color: C.textSec, fontSize: 12 },
   statNumber: { color: C.text, fontWeight: "700" },
   statDivider: { color: C.textMuted },
+  staffHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+  },
+  staffHintText: { color: C.textMuted, fontSize: 11 },
   followBtn: {
     flexDirection: "row",
     alignItems: "center",
