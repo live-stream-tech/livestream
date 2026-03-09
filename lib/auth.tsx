@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const returnTo = window.location.pathname + window.location.search;
         if (returnTo && returnTo !== "/auth/login") {
           try {
-            sessionStorage.setItem("line_login_return", returnTo);
+            localStorage.setItem("line_login_return", returnTo);
           } catch {}
         }
       }
@@ -161,7 +161,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         const returnTo = window.location.pathname + window.location.search;
         if (returnTo && returnTo !== "/auth/login") {
           try {
-            sessionStorage.setItem("line_login_return", returnTo);
+            localStorage.setItem("line_login_return", returnTo);
           } catch {}
         }
       }

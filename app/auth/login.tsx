@@ -21,6 +21,9 @@ export default function LoginScreen() {
 
   function handleLineLogin() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
+      try {
+        localStorage.setItem("line_login_return", window.location.pathname);
+      } catch {}
       // 本番ではAPIサーバー（EXPO_PUBLIC_DOMAIN または同一オリジン）の /api/auth/line へ遷移する
       const apiBase = getApiUrl();
       window.location.href = new URL("/api/auth/line", apiBase).toString();
@@ -42,7 +45,7 @@ export default function LoginScreen() {
       <View style={styles.logoWrap}>
         <Text style={styles.logo}>
           <Text style={styles.logoLive}>Live</Text>
-          <Text style={styles.logoStock}>Stock</Text>
+          <Text style={styles.logoStage}>Stage</Text>
         </Text>
         <Text style={styles.tagline}>ライブ配信プラットフォーム</Text>
       </View>
@@ -75,7 +78,7 @@ const styles = StyleSheet.create({
   logoWrap: { alignItems: "center", marginBottom: 36 },
   logo: { fontSize: 38, fontWeight: "800" },
   logoLive: { color: C.text },
-  logoStock: { color: C.accent },
+  logoStage: { color: C.accent },
   tagline: { color: C.textMuted, fontSize: 13, marginTop: 4 },
 
   card: {
