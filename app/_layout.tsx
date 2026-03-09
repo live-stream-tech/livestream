@@ -60,22 +60,19 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
       try {
         await loginWithToken(webToken);
         if (cancelled) return;
-        const url = new URL(window.location.href);
-        url.searchParams.delete("line_token");
-        window.history.replaceState({}, "", url.toString());
-        // 認証前にいたページへ戻る（保存されていれば）
+
+        // 認証前にいたページへ戻る（保存されていれば）。なければマイページへ。
         const saved = getLoginReturn();
         const returnTo = saved ?? "/(tabs)/profile";
-        // 状態更新がコンテキストに反映されてから遷移する（反映前に profile が user=null で描画されるのを防ぐ）
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        if (cancelled) return;
-        router.navigate(returnTo as any);
-        if (!cancelled) setWebTokenProcessed(true);
+
+        // コンテキストへの反映完了を少し待ってから、履歴を置き換える形で遷移する
+        setTimeout(() => {
+          if (cancelled) return;
+          router.replace(returnTo as any);
+          setWebTokenProcessed(true);
+        }, 100);
       } catch {
         if (cancelled) return;
-        const url = new URL(window.location.href);
-        url.searchParams.delete("line_token");
-        window.history.replaceState({}, "", url.toString());
         setWebTokenProcessed(true);
       }
     };
