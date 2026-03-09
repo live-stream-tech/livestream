@@ -54,8 +54,10 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
       return;
     }
     let cancelled = false;
-    loginWithToken(webToken)
-      .then(() => {
+
+    const run = async () => {
+      try {
+        await loginWithToken(webToken);
         if (cancelled) return;
         const url = new URL(window.location.href);
         url.searchParams.delete("line_token");
@@ -70,17 +72,21 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
           }
         } catch {}
         // 状態更新がコンテキストに反映されてから遷移する（反映前に profile が user=null で描画されるのを防ぐ）
-        if (!cancelled) router.navigate(returnTo as any);
-      })
-      .catch(() => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (cancelled) return;
+        router.navigate(returnTo as any);
+        if (!cancelled) setWebTokenProcessed(true);
+      } catch {
         if (cancelled) return;
         const url = new URL(window.location.href);
         url.searchParams.delete("line_token");
         window.history.replaceState({}, "", url.toString());
-      })
-      .finally(() => {
-        if (!cancelled) setWebTokenProcessed(true);
-      });
+        setWebTokenProcessed(true);
+      }
+    };
+
+    run();
+
     return () => {
       cancelled = true;
     };
