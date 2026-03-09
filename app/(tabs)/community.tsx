@@ -102,7 +102,7 @@ function PurchaseRankCard({ item }: { item: (typeof RANKED_VIDEOS[0]) | (typeof 
   return (
     <Pressable
       style={styles.purchaseCard}
-      onPress={() => router.push(`/video/${item.id}`)}
+      onPress={() => router.push(`/video/${item.id}?demo=1`)}
     >
       <Image source={{ uri: item.thumbnail }} style={styles.purchaseCardImage} contentFit="cover" />
       <View style={styles.purchaseCardOverlay} />

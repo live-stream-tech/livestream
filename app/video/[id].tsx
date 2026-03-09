@@ -30,7 +30,7 @@ type VideoComment = {
 };
 
 export default function VideoDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, demo } = useLocalSearchParams<{ id: string; demo?: string }>();
   const insets = useSafeAreaInsets();
   const [purchased, setPurchased] = useState(false);
   const [commentText, setCommentText] = useState("");
@@ -39,17 +39,19 @@ export default function VideoDetailScreen() {
   const qc = useQueryClient();
   const { user, requireAuth } = useAuth();
 
+  const isDemo = demo === "1" || demo === "true";
+
   const { data: apiVideo } = useQuery<any>({
     queryKey: [`/api/videos/${id}`],
-    enabled: !!id,
+    enabled: !!id && !isDemo,
   });
 
-  const fallbackVideo = VIDEOS.find((v) => v.id === String(id)) ?? VIDEOS[0];
+  const fallbackVideo = isDemo ? VIDEOS.find((v) => v.id === String(id)) ?? VIDEOS[0] : undefined;
   const video = (apiVideo as any) ?? fallbackVideo;
 
   const { data: comments = [] } = useQuery<VideoComment[]>({
     queryKey: [`/api/videos/${id}/comments`],
-    enabled: !!id,
+    enabled: !!id && !isDemo,
   });
 
   const isOwner =
@@ -60,6 +62,7 @@ export default function VideoDetailScreen() {
   async function handleAddComment() {
     const text = commentText.trim();
     if (!text) return;
+    if (isDemo) return;
     if (!requireAuth("コメント")) return;
     try {
       await apiRequest("POST", `/api/videos/${id}/comments`, { text });
@@ -71,7 +74,7 @@ export default function VideoDetailScreen() {
   }
 
   function openEdit() {
-    if (!isOwner || !apiVideo) return;
+    if (!isOwner || !apiVideo || isDemo) return;
     setEditTitle(video.title ?? "");
     setEditMode(true);
   }
@@ -106,6 +109,7 @@ export default function VideoDetailScreen() {
   }
 
   async function deletePost() {
+    if (isDemo) return;
     if (!requireAuth("削除")) return;
     try {
       await apiRequest("DELETE", `/api/videos/${id}`);

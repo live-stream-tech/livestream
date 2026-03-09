@@ -717,7 +717,11 @@ export default function CommunityDetailScreen() {
             </View>
 
             {VIDEOS.slice(0, 4).map((video) => (
-              <Pressable key={video.id} style={styles.postCard} onPress={() => router.push(`/video/${video.id}`)}>
+              <Pressable
+                key={video.id}
+                style={styles.postCard}
+                onPress={() => router.push(`/video/${video.id}?demo=1`)}
+              >
                 <View style={styles.postHeader}>
                   <Image source={{ uri: video.avatar }} style={styles.postAvatar} contentFit="cover" />
                   <View style={styles.postMeta}>

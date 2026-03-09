@@ -26,10 +26,16 @@ function formatNumber(n: number): string {
   return n.toLocaleString();
 }
 
-function VideoCard({ item }: { item: any }) {
+function VideoCard({ item, isDemo }: { item: any; isDemo: boolean }) {
   const isPhotoPost = !item.duration || item.duration === "00:00";
+  const href = isDemo ? `/video/${item.id}?demo=1` : `/video/${item.id}`;
   return (
-    <Pressable style={styles.videoCard} onPress={() => router.push(`/video/${item.id}`)}>
+    <Pressable
+      style={styles.videoCard}
+      onPress={() =>
+        router.push(isDemo ? (`/video/${item.id}?demo=1` as any) : (`/video/${item.id}` as any))
+      }
+    >
       <View style={styles.videoThumbContainer}>
         {item.thumbnail ? (
           <Image source={{ uri: item.thumbnail }} style={styles.videoThumb} contentFit="cover" />
@@ -288,7 +294,8 @@ export default function HomeScreen() {
   ];
   const displayAnnouncements = announcements.length > 0 ? announcements : DUMMY_ANNOUNCEMENT;
 
-  const videos = apiVideos.length > 0 ? apiVideos : DUMMY_VIDEOS;
+  const usingDemoVideos = apiVideos.length === 0;
+  const videos = usingDemoVideos ? DUMMY_VIDEOS : apiVideos;
   const liveStreams = apiLive.length > 0 ? apiLive : DUMMY_LIVE;
   const rankedVideos = DUMMY_RANKED[rankFilter];
   const creators = DUMMY_CREATORS[creatorFilter];
@@ -405,7 +412,9 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>新着動画</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-          {videos.map((v) => <VideoCard key={v.id} item={v} />)}
+          {videos.map((v) => (
+            <VideoCard key={v.id} item={v} isDemo={usingDemoVideos} />
+          ))}
         </ScrollView>
 
         {/* 現在ライブ中 */}
