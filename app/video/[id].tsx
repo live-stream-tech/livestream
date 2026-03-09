@@ -6,43 +6,38 @@ import {
   StyleSheet,
   Pressable,
   Platform,
+  TextInput,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
 import { VIDEOS } from "@/constants/data";
+import { useAuth } from "@/lib/auth";
+import { apiRequest } from "@/lib/query-client";
 
-const COMMENTS = [
-  {
-    id: "1",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=50&h=50&fit=crop",
-    name: "星空みゆ",
-    text: "みゆちゃんが泣いてるシーンが一番好き！大粒のファン泣いて感謝！",
-    time: "10分前",
-  },
-  {
-    id: "2",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=50&h=50&fit=crop",
-    name: "ファン太郎",
-    text: "チェキ会行けなかったけど動画でおなじ気持ちになれた！ありがとう",
-    time: "25分前",
-  },
-  {
-    id: "3",
-    avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=50&h=50&fit=crop",
-    name: "まいまい17歳",
-    text: "みゆちゃん泣い... チェキ会行けな...",
-    time: "1時間前",
-  },
-];
+type VideoComment = {
+  id: number;
+  videoId: number;
+  userId: number;
+  text: string;
+  createdAt: string;
+  displayName?: string | null;
+  profileImageUrl?: string | null;
+};
 
 export default function VideoDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const [purchased, setPurchased] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editMode, setEditMode] = useState(false);
+  const qc = useQueryClient();
+  const { user, requireAuth } = useAuth();
 
   const { data: apiVideo } = useQuery<any>({
     queryKey: [`/api/videos/${id}`],
@@ -51,6 +46,76 @@ export default function VideoDetailScreen() {
 
   const fallbackVideo = VIDEOS.find((v) => v.id === String(id)) ?? VIDEOS[0];
   const video = (apiVideo as any) ?? fallbackVideo;
+
+  const { data: comments = [] } = useQuery<VideoComment[]>({
+    queryKey: [`/api/videos/${id}/comments`],
+    enabled: !!id,
+  });
+
+  const isOwner =
+    !!apiVideo &&
+    !!user &&
+    (video.creator === (user.displayName ?? user.name) || video.creator === user.name);
+
+  async function handleAddComment() {
+    const text = commentText.trim();
+    if (!text) return;
+    if (!requireAuth("コメント")) return;
+    try {
+      await apiRequest("POST", `/api/videos/${id}/comments`, { text });
+      setCommentText("");
+      await qc.invalidateQueries({ queryKey: [`/api/videos/${id}/comments`] });
+    } catch {
+      Alert.alert("エラー", "コメントの投稿に失敗しました");
+    }
+  }
+
+  function openEdit() {
+    if (!isOwner || !apiVideo) return;
+    setEditTitle(video.title ?? "");
+    setEditMode(true);
+  }
+
+  async function saveEdit() {
+    const newTitle = editTitle.trim();
+    if (!newTitle) {
+      Alert.alert("", "タイトルを入力してください");
+      return;
+    }
+    if (!requireAuth("編集")) return;
+    try {
+      await apiRequest("PATCH", `/api/videos/${id}`, { title: newTitle });
+      await qc.invalidateQueries({ queryKey: [`/api/videos/${id}`] });
+      await qc.invalidateQueries({ queryKey: ["/api/videos/my"] });
+      setEditMode(false);
+    } catch {
+      Alert.alert("エラー", "投稿の更新に失敗しました");
+    }
+  }
+
+  function confirmDelete() {
+    if (!isOwner) return;
+    Alert.alert("投稿を削除", "この投稿を削除しますか？", [
+      { text: "キャンセル", style: "cancel" },
+      {
+        text: "削除",
+        style: "destructive",
+        onPress: deletePost,
+      },
+    ]);
+  }
+
+  async function deletePost() {
+    if (!requireAuth("削除")) return;
+    try {
+      await apiRequest("DELETE", `/api/videos/${id}`);
+      await qc.invalidateQueries({ queryKey: ["/api/videos"] });
+      await qc.invalidateQueries({ queryKey: ["/api/videos/my"] });
+      router.replace("/(tabs)/profile");
+    } catch {
+      Alert.alert("エラー", "削除に失敗しました");
+    }
+  }
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -96,23 +161,79 @@ export default function VideoDetailScreen() {
 
         {/* Video Info */}
         <View style={styles.infoSection}>
-          <Text style={styles.videoTitle}>{video.title}</Text>
+          <View style={styles.titleRow}>
+            {editMode ? (
+              <TextInput
+                style={styles.editTitleInput}
+                value={editTitle}
+                onChangeText={setEditTitle}
+                placeholder="タイトルを編集"
+                placeholderTextColor={C.textMuted}
+              />
+            ) : (
+              <Text style={styles.videoTitle}>{video.title}</Text>
+            )}
+            {isOwner && !editMode && (
+              <View style={styles.postActionsRow}>
+                <Pressable style={styles.postActionBtn} onPress={openEdit}>
+                  <Ionicons name="pencil-outline" size={14} color={C.textSec} />
+                  <Text style={styles.postActionText}>編集</Text>
+                </Pressable>
+                <Pressable style={styles.postActionBtn} onPress={confirmDelete}>
+                  <Ionicons name="trash-outline" size={14} color={C.textSec} />
+                  <Text style={styles.postActionText}>削除</Text>
+                </Pressable>
+              </View>
+            )}
+            {editMode && (
+              <View style={styles.postActionsRow}>
+                <Pressable style={styles.postActionBtn} onPress={() => setEditMode(false)}>
+                  <Text style={styles.postActionText}>キャンセル</Text>
+                </Pressable>
+                <Pressable style={styles.postActionBtn} onPress={saveEdit}>
+                  <Text style={[styles.postActionText, { color: C.accent }]}>保存</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
           <Text style={styles.videoDesc}>
             昨日の渋谷WWWワンマンライブの舞台裏を特別公開！リハ風景、メイクルーム、本番直前の緊張感まで全部見せます。チェキ会の様子もあるよ
           </Text>
 
           {/* Comments Preview */}
           <View style={styles.commentsPreview}>
-            {COMMENTS.map((c) => (
+            {comments.map((c) => (
               <View key={c.id} style={styles.commentItem}>
-                <Image source={{ uri: c.avatar }} style={styles.commentAvatar} contentFit="cover" />
+                <Image
+                  source={{ uri: c.profileImageUrl ?? undefined }}
+                  style={styles.commentAvatar}
+                  contentFit="cover"
+                />
                 <View style={styles.commentContent}>
-                  <Text style={styles.commentName}>{c.name}</Text>
-                  <Text style={styles.commentText} numberOfLines={1}>{c.text}</Text>
+                  <Text style={styles.commentName}>{c.displayName ?? "ユーザー"}</Text>
+                  <Text style={styles.commentText} numberOfLines={1}>
+                    {c.text}
+                  </Text>
                 </View>
-                <Text style={styles.commentTime}>{c.time}</Text>
               </View>
             ))}
+            <View style={styles.commentInputRow}>
+              <TextInput
+                style={styles.commentInput}
+                placeholder="コメントを追加..."
+                placeholderTextColor={C.textMuted}
+                value={commentText}
+                onChangeText={setCommentText}
+                maxLength={200}
+              />
+              <Pressable style={styles.commentSendBtn} onPress={handleAddComment} disabled={!commentText.trim()}>
+                <Ionicons
+                  name="send"
+                  size={16}
+                  color={commentText.trim() ? C.accent : C.textMuted}
+                />
+              </Pressable>
+            </View>
           </View>
 
           {/* Purchase / Play Button */}
@@ -242,6 +363,38 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  editTitleInput: {
+    flex: 1,
+    backgroundColor: C.bg,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: C.text,
+    fontSize: 15,
+  },
+  postActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  postActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  postActionText: {
+    color: C.textSec,
+    fontSize: 11,
+    fontWeight: "600",
+  },
   commentsPreview: {
     backgroundColor: C.bg,
     borderRadius: 10,
@@ -272,9 +425,27 @@ const styles = StyleSheet.create({
     color: C.textSec,
     fontSize: 11,
   },
-  commentTime: {
-    color: C.textMuted,
-    fontSize: 10,
+  commentInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  commentInput: {
+    flex: 1,
+    backgroundColor: C.surface,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: C.text,
+    fontSize: 13,
+  },
+  commentSendBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   purchaseSection: {
     gap: 8,

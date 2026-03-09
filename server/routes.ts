@@ -5,6 +5,7 @@ import {
   communityModerators,
   communityMembers,
   videos,
+  videoComments,
   liveStreams,
   creators,
   videoEditors,
@@ -815,6 +816,42 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.json(row);
   });
 
+  /** 動画コメント一覧 */
+  app.get("/api/videos/:id/comments", async (req: Request, res: Response) => {
+    const videoId = paramNum(req, "id");
+    const rows = await db
+      .select({
+        id: videoComments.id,
+        videoId: videoComments.videoId,
+        userId: videoComments.userId,
+        text: videoComments.text,
+        createdAt: videoComments.createdAt,
+        displayName: users.displayName,
+        profileImageUrl: users.profileImageUrl,
+      })
+      .from(videoComments)
+      .leftJoin(users, eq(users.id, videoComments.userId))
+      .where(eq(videoComments.videoId, videoId))
+      .orderBy(asc(videoComments.createdAt));
+    res.json(rows);
+  });
+
+  /** コメント投稿（ログイン必須） */
+  app.post("/api/videos/:id/comments", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const videoId = paramNum(req, "id");
+    const text = (req.body as { text?: string }).text?.trim();
+    if (!text) return res.status(400).json({ error: "コメント本文は必須です" });
+
+    const [row] = await db
+      .insert(videoComments)
+      .values({ videoId, userId: user.id, text } as typeof videoComments.$inferInsert)
+      .returning();
+    res.status(201).json(row);
+  });
+
   app.post("/api/videos", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
@@ -842,11 +879,55 @@ export async function registerRoutes(app: Express): Promise<void> {
         duration,
         price: price ?? null,
         thumbnail,
-        avatar: user.profileImageUrl ?? user.avatar ?? null,
+        avatar:
+          user.profileImageUrl ??
+          user.avatar ??
+          "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop",
         isRanked: false,
       } as typeof videos.$inferInsert)
       .returning();
     res.status(201).json(row);
+  });
+
+  /** 自分の投稿の編集（タイトルのみ） */
+  app.patch("/api/videos/:id", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const id = paramNum(req, "id");
+    const [video] = await db.select().from(videos).where(eq(videos.id, id));
+    if (!video) return res.status(404).json({ message: "Not found" });
+    if (video.creator !== user.displayName) {
+      return res.status(403).json({ error: "編集権限がありません" });
+    }
+
+    const { title } = req.body as { title?: string };
+    const newTitle = title?.trim();
+    if (!newTitle) return res.status(400).json({ error: "タイトルは必須です" });
+
+    const [updated] = await db
+      .update(videos)
+      .set({ title: newTitle } as Partial<typeof videos.$inferInsert>)
+      .where(eq(videos.id, id))
+      .returning();
+    res.json(updated);
+  });
+
+  /** 自分の投稿の削除（コメントも合わせて削除） */
+  app.delete("/api/videos/:id", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const id = paramNum(req, "id");
+    const [video] = await db.select().from(videos).where(eq(videos.id, id));
+    if (!video) return res.status(404).json({ message: "Not found" });
+    if (video.creator !== user.displayName) {
+      return res.status(403).json({ error: "削除権限がありません" });
+    }
+
+    await db.delete(videoComments).where(eq(videoComments.videoId, id));
+    await db.delete(videos).where(eq(videos.id, id));
+    res.json({ ok: true });
   });
 
   // ── Live Streams ──────────────────────────────────────────────────

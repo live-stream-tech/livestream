@@ -54,6 +54,15 @@ export const videos = pgTable("videos", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+/** 投稿動画へのコメント */
+export const videoComments = pgTable("video_comments", {
+  id: serial("id").primaryKey(),
+  videoId: integer("video_id").notNull(),
+  userId: integer("user_id").notNull(),
+  text: text("text").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const liveStreams = pgTable("live_streams", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),

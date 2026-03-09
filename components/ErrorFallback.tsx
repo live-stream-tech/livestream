@@ -36,6 +36,11 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
 
   const handleRestart = async () => {
     try {
+      // Web では新しいタブを開かず、同じタブを単純リロードする
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.location.reload();
+        return;
+      }
       await reloadAppAsync();
     } catch (restartError) {
       console.error("Failed to restart app:", restartError);

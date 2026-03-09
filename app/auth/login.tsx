@@ -22,7 +22,15 @@ export default function LoginScreen() {
   function handleLineLogin() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       try {
-        localStorage.setItem("line_login_return", window.location.pathname);
+        // すでに AuthGuard / requireAuth 側で「元いたページ」が保存されている場合はそちらを優先する。
+        // ここでは何も保存されていないときだけ、現在のパスをフォールバックとして入れておく。
+        const existing = localStorage.getItem("line_login_return");
+        if (!existing) {
+          const returnTo = window.location.pathname + window.location.search;
+          if (returnTo && returnTo !== "/auth/login") {
+            localStorage.setItem("line_login_return", returnTo);
+          }
+        }
       } catch {}
       // 本番ではAPIサーバー（EXPO_PUBLIC_DOMAIN または同一オリジン）の /api/auth/line へ遷移する
       const apiBase = getApiUrl();
