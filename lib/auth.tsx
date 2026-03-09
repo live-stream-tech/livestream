@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Alert } from "react-native";
 import { getApiUrl } from "@/lib/query-client";
 import { saveLoginReturn } from "@/lib/login-return";
 import { router } from "expo-router";
@@ -13,6 +14,8 @@ export type User = {
   avatar: string | null;
   profileImageUrl?: string | null;
   role?: string;
+  phoneNumber?: string | null;
+  phoneVerifiedAt?: string | null;
 };
 
 type AuthCtx = {
@@ -23,7 +26,7 @@ type AuthCtx = {
   logout: () => void;
   updateProfile: (data: Partial<Pick<User, "name" | "bio" | "avatar">>) => Promise<void>;
   /** 未ログイン時にLINEログインへ誘導する。戻り値はログイン済みなら true */
-  requireAuth: (actionLabel?: string) => boolean;
+  requireAuth: (actionLabel?: string, options?: { requirePhone?: boolean }) => boolean;
 };
 
 const AuthContext = createContext<AuthCtx>({
@@ -59,6 +62,8 @@ function normalizeMe(me: Record<string, unknown>): User {
     avatar: (me.avatar ?? me.profileImageUrl ?? null) as string | null,
     profileImageUrl: (me.profileImageUrl ?? me.avatar) as string | null | undefined,
     role: me.role as string | undefined,
+    phoneNumber: (me.phoneNumber ?? null) as string | null,
+    phoneVerifiedAt: (me.phoneVerifiedAt ?? null) as string | null,
   };
 }
 
@@ -114,17 +119,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const requireAuth = useCallback(
-    (actionLabel?: string): boolean => {
-      if (user) return true;
-      if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("line_token")) {
-        return false; // LINEコールバック処理中はリダイレクトしない（無限ループ防止）
+    (actionLabel?: string, options?: { requirePhone?: boolean }): boolean => {
+      // まだログインしていない場合は、LINEログインへ誘導
+      if (!user) {
+        if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("line_token")) {
+          // LINEコールバック処理中はリダイレクトしない（無限ループ防止）
+          return false;
+        }
+        if (typeof window !== "undefined") {
+          const returnTo = window.location.pathname + window.location.search;
+          saveLoginReturn(returnTo);
+        }
+        router.replace("/auth/login");
+        return false;
       }
-      if (typeof window !== "undefined") {
-        const returnTo = window.location.pathname + window.location.search;
-        saveLoginReturn(returnTo);
+
+      // 電話番号認証まで必須なアクションの場合
+      if (options?.requirePhone) {
+        const isVerified = !!user.phoneNumber && !!user.phoneVerifiedAt;
+        if (!isVerified) {
+          const label = actionLabel ?? "この操作";
+          Alert.alert(
+            "電話番号の確認が必要です",
+            `${label}を行うには、電話番号の認証が必要です。マイページから電話番号を登録・認証してください。`,
+            [
+              {
+                text: "マイページへ",
+                onPress: () => router.replace("/(tabs)/profile"),
+              },
+              { text: "キャンセル", style: "cancel" },
+            ]
+          );
+          return false;
+        }
       }
-      router.replace("/auth/login");
-      return false;
+
+      return true;
     },
     [user]
   );

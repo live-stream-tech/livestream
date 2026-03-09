@@ -197,15 +197,34 @@ export const dmMessages = pgTable("dm_messages", {
 /** 認証はLINEログインのみ。email/password は廃止。 */
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
+  /** LINEアカウントID（必須・一意） */
   lineId: text("line_id").notNull().unique(),
   displayName: text("display_name").notNull().default("ユーザー"),
   profileImageUrl: text("profile_image_url"),
   role: text("role").notNull().default("USER"),
   bio: text("bio").notNull().default(""),
+  /** 紐付け済みの電話番号（1電話番号 = 1ユーザー）。NULL許可だが重複は禁止。 */
+  phoneNumber: text("phone_number").unique(),
+  /** 電話番号が本人確認済みになった日時 */
+  phoneVerifiedAt: timestamp("phone_verified_at"),
   /** Stripe Connect 連結アカウントID（Express/Custom）。連携済みなら設定される */
   stripeConnectId: text("stripe_connect_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/** 電話番号認証コード（SMS）の検証用テーブル */
+export const phoneVerifications = pgTable("phone_verifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  phoneNumber: text("phone_number").notNull(),
+  /** ハッシュ化された6桁コード */
+  codeHash: text("code_hash").notNull(),
+  /** 有効期限 */
+  expiresAt: timestamp("expires_at").notNull(),
+  consumed: boolean("consumed").notNull().default(false),
+  attempts: integer("attempts").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 /** 分配・出金用ウォレット（ライバーランク月末確定・バナー広告15,000円等の計算基盤） */

@@ -18,7 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, ApiError } from "@/lib/query-client";
 import { C } from "@/constants/colors";
 import { useAuth } from "@/lib/auth";
 
@@ -139,7 +139,8 @@ export default function UploadScreen() {
       Alert.alert("", "テキストを入力してください");
       return;
     }
-    if (!requireAuth("投稿")) return;
+    // 投稿は「ログイン + 電話番号認証済み」を必須にする
+    if (!requireAuth("投稿", { requirePhone: true })) return;
     setUploading(true);
     try {
       const communityName = selectedCommunity?.name ?? "一般";
@@ -170,8 +171,20 @@ export default function UploadScreen() {
         { text: "見る", onPress: () => router.replace(`/video/${data.id}`) },
         { text: "ホームへ", onPress: () => router.replace("/(tabs)") },
       ]);
-    } catch {
-      Alert.alert("エラー", "投稿に失敗しました。もう一度お試しください。");
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          Alert.alert("ログインが必要です", "LINEでログインしてから投稿してください。");
+        } else if (err.status === 400) {
+          Alert.alert("投稿内容に問題があります", "入力内容を確認して、もう一度お試しください。");
+        } else if (err.status >= 500) {
+          Alert.alert("サーバーエラー", "サーバー側でエラーが発生しました。時間をおいて再度お試しください。");
+        } else {
+          Alert.alert("エラー", "投稿に失敗しました。もう一度お試しください。");
+        }
+      } else {
+        Alert.alert("エラー", "投稿に失敗しました。もう一度お試しください。");
+      }
     } finally {
       setUploading(false);
     }
