@@ -8,6 +8,7 @@
     }
   },
   "routes": [
+    { "src": "/api/auth/callback/line", "dest": "/api/auth/line-callback" },
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]

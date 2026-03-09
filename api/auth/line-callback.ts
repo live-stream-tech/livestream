@@ -1,9 +1,9 @@
 /**
  * GET /api/auth/callback/line — LINE OAuth コールバック。
- * Vercel でこのパスが確実に存在するように明示的なエントリを用意。
+ * Vercel のルートで /api/auth/callback/line からここに転送される。
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getApp, normalizeReqUrl } from "../../_shared";
+import { getApp, normalizeReqUrl } from "../_shared";
 
 export default async function handler(
   req: VercelRequest,
