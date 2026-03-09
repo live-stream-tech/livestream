@@ -396,11 +396,11 @@ export default function CommunityDetailScreen() {
   const { data: staffData } = useQuery<StaffData>({
     queryKey: [`/api/communities/${communityId}/staff`],
   });
+  const [staffModalVisible, setStaffModalVisible] = useState(false);
   const { data: members = [], isLoading: membersLoading } = useQuery<MemberItem[]>({
     queryKey: [`/api/communities/${communityId}/members`],
     enabled: staffModalVisible,
   });
-  const [staffModalVisible, setStaffModalVisible] = useState(false);
   const [selectedAdminId, setSelectedAdminId] = useState<number | null>(null);
   const [selectedModeratorIds, setSelectedModeratorIds] = useState<number[]>([]);
   const [savingStaff, setSavingStaff] = useState(false);
