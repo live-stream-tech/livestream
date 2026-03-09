@@ -70,9 +70,7 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
           }
         } catch {}
         // 状態更新がコンテキストに反映されてから遷移する（反映前に profile が user=null で描画されるのを防ぐ）
-        setTimeout(() => {
-          if (!cancelled) router.replace(returnTo as any);
-        }, 100);
+        if (!cancelled) router.navigate(returnTo as any);
       })
       .catch(() => {
         if (cancelled) return;
@@ -101,7 +99,7 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (Platform.OS !== "web" && line_token) {
       loginWithToken(line_token as string)
-        .then(() => router.replace("/(tabs)/profile"))
+        .then(() => router.navigate("/(tabs)/profile"))
         .catch(() => {});
     }
   }, [line_token, loginWithToken]);
