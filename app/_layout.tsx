@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Stack, router, useLocalSearchParams } from "expo-router";
+import { Stack, router, useLocalSearchParams, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
@@ -8,6 +8,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { getLoginReturn, saveLoginReturn } from "@/lib/login-return";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -63,14 +64,8 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
         url.searchParams.delete("line_token");
         window.history.replaceState({}, "", url.toString());
         // 認証前にいたページへ戻る（保存されていれば）
-        let returnTo = "/(tabs)/profile";
-        try {
-          const saved = typeof window !== "undefined" ? localStorage.getItem("line_login_return") : null;
-          if (saved && saved.startsWith("/") && !saved.startsWith("//")) {
-            returnTo = saved;
-            localStorage.removeItem("line_login_return");
-          }
-        } catch {}
+        const saved = getLoginReturn();
+        const returnTo = saved ?? "/(tabs)/profile";
         // 状態更新がコンテキストに反映されてから遷移する（反映前に profile が user=null で描画されるのを防ぐ）
         await new Promise((resolve) => setTimeout(resolve, 100));
         if (cancelled) return;
@@ -113,6 +108,43 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function isPublicPath(pathname: string): boolean {
+  if (!pathname) return false;
+  if (pathname === "/") return true; // /(tabs)/index
+  if (pathname === "/auth/login") return true;
+  if (pathname === "/community" || pathname.startsWith("/community/")) return true; // /(tabs)/community + 詳細
+  if (pathname === "/live" || pathname.startsWith("/live")) return true; // /(tabs)/live + /live/[id]
+  return false;
+}
+
+/** ルートレベルの認証ガード。指定のパス以外はすべてログイン必須にする。 */
+function GlobalAuthGate({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const pathname = usePathname();
+  const hasLineTokenInUrl = useHasLineTokenInUrl();
+
+  useEffect(() => {
+    if (loading) return;
+    if (hasLineTokenInUrl) return; // LINEコールバック処理中は何もしない
+    if (!pathname) return;
+    if (user) return;
+    if (isPublicPath(pathname)) return;
+
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const full = window.location.pathname + window.location.search;
+      saveLoginReturn(full);
+    }
+    router.replace("/auth/login");
+  }, [user, loading, pathname, hasLineTokenInUrl]);
+
+  // 未ログインかつ保護ページの場合は何も描画しない（リダイレクト待ち）
+  if (!user && !loading && !hasLineTokenInUrl && pathname && !isPublicPath(pathname)) {
+    return null;
+  }
+
+  return <>{children}</>;
+}
+
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -148,7 +180,9 @@ export default function RootLayout() {
           <GestureHandlerRootView style={{ flex: 1 }}>
             <KeyboardProvider>
               <LineTokenHandler>
-                <RootLayoutNav />
+                <GlobalAuthGate>
+                  <RootLayoutNav />
+                </GlobalAuthGate>
               </LineTokenHandler>
             </KeyboardProvider>
           </GestureHandlerRootView>

@@ -12,6 +12,7 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
+import { saveLoginReturn } from "@/lib/login-return";
 
 /** LINEログインのみ。メール/パスワードは廃止。 */
 export default function LoginScreen() {
@@ -21,17 +22,9 @@ export default function LoginScreen() {
 
   function handleLineLogin() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      try {
-        // すでに AuthGuard / requireAuth 側で「元いたページ」が保存されている場合はそちらを優先する。
-        // ここでは何も保存されていないときだけ、現在のパスをフォールバックとして入れておく。
-        const existing = localStorage.getItem("line_login_return");
-        if (!existing) {
-          const returnTo = window.location.pathname + window.location.search;
-          if (returnTo && returnTo !== "/auth/login") {
-            localStorage.setItem("line_login_return", returnTo);
-          }
-        }
-      } catch {}
+      // 他の場所でまだ保存されていない場合のみ、現在のURLを戻り先として保存する
+      const returnTo = window.location.pathname + window.location.search;
+      saveLoginReturn(returnTo);
       // 本番ではAPIサーバー（EXPO_PUBLIC_DOMAIN または同一オリジン）の /api/auth/line へ遷移する
       const apiBase = getApiUrl();
       window.location.href = new URL("/api/auth/line", apiBase).toString();

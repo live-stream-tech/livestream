@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getApiUrl } from "@/lib/query-client";
+import { saveLoginReturn } from "@/lib/login-return";
 import { router } from "expo-router";
 
 /** 認証はLINEログインのみ。メール/パスワードは廃止。 */
@@ -120,11 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (typeof window !== "undefined") {
         const returnTo = window.location.pathname + window.location.search;
-        if (returnTo && returnTo !== "/auth/login") {
-          try {
-            localStorage.setItem("line_login_return", returnTo);
-          } catch {}
-        }
+        saveLoginReturn(returnTo);
       }
       router.replace("/auth/login");
       return false;
@@ -159,11 +156,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!user) {
       if (typeof window !== "undefined") {
         const returnTo = window.location.pathname + window.location.search;
-        if (returnTo && returnTo !== "/auth/login") {
-          try {
-            localStorage.setItem("line_login_return", returnTo);
-          } catch {}
-        }
+        saveLoginReturn(returnTo);
       }
       router.replace("/auth/login");
     }

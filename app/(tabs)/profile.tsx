@@ -22,6 +22,7 @@ import Svg, { Polygon, Circle, Line, Text as SvgText } from "react-native-svg";
 import { useAuth } from "@/lib/auth";
 import { C } from "@/constants/colors";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { saveLoginReturn } from "@/lib/login-return";
 
 type Notif = { id: number; isRead: boolean };
 function useUnreadCount() {
@@ -334,9 +335,8 @@ export default function ProfileScreen() {
   if (!authLoading && !user) {
     function handleLineLogin() {
       if (Platform.OS === "web" && typeof window !== "undefined") {
-        try {
-          localStorage.setItem("line_login_return", window.location.pathname);
-        } catch {}
+        const returnTo = window.location.pathname + window.location.search;
+        saveLoginReturn(returnTo);
         const apiBase = getApiUrl();
         window.location.href = new URL("/api/auth/line", apiBase).toString();
       } else {
