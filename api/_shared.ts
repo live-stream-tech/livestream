@@ -13,6 +13,7 @@ export function getApp(): ReturnType<typeof createApiApp> {
 /** Vercel では req.url がフルURLで届くことがあるため、path+query に正規化する */
 export function normalizeReqUrl(req: IncomingMessage): void {
   const url = req.url ?? "";
+  console.log("[normalizeReqUrl] before:", url);
   if (url.startsWith("http")) {
     try {
       const u = new URL(url);
@@ -23,4 +24,5 @@ export function normalizeReqUrl(req: IncomingMessage): void {
   } else if (url && !url.startsWith("/")) {
     req.url = "/api/" + url;
   }
+  console.log("[normalizeReqUrl] after:", req.url);
 }
