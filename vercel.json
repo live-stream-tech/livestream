@@ -8,9 +8,9 @@
     }
   },
   "rewrites": [
-    {
-      "source": "/((?!api/).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/api/auth/line-callback", "destination": "/api/auth/line-callback" },
+    { "source": "/api/auth/line", "destination": "/api/auth/line" },
+    { "source": "/api/(.*)", "destination": "/api/[...path]" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
