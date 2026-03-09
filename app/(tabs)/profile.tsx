@@ -29,7 +29,14 @@ function useUnreadCount() {
   return (data as Notif[]).filter((n) => !n.isRead).length;
 }
 
-type MyVideo = { id: number; title: string; thumbnail: string; creator: string; community: string; [key: string]: unknown };
+type MyVideo = {
+  id: number;
+  title: string;
+  thumbnail: string;
+  creator: string;
+  community: string;
+  timeAgo?: string | null;
+};
 
 const ENNEAGRAM_TYPES = [
   { label: "完璧主義者", num: 1, color: "#E53935" },
@@ -549,25 +556,39 @@ export default function ProfileScreen() {
 
         <View style={styles.postsHeader}>
           <View style={styles.postsLeft}>
-            <Text style={styles.postsTitle}>POSTS</Text>
-            <Text style={styles.postsCount}>{myVideos.length} TOTAL</Text>
+            <Text style={styles.postsTitle}>タイムライン</Text>
+            <Text style={styles.postsCount}>{myVideos.length}</Text>
           </View>
           <Pressable style={styles.uploadBtn} onPress={() => router.push("/upload")}>
             <Ionicons name="add" size={16} color="#fff" />
-            <Text style={styles.uploadBtnText}>動画を投稿</Text>
+            <Text style={styles.uploadBtnText}>投稿する</Text>
           </Pressable>
         </View>
 
-        <View style={styles.postsGrid}>
+        <View style={styles.timelineList}>
           {myVideos.map((video) => (
             <Pressable
               key={video.id}
-              style={styles.postThumbContainer}
+              style={styles.timelineItem}
               onPress={() => router.push(`/video/${video.id}`)}
             >
-              <Image source={{ uri: video.thumbnail }} style={styles.postThumb} contentFit="cover" />
+              <Image source={{ uri: video.thumbnail }} style={styles.timelineThumb} contentFit="cover" />
+              <View style={styles.timelineBody}>
+                <Text style={styles.timelineTitle} numberOfLines={2}>
+                  {video.title}
+                </Text>
+                <Text style={styles.timelineMeta} numberOfLines={1}>
+                  {video.community} ・ {video.timeAgo ?? "たった今"}
+                </Text>
+              </View>
             </Pressable>
           ))}
+          {myVideos.length === 0 && (
+            <View style={styles.timelineEmpty}>
+              <Text style={styles.timelineEmptyText}>まだ投稿がありません</Text>
+              <Text style={styles.timelineEmptySub}>左下の「投稿する」から最初の投稿をしてみましょう</Text>
+            </View>
+          )}
         </View>
 
         {/* Enneagram Card */}
@@ -1023,9 +1044,24 @@ const styles = StyleSheet.create({
   uploadBtnText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   postsTitle: { color: C.text, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
   postsCount: { color: C.textMuted, fontSize: 12, fontWeight: "600" },
-  postsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 2, paddingHorizontal: 16 },
-  postThumbContainer: { width: "32%", aspectRatio: 1 },
-  postThumb: { width: "100%", height: "100%", borderRadius: 4 },
+  timelineList: { paddingHorizontal: 16, gap: 10, marginBottom: 16 },
+  timelineItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  timelineThumb: { width: 56, height: 56, borderRadius: 8, backgroundColor: C.surface2 },
+  timelineBody: { flex: 1 },
+  timelineTitle: { color: C.text, fontSize: 13, fontWeight: "700", marginBottom: 2 },
+  timelineMeta: { color: C.textMuted, fontSize: 11 },
+  timelineEmpty: { paddingHorizontal: 16, paddingVertical: 12, alignItems: "center" },
+  timelineEmptyText: { color: C.textSec, fontSize: 13, fontWeight: "700" },
+  timelineEmptySub: { color: C.textMuted, fontSize: 11, marginTop: 4 },
   startFab: {
     position: "absolute",
     right: 16,

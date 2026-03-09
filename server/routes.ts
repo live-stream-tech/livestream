@@ -816,22 +816,33 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.post("/api/videos", async (req: Request, res: Response) => {
-    const { title, creator, community, duration, price, thumbnail, avatar } = req.body;
-    if (!title || !creator || !community || !duration || !thumbnail || !avatar) {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const { title, community, duration, price, thumbnail } = req.body as {
+      title?: string;
+      community?: string;
+      duration?: string;
+      price?: number | null;
+      thumbnail?: string;
+    };
+
+    if (!title || !community || !duration || !thumbnail) {
       return res.status(400).json({ message: "必須フィールドが不足しています" });
     }
+
     const [row] = await db
       .insert(videos)
       .values({
         title,
-        creator,
+        creator: user.displayName,
         community,
         views: 0,
         timeAgo: "たった今",
         duration,
         price: price ?? null,
         thumbnail,
-        avatar,
+        avatar: user.profileImageUrl ?? user.avatar ?? null,
         isRanked: false,
       } as typeof videos.$inferInsert)
       .returning();
