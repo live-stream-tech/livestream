@@ -333,11 +333,11 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // ── LINE OAuth ────────────────────────────────────────────────────
-  // LINE_CALLBACK_URL: LINE Developers に登録するコールバックURL（本番: https://<APIのドメイン>/api/auth/callback/line）
+  // LINE_CALLBACK_URL: LINE Developers に登録するコールバックURL（本番: https://livestream-nu-ten.vercel.app/api/auth/line-callback）
   // FRONTEND_URL: ログイン完了後のリダイレクト先。同一オリジン（フロントとAPIが同じVercelドメイン）なら未設定でOK（相対パスでリダイレクト）。別ドメインの場合は https://フロントのドメイン を指定（末尾スラッシュなし）。
   const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID ?? "";
   const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET ?? "";
-  const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "";
+  const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "https://livestream-nu-ten.vercel.app/api/auth/line-callback";
   const FRONTEND_URL = (process.env.FRONTEND_URL ?? "").replace(/\/$/, "");
   const lineRedirect = (path: string) => (FRONTEND_URL ? `${FRONTEND_URL}${path}` : path);
   const LINE_STATE = "livestage-line-state";
@@ -357,6 +357,69 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.get("/api/auth/callback/line", async (req: Request, res: Response) => {
+    const code = req.query.code as string;
+    const state = req.query.state as string;
+    if (!code || state !== LINE_STATE) {
+      return res.redirect(lineRedirect("/?line_error=invalid_state"));
+    }
+    try {
+      const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: LINE_CALLBACK_URL,
+          client_id: LINE_CHANNEL_ID,
+          client_secret: LINE_CHANNEL_SECRET,
+        }).toString(),
+      });
+      const tokenData = await tokenRes.json() as { access_token?: string; error?: string };
+      if (!tokenData.access_token) {
+        return res.redirect(lineRedirect("/?line_error=token_failed"));
+      }
+
+      const profileRes = await fetch("https://api.line.me/v2/profile", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const profile = await profileRes.json() as { userId?: string; displayName?: string; pictureUrl?: string };
+      if (!profile.userId) {
+        return res.redirect(lineRedirect("/?line_error=profile_failed"));
+      }
+
+      const lineId = profile.userId;
+      const lineName = profile.displayName ?? "LINEユーザー";
+      const lineAvatar = profile.pictureUrl ?? null;
+
+      let [existing] = await db.select().from(users).where(eq(users.lineId, lineId));
+      if (!existing) {
+        [existing] = await db
+          .insert(users)
+          .values({
+            lineId,
+            displayName: lineName,
+            profileImageUrl: lineAvatar,
+            role: "USER",
+          } as typeof users.$inferInsert)
+          .returning();
+      } else {
+        [existing] = await db
+          .update(users)
+          .set({ displayName: lineName, profileImageUrl: lineAvatar, updatedAt: new Date() } as Partial<typeof users.$inferInsert>)
+          .where(eq(users.id, existing.id))
+          .returning();
+      }
+
+      const jwtToken = makeToken(existing.id);
+      res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
+    } catch (err) {
+      console.error("LINE callback error:", err);
+      res.redirect(lineRedirect("/?line_error=server_error"));
+    }
+  });
+
+  // LINE OAuth コールバック（line-callback パス。LINE Developers のコールバックURLをこちらにしている場合）
+  app.get("/api/auth/line-callback", async (req: Request, res: Response) => {
     const code = req.query.code as string;
     const state = req.query.state as string;
     if (!code || state !== LINE_STATE) {
