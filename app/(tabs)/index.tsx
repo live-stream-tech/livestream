@@ -84,6 +84,11 @@ function LiveCard({ item }: { item: any }) {
     <Pressable style={styles.liveCard} onPress={() => router.push(`/live/${item.id}`)}>
       <View style={styles.liveThumbContainer}>
         <Image source={{ uri: item.thumbnail }} style={styles.liveThumb} contentFit="cover" />
+        {item.isDemo && (
+          <View style={styles.comingSoonRibbon}>
+            <Text style={styles.comingSoonText}>COMING SOON</Text>
+          </View>
+        )}
         <View style={styles.liveBadge}>
           <View style={styles.liveDot} />
           <Text style={styles.liveText}>LIVE</Text>
@@ -105,9 +110,14 @@ function LiveCard({ item }: { item: any }) {
   );
 }
 
-function RankedVideoCard({ item }: { item: any }) {
+function RankedVideoCard({ item, isDemo }: { item: any; isDemo: boolean }) {
   return (
-    <Pressable style={styles.rankedCard} onPress={() => router.push(`/video/${item.id}`)}>
+    <Pressable
+      style={styles.rankedCard}
+      onPress={() =>
+        router.push(isDemo ? (`/video/${item.id}?demo=1` as any) : (`/video/${item.id}` as any))
+      }
+    >
       <View style={styles.videoThumbContainer}>
         <Image source={{ uri: item.thumbnail }} style={styles.rankedThumb} contentFit="cover" />
         <View style={styles.durationBadge}>
@@ -192,10 +202,46 @@ const DUMMY_VIDEOS = [
 ];
 
 const DUMMY_LIVE = [
-  { id: 1, thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", community: "地下アイドル界隈", title: "星空みゆ♪ 歌とダンスでお届け！", viewers: 1240, timeAgo: "配信中" },
-  { id: 2, thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop", community: "キャバ嬢・ホスト界隈", title: "麗華の夜トーク【本音で語るよ】", viewers: 890, timeAgo: "配信中" },
-  { id: 3, thumbnail: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop", community: "フィットネス部", title: "朝活！一緒にヨガしよう🧘", viewers: 420, timeAgo: "配信中" },
-  { id: 4, thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop", community: "占いサロン", title: "神崎リナ【深夜の占いタイム🔮】", viewers: 312, timeAgo: "配信中" },
+  {
+    id: 1,
+    thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&h=200&fit=crop",
+    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop",
+    community: "地下アイドル界隈",
+    title: "星空みゆ♪ 歌とダンスでお届け！",
+    viewers: 1240,
+    timeAgo: "配信予定",
+    isDemo: true,
+  },
+  {
+    id: 2,
+    thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&h=200&fit=crop",
+    avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop",
+    community: "キャバ嬢・ホスト界隈",
+    title: "麗華の夜トーク【本音で語るよ】",
+    viewers: 890,
+    timeAgo: "配信予定",
+    isDemo: true,
+  },
+  {
+    id: 3,
+    thumbnail: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=200&fit=crop",
+    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop",
+    community: "フィットネス部",
+    title: "朝活！一緒にヨガしよう🧘",
+    viewers: 420,
+    timeAgo: "配信予定",
+    isDemo: true,
+  },
+  {
+    id: 4,
+    thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=200&fit=crop",
+    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop",
+    community: "占いサロン",
+    title: "神崎リナ【深夜の占いタイム🔮】",
+    viewers: 312,
+    timeAgo: "配信予定",
+    isDemo: true,
+  },
 ];
 
 const DUMMY_RANKED: Record<string, any[]> = {
@@ -248,6 +294,7 @@ export default function HomeScreen() {
 
   const { data: apiVideos = [] } = useQuery<any[]>({ queryKey: ["/api/videos"] });
   const { data: apiLive = [] } = useQuery<any[]>({ queryKey: ["/api/live-streams"] });
+  const { data: apiRanked = [] } = useQuery<any[]>({ queryKey: ["/api/videos/ranked"] });
   type BookingSession = {
     id: number;
     creator: string;
@@ -297,7 +344,8 @@ export default function HomeScreen() {
   const usingDemoVideos = apiVideos.length === 0;
   const videos = usingDemoVideos ? DUMMY_VIDEOS : apiVideos;
   const liveStreams = apiLive.length > 0 ? apiLive : DUMMY_LIVE;
-  const rankedVideos = DUMMY_RANKED[rankFilter];
+  const usingDemoRanked = apiRanked.length === 0;
+  const rankedVideos = usingDemoRanked ? DUMMY_RANKED[rankFilter] : apiRanked;
   const creators = DUMMY_CREATORS[creatorFilter];
   const nowJuke = jukeData?.state ?? null;
 
@@ -450,7 +498,9 @@ export default function HomeScreen() {
           </View>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-          {rankedVideos.map((v) => <RankedVideoCard key={v.id} item={v} />)}
+          {rankedVideos.map((v) => (
+            <RankedVideoCard key={v.id} item={v} isDemo={usingDemoRanked} />
+          ))}
         </ScrollView>
 
         {/* 配信者ランキング */}
@@ -1023,6 +1073,21 @@ const styles = StyleSheet.create({
     width: 180,
     height: 101,
     borderRadius: 8,
+  },
+  comingSoonRibbon: {
+    position: "absolute",
+    top: 12,
+    left: -40,
+    paddingHorizontal: 40,
+    paddingVertical: 4,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    transform: [{ rotate: "-25deg" }],
+  },
+  comingSoonText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
   },
   liveBadge: {
     position: "absolute",

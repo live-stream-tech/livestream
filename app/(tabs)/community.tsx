@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
 import { COMMUNITIES, RANKED_VIDEOS } from "@/constants/data";
+import { useQuery } from "@tanstack/react-query";
 
 const GENRES = [
   { id: "anime", name: "アニメ", icon: "tv-outline" as const, count: 1204, color: "#E91E8C" },
@@ -98,11 +99,19 @@ function CommunityRankCard({ item, index }: { item: typeof COMMUNITIES[0]; index
   );
 }
 
-function PurchaseRankCard({ item }: { item: (typeof RANKED_VIDEOS[0]) | (typeof PURCHASE_EXTRAS[0]) }) {
+function PurchaseRankCard({
+  item,
+  isDemo,
+}: {
+  item: (typeof RANKED_VIDEOS[0]) | (typeof PURCHASE_EXTRAS[0]) | any;
+  isDemo: boolean;
+}) {
   return (
     <Pressable
       style={styles.purchaseCard}
-      onPress={() => router.push(`/video/${item.id}?demo=1`)}
+      onPress={() =>
+        router.push(isDemo ? (`/video/${item.id}?demo=1` as any) : (`/video/${item.id}` as any))
+      }
     >
       <Image source={{ uri: item.thumbnail }} style={styles.purchaseCardImage} contentFit="cover" />
       <View style={styles.purchaseCardOverlay} />
@@ -132,11 +141,19 @@ export default function CommunityScreen() {
 
   const sortedCommunities = [...COMMUNITIES].sort((a, b) => b.members - a.members);
 
-  const purchaseData = purchaseTab === "全期間"
-    ? [...RANKED_VIDEOS, ...PURCHASE_EXTRAS]
-    : purchaseTab === "月間"
-    ? [...RANKED_VIDEOS.slice(1), PURCHASE_EXTRAS[0], RANKED_VIDEOS[0]]
-    : [...RANKED_VIDEOS, PURCHASE_EXTRAS[1]];
+  const { data: rankedApiVideos = [] } = useQuery<any[]>({
+    queryKey: ["/api/videos/ranked"],
+  });
+
+  const usingDemoRanked = rankedApiVideos.length === 0;
+
+  const purchaseData = usingDemoRanked
+    ? purchaseTab === "全期間"
+      ? [...RANKED_VIDEOS, ...PURCHASE_EXTRAS]
+      : purchaseTab === "月間"
+      ? [...RANKED_VIDEOS.slice(1), PURCHASE_EXTRAS[0], RANKED_VIDEOS[0]]
+      : [...RANKED_VIDEOS, PURCHASE_EXTRAS[1]]
+    : rankedApiVideos;
 
   const filteredGenres = search
     ? GENRES.filter((g) => g.name.includes(search))
@@ -227,7 +244,7 @@ export default function CommunityScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.hList}
-            renderItem={({ item }) => <PurchaseRankCard item={item} />}
+            renderItem={({ item }) => <PurchaseRankCard item={item} isDemo={usingDemoRanked} />}
           />
         </View>
 

@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
+import type { BookingSession } from "@/constants/data";
 
 const 個別セッション_CATEGORY_ICONS: Record<string, string> = {
   english: "language-outline",
@@ -99,7 +100,7 @@ function BookingCard({ session }: { session: BookingSession }) {
             </View>
           </View>
           <Pressable
-            style={[styles.bookingBtn, { backgroundColor: categoryColor }]}
+            style={[styles.bookingActionBtn, { backgroundColor: categoryColor }]}
             onPress={() => router.push(`/twoshot-booking/${session.id}`)}
           >
             <Text style={styles.bookingBtnText}>予約する</Text>
@@ -233,6 +234,9 @@ function LiveStartModal({ visible, onClose }: { visible: boolean; onClose: () =>
               <View style={styles.previewCamera}>
                 <Ionicons name="videocam" size={40} color={C.accent} />
                 <View style={styles.previewRedDot} />
+              <View style={styles.previewComingSoonRibbon}>
+                <Text style={styles.previewComingSoonText}>COMING SOON</Text>
+              </View>
               </View>
               <View style={styles.previewStats}>
                 <View style={styles.previewStat}>
@@ -826,6 +830,21 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: C.live,
   },
+  previewComingSoonRibbon: {
+    position: "absolute",
+    top: 12,
+    left: -40,
+    paddingHorizontal: 40,
+    paddingVertical: 4,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    transform: [{ rotate: "-25deg" }],
+  },
+  previewComingSoonText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
   previewStats: {
     gap: 4,
   },
@@ -1034,7 +1053,7 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 2,
   },
-  bookingBtn: {
+  bookingActionBtn: {
     borderRadius: 10,
     paddingHorizontal: 18,
     paddingVertical: 10,

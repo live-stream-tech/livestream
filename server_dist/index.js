@@ -5,9 +5,8 @@ var __export = (target, all) => {
 };
 
 // server/index.ts
-import express from "express";
-
-// server/routes.ts
+import "dotenv/config";
+import express2 from "express";
 import { createServer } from "node:http";
 
 // server/db.ts
@@ -17,8 +16,13 @@ import { Pool } from "pg";
 // server/schema.ts
 var schema_exports = {};
 __export(schema_exports, {
+  TRANSACTION_STATUSES: () => TRANSACTION_STATUSES,
+  USER_ROLES: () => USER_ROLES,
+  announcements: () => announcements,
   bookingSessions: () => bookingSessions,
   communities: () => communities,
+  communityMembers: () => communityMembers,
+  communityModerators: () => communityModerators,
   creators: () => creators,
   dmConversationMessages: () => dmConversationMessages,
   dmMessages: () => dmMessages,
@@ -31,9 +35,14 @@ __export(schema_exports, {
   liverAvailability: () => liverAvailability,
   liverReviews: () => liverReviews,
   notifications: () => notifications,
+  transactions: () => transactions,
   twoshotBookings: () => twoshotBookings,
-  userAccounts: () => userAccounts,
+  users: () => users,
+  videoComments: () => videoComments,
+  videoEditRequests: () => videoEditRequests,
+  videoEditors: () => videoEditors,
   videos: () => videos,
+  wallets: () => wallets,
   withdrawals: () => withdrawals
 });
 import {
@@ -45,13 +54,27 @@ import {
   real,
   timestamp
 } from "drizzle-orm/pg-core";
+var USER_ROLES = ["USER", "LIVER", "EDITOR", "MODERATOR", "ADMIN"];
 var communities = pgTable("communities", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   members: integer("members").notNull().default(0),
   thumbnail: text("thumbnail").notNull(),
   online: boolean("online").notNull().default(false),
-  category: text("category").notNull()
+  category: text("category").notNull(),
+  /** 管理人（users.id）。広告収益10%の受け取り対象 */
+  adminId: integer("admin_id")
+});
+var communityModerators = pgTable("community_moderators", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  userId: integer("user_id").notNull()
+});
+var communityMembers = pgTable("community_members", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  userId: integer("user_id").notNull(),
+  joinedAt: timestamp("joined_at").defaultNow()
 });
 var videos = pgTable("videos", {
   id: serial("id").primaryKey(),
@@ -66,6 +89,13 @@ var videos = pgTable("videos", {
   avatar: text("avatar").notNull(),
   rank: integer("rank"),
   isRanked: boolean("is_ranked").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow()
+});
+var videoComments = pgTable("video_comments", {
+  id: serial("id").primaryKey(),
+  videoId: integer("video_id").notNull(),
+  userId: integer("user_id").notNull(),
+  text: text("text").notNull(),
   createdAt: timestamp("created_at").defaultNow()
 });
 var liveStreams = pgTable("live_streams", {
@@ -189,16 +219,68 @@ var dmMessages = pgTable("dm_messages", {
   online: boolean("online").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0)
 });
-var userAccounts = pgTable("user_accounts", {
+var users = pgTable("users", {
   id: serial("id").primaryKey(),
-  email: text("email").unique().notNull(),
-  passwordHash: text("password_hash").notNull(),
-  name: text("name").notNull().default("\u30E6\u30FC\u30B6\u30FC"),
+  lineId: text("line_id").notNull().unique(),
+  displayName: text("display_name").notNull().default("\u30E6\u30FC\u30B6\u30FC"),
+  profileImageUrl: text("profile_image_url"),
+  role: text("role").notNull().default("USER"),
   bio: text("bio").notNull().default(""),
-  avatar: text("avatar"),
-  lineId: text("line_id").unique(),
+  /** Stripe Connect 連結アカウントID（Express/Custom）。連携済みなら設定される */
+  stripeConnectId: text("stripe_connect_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
+});
+var wallets = pgTable("wallets", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id"),
+  // システムウォレットは null
+  /** ユーザーウォレットは null。システム用: 'MODERATOR' | 'ADMIN' | 'EVENT_RESERVE' | 'PLATFORM' */
+  kind: text("kind"),
+  balanceAvailable: integer("balance_available").notNull().default(0),
+  balancePending: integer("balance_pending").notNull().default(0),
+  currency: text("currency").notNull().default("JPY"),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+var TRANSACTION_STATUSES = ["PENDING", "SETTLED", "CANCELLED"];
+var transactions = pgTable("transactions", {
+  id: serial("id").primaryKey(),
+  walletId: integer("wallet_id").notNull(),
+  amount: integer("amount").notNull(),
+  type: text("type").notNull(),
+  // 'tip' | 'gift' | 'twoshot' | 'banner_ad' | 'payout' | 'revenue_share' | 'REVENUE' 等
+  status: text("status").notNull().default("PENDING"),
+  // PENDING | SETTLED | CANCELLED
+  referenceId: text("reference_id"),
+  settledAt: timestamp("settled_at"),
+  createdAt: timestamp("created_at").defaultNow()
+});
+var videoEditors = pgTable("video_editors", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  avatar: text("avatar"),
+  bio: text("bio").notNull().default(""),
+  communityId: integer("community_id").notNull(),
+  genres: text("genres").notNull().default(""),
+  deliveryDays: integer("delivery_days").notNull().default(3),
+  priceType: text("price_type").notNull(),
+  pricePerMinute: integer("price_per_minute"),
+  revenueSharePercent: integer("revenue_share_percent"),
+  rating: real("rating").notNull().default(0),
+  reviewCount: integer("review_count").notNull().default(0),
+  isAvailable: boolean("is_available").notNull().default(true)
+});
+var videoEditRequests = pgTable("video_edit_requests", {
+  id: serial("id").primaryKey(),
+  editorId: integer("editor_id").notNull(),
+  requesterId: text("requester_id").notNull(),
+  requesterName: text("requester_name").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  priceType: text("price_type").notNull(),
+  budget: integer("budget"),
+  deadline: text("deadline"),
+  createdAt: timestamp("created_at").defaultNow()
 });
 var earnings = pgTable("earnings", {
   id: serial("id").primaryKey(),
@@ -270,6 +352,16 @@ var liverAvailability = pgTable("liver_availability", {
   note: text("note").notNull().default(""),
   createdAt: timestamp("created_at").defaultNow()
 });
+var announcements = pgTable("announcements", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  type: text("type").notNull(),
+  isPinned: boolean("is_pinned").notNull().default(false),
+  startAt: timestamp("start_at"),
+  endAt: timestamp("end_at"),
+  createdAt: timestamp("created_at").defaultNow()
+});
 
 // server/db.ts
 var pool = new Pool({
@@ -279,7 +371,7 @@ var pool = new Pool({
 var db = drizzle(pool, { schema: schema_exports });
 
 // server/routes.ts
-import { eq, asc, desc, count, sql, and } from "drizzle-orm";
+import { eq as eq2, asc, desc, count, sql as sql2, and as and2, isNull, inArray } from "drizzle-orm";
 
 // server/stripeClient.local.ts
 import Stripe from "stripe";
@@ -302,64 +394,346 @@ async function getStripePublishableKey() {
   }
   return PUBLISHABLE_KEY;
 }
+async function createConnectExpressAccount(params) {
+  const stripe = await getUncachableStripeClient();
+  const account = await stripe.accounts.create({
+    type: "express",
+    country: params.country ?? "JP",
+    email: params.email ?? void 0
+  });
+  return account.id;
+}
+async function createConnectAccountLink(params) {
+  const stripe = await getUncachableStripeClient();
+  const link = await stripe.accountLinks.create({
+    account: params.accountId,
+    refresh_url: params.refreshUrl,
+    return_url: params.returnUrl,
+    type: "account_onboarding"
+  });
+  return link.url;
+}
+async function getConnectAccount(accountId) {
+  const stripe = await getUncachableStripeClient();
+  try {
+    const account = await stripe.accounts.retrieve(accountId);
+    return account;
+  } catch {
+    return null;
+  }
+}
+async function createBannerPaymentIntent(params) {
+  const stripe = await getUncachableStripeClient();
+  const pi = await stripe.paymentIntents.create({
+    amount: params.amountYen,
+    currency: "jpy",
+    automatic_payment_methods: { enabled: true },
+    metadata: params.metadata ?? {}
+  });
+  return {
+    clientSecret: pi.client_secret,
+    paymentIntentId: pi.id
+  };
+}
+async function getPaymentIntentStatus(paymentIntentId) {
+  const stripe = await getUncachableStripeClient();
+  try {
+    const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (pi.status === "succeeded") return "succeeded";
+    if (pi.status === "requires_payment_method") return "requires_payment_method";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// server/aggregateRevenue.ts
+import { eq, sql, and, gte, lte } from "drizzle-orm";
+async function getMonthlyRevenueRank(yearMonth) {
+  const [year, month] = yearMonth.split("-").map(Number);
+  if (!year || !month) return [];
+  const start = new Date(year, month - 1, 1, 0, 0, 0);
+  const end = new Date(year, month, 0, 23, 59, 59);
+  const rows = await db.select({
+    userId: wallets.userId,
+    totalRevenue: sql`COALESCE(SUM(${transactions.amount}), 0)::int`
+  }).from(transactions).innerJoin(wallets, eq(transactions.walletId, wallets.id)).where(
+    and(
+      eq(transactions.type, "REVENUE"),
+      gte(transactions.createdAt, start),
+      lte(transactions.createdAt, end)
+    )
+  ).groupBy(wallets.userId);
+  const withUser = await Promise.all(
+    rows.filter((r) => r.userId != null).map(async (r) => {
+      const [u] = await db.select({ displayName: users.displayName }).from(users).where(eq(users.id, r.userId));
+      return {
+        userId: r.userId,
+        displayName: u?.displayName ?? "\u4E0D\u660E",
+        totalRevenue: Number(r.totalRevenue)
+      };
+    })
+  );
+  withUser.sort((a, b) => b.totalRevenue - a.totalRevenue);
+  return withUser.map((row, index) => ({ ...row, rank: index + 1 }));
+}
 
 // server/routes.ts
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-var JWT_SECRET = process.env.SESSION_SECRET ?? "livestock-dev-secret";
+var JWT_SECRET = process.env.SESSION_SECRET ?? "livestage-dev-secret";
 function makeToken(userId) {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "90d" });
+}
+function paramStr(req, key) {
+  const v = req.params[key];
+  return Array.isArray(v) ? v[0] ?? "" : v ?? "";
+}
+function paramNum(req, key) {
+  return parseInt(paramStr(req, key), 10) || 0;
+}
+function queryStr(req, key) {
+  const v = req.query[key];
+  if (Array.isArray(v)) return typeof v[0] === "string" ? v[0] : "";
+  return typeof v === "string" ? v : "";
 }
 async function getAuthUser(req) {
   const auth = req.headers?.authorization ?? "";
   if (!auth.startsWith("Bearer ")) return null;
   try {
     const payload = jwt.verify(auth.slice(7), JWT_SECRET);
-    const [user] = await db.select().from(userAccounts).where(eq(userAccounts.id, payload.sub));
-    return user ?? null;
+    if (typeof payload === "string" || !payload || typeof payload.sub !== "number") return null;
+    const sub = payload.sub;
+    const [user] = await db.select().from(users).where(eq2(users.id, sub));
+    if (!user) return null;
+    return { ...user, avatar: user.profileImageUrl };
   } catch {
     return null;
   }
 }
+var SYSTEM_WALLET_KINDS = ["MODERATOR", "ADMIN", "EVENT_RESERVE", "PLATFORM"];
+async function getOrCreateSystemWallets() {
+  const result = {};
+  for (const kind of SYSTEM_WALLET_KINDS) {
+    const [w] = await db.select().from(wallets).where(eq2(wallets.kind, kind));
+    if (w) {
+      result[kind] = w.id;
+    } else {
+      const [created] = await db.insert(wallets).values({ kind, userId: null }).returning();
+      result[kind] = created.id;
+    }
+  }
+  return result;
+}
+async function getOrCreateUserWallet(userId) {
+  const [w] = await db.select().from(wallets).where(and2(eq2(wallets.userId, userId), isNull(wallets.kind)));
+  if (w) return w.id;
+  const [created] = await db.insert(wallets).values({ userId, kind: null }).returning();
+  return created.id;
+}
+async function recordRevenue(walletId, amount, source, referenceId) {
+  await db.insert(transactions).values({
+    walletId,
+    amount,
+    type: "REVENUE",
+    status: "PENDING",
+    referenceId
+  });
+}
 async function registerRoutes(app2) {
-  app2.post("/api/auth/register", async (req, res) => {
-    const { email, password, name } = req.body;
-    if (!email || !password || !name) return res.status(400).json({ error: "\u5FC5\u9808\u9805\u76EE\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
-    if (password.length < 6) return res.status(400).json({ error: "\u30D1\u30B9\u30EF\u30FC\u30C9\u306F6\u6587\u5B57\u4EE5\u4E0A\u3067\u8A2D\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044" });
-    const existing = await db.select().from(userAccounts).where(eq(userAccounts.email, email.toLowerCase()));
-    if (existing.length > 0) return res.status(409).json({ error: "\u3053\u306E\u30E1\u30FC\u30EB\u30A2\u30C9\u30EC\u30B9\u306F\u3059\u3067\u306B\u767B\u9332\u3055\u308C\u3066\u3044\u307E\u3059" });
-    const passwordHash = await bcrypt.hash(password, 10);
-    const [user] = await db.insert(userAccounts).values({ email: email.toLowerCase(), passwordHash, name }).returning();
-    const token = makeToken(user.id);
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, bio: user.bio, avatar: user.avatar } });
-  });
-  app2.post("/api/auth/login", async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "\u30E1\u30FC\u30EB\u30A2\u30C9\u30EC\u30B9\u3068\u30D1\u30B9\u30EF\u30FC\u30C9\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
-    const [user] = await db.select().from(userAccounts).where(eq(userAccounts.email, email.toLowerCase()));
-    if (!user) return res.status(401).json({ error: "\u30E1\u30FC\u30EB\u30A2\u30C9\u30EC\u30B9\u307E\u305F\u306F\u30D1\u30B9\u30EF\u30FC\u30C9\u304C\u6B63\u3057\u304F\u3042\u308A\u307E\u305B\u3093" });
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: "\u30E1\u30FC\u30EB\u30A2\u30C9\u30EC\u30B9\u307E\u305F\u306F\u30D1\u30B9\u30EF\u30FC\u30C9\u304C\u6B63\u3057\u304F\u3042\u308A\u307E\u305B\u3093" });
-    const token = makeToken(user.id);
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, bio: user.bio, avatar: user.avatar } });
-  });
   app2.get("/api/auth/me", async (req, res) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
-    res.json({ id: user.id, email: user.email, name: user.name, bio: user.bio, avatar: user.avatar });
+    res.json({
+      id: user.id,
+      name: user.displayName,
+      displayName: user.displayName,
+      profileImageUrl: user.profileImageUrl,
+      avatar: user.profileImageUrl,
+      role: user.role,
+      bio: user.bio,
+      stripeConnectId: user.stripeConnectId ?? null
+    });
+  });
+  app2.post("/api/connect/onboard", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    try {
+      const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : process.env.APP_URL ?? "http://localhost:8081";
+      const returnUrl = `${baseUrl}/payout-settings?connect=return`;
+      const refreshUrl = `${baseUrl}/payout-settings?connect=refresh`;
+      let accountId = user.stripeConnectId;
+      if (!accountId) {
+        accountId = await createConnectExpressAccount({ country: "JP" });
+        await db.update(users).set({ stripeConnectId: accountId, updatedAt: /* @__PURE__ */ new Date() }).where(eq2(users.id, user.id));
+      }
+      const url = await createConnectAccountLink({ accountId, returnUrl, refreshUrl });
+      res.json({ url, accountId });
+    } catch (e) {
+      console.error("Connect onboard error:", e);
+      res.status(500).json({ error: e.message ?? "Stripe Connect \u306E\u6E96\u5099\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
+    }
+  });
+  app2.get("/api/connect/status", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    if (!user.stripeConnectId) {
+      return res.json({ connected: false, stripeConnectId: null, chargesEnabled: false });
+    }
+    const account = await getConnectAccount(user.stripeConnectId);
+    const chargesEnabled = account?.charges_enabled ?? false;
+    res.json({
+      connected: !!account,
+      stripeConnectId: user.stripeConnectId,
+      chargesEnabled,
+      detailsSubmitted: account?.details_submitted ?? false
+    });
+  });
+  const BANNER_MIN_AMOUNT = 15e3;
+  const BANNER_RATE_MODERATOR = 0.2;
+  const BANNER_RATE_ADMIN = 0.2;
+  const BANNER_RATE_EVENT = 0.1;
+  const BANNER_RATE_PLATFORM = 0.5;
+  app2.post("/api/banner/checkout", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const { people, days } = req.body;
+    const p = Math.max(1, Number(people) || 1);
+    const d = Math.max(1, Number(days) || 1);
+    const amountYen = Math.max(BANNER_MIN_AMOUNT, p * 5 * d);
+    try {
+      const { clientSecret, paymentIntentId } = await createBannerPaymentIntent({
+        amountYen,
+        metadata: { userId: String(user.id), people: String(p), days: String(d), type: "banner_ad" }
+      });
+      res.json({ clientSecret, paymentIntentId, amountYen });
+    } catch (e) {
+      console.error("Banner checkout error:", e);
+      res.status(500).json({ error: e.message ?? "\u6C7A\u6E08\u306E\u6E96\u5099\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
+    }
+  });
+  app2.post("/api/banner/confirm", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const { paymentIntentId } = req.body;
+    if (!paymentIntentId) return res.status(400).json({ error: "paymentIntentId \u304C\u5FC5\u8981\u3067\u3059" });
+    const status = await getPaymentIntentStatus(paymentIntentId);
+    if (status !== "succeeded") {
+      return res.status(400).json({ error: "\u6C7A\u6E08\u304C\u5B8C\u4E86\u3057\u3066\u3044\u307E\u305B\u3093" });
+    }
+    const stripe = await getUncachableStripeClient();
+    const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+    const amountYen = pi.amount;
+    const sys = await getOrCreateSystemWallets();
+    const amountMod = Math.floor(amountYen * BANNER_RATE_MODERATOR);
+    const amountAdmin = Math.floor(amountYen * BANNER_RATE_ADMIN);
+    const amountEvent = Math.floor(amountYen * BANNER_RATE_EVENT);
+    const amountPlatform = amountYen - amountMod - amountAdmin - amountEvent;
+    await db.insert(transactions).values([
+      { walletId: sys.MODERATOR, amount: amountMod, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+      { walletId: sys.ADMIN, amount: amountAdmin, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+      { walletId: sys.EVENT_RESERVE, amount: amountEvent, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+      { walletId: sys.PLATFORM, amount: amountPlatform, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId }
+    ]);
+    res.json({ ok: true, amountYen, split: { moderator: amountMod, admin: amountAdmin, eventReserve: amountEvent, platform: amountPlatform } });
+  });
+  const BANNER_CHECKOUT_DAYS = 3;
+  const BANNER_CHECKOUT_AMOUNT_YEN = 15e3;
+  app2.post("/api/banner/checkout-session", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    try {
+      const stripe = await getUncachableStripeClient();
+      const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : process.env.APP_URL ?? "http://localhost:8081";
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "jpy",
+              unit_amount: BANNER_CHECKOUT_AMOUNT_YEN,
+              product_data: {
+                name: "\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u5E83\u544A\u30D0\u30CA\u30FC\uFF083\u65E5\u9593\uFF09",
+                description: `\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u30DA\u30FC\u30B8\u306E\u5E83\u544A\u30D0\u30CA\u30FC\u67A0 3\u65E5\u9593\u51FA\u7A3F\uFF08\xA5${BANNER_CHECKOUT_AMOUNT_YEN.toLocaleString()}\uFF09`
+              }
+            },
+            quantity: 1
+          }
+        ],
+        mode: "payment",
+        success_url: `${baseUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/community`,
+        metadata: {
+          type: "banner_ad",
+          days: String(BANNER_CHECKOUT_DAYS),
+          userId: String(user.id)
+        }
+      });
+      res.json({ checkoutUrl: session.url });
+    } catch (e) {
+      console.error("Banner checkout session error:", e);
+      res.status(500).json({ error: e.message ?? "\u6C7A\u6E08\u306E\u6E96\u5099\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
+    }
+  });
+  app2.post("/api/banner/confirm-session", async (req, res) => {
+    const { sessionId } = req.body;
+    if (!sessionId) return res.status(400).json({ error: "sessionId \u304C\u5FC5\u8981\u3067\u3059" });
+    try {
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      if (session.payment_status !== "paid") {
+        return res.status(400).json({ error: "\u6C7A\u6E08\u304C\u5B8C\u4E86\u3057\u3066\u3044\u307E\u305B\u3093" });
+      }
+      const amountYen = session.amount_total ?? BANNER_CHECKOUT_AMOUNT_YEN;
+      const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? session.id;
+      const sys = await getOrCreateSystemWallets();
+      const amountMod = Math.floor(amountYen * BANNER_RATE_MODERATOR);
+      const amountAdmin = Math.floor(amountYen * BANNER_RATE_ADMIN);
+      const amountEvent = Math.floor(amountYen * BANNER_RATE_EVENT);
+      const amountPlatform = amountYen - amountMod - amountAdmin - amountEvent;
+      await db.insert(transactions).values([
+        { walletId: sys.MODERATOR, amount: amountMod, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+        { walletId: sys.ADMIN, amount: amountAdmin, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+        { walletId: sys.EVENT_RESERVE, amount: amountEvent, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId },
+        { walletId: sys.PLATFORM, amount: amountPlatform, type: "banner_ad", status: "PENDING", referenceId: paymentIntentId }
+      ]);
+      res.json({
+        ok: true,
+        amountYen,
+        split: { moderator: amountMod, admin: amountAdmin, eventReserve: amountEvent, platform: amountPlatform }
+      });
+    } catch (e) {
+      console.error("Banner confirm-session error:", e);
+      res.status(500).json({ error: e.message ?? "\u6C7A\u6E08\u306E\u78BA\u8A8D\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
+    }
   });
   app2.put("/api/auth/profile", async (req, res) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
-    const { name, bio, avatar } = req.body;
-    const [updated] = await db.update(userAccounts).set({ name: name ?? user.name, bio: bio ?? user.bio, avatar: avatar !== void 0 ? avatar : user.avatar, updatedAt: /* @__PURE__ */ new Date() }).where(eq(userAccounts.id, user.id)).returning();
-    res.json({ id: updated.id, email: updated.email, name: updated.name, bio: updated.bio, avatar: updated.avatar });
+    const { name, displayName, bio, avatar, profileImageUrl } = req.body;
+    const newName = name ?? displayName ?? user.displayName;
+    const newBio = bio ?? user.bio;
+    const newAvatar = avatar ?? profileImageUrl ?? user.profileImageUrl;
+    const [updated] = await db.update(users).set({ displayName: newName, bio: newBio, profileImageUrl: newAvatar !== void 0 ? newAvatar : void 0, updatedAt: /* @__PURE__ */ new Date() }).where(eq2(users.id, user.id)).returning();
+    res.json({
+      id: updated.id,
+      name: updated.displayName,
+      displayName: updated.displayName,
+      profileImageUrl: updated.profileImageUrl,
+      avatar: updated.profileImageUrl,
+      role: updated.role,
+      bio: updated.bio
+    });
   });
   const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID ?? "";
   const LINE_CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET ?? "";
-  const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "https://livestock.replit.app/api/auth/callback/line";
-  const LINE_STATE = "livestock-line-state";
+  const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "https://livestream-nu-ten.vercel.app/api/auth/line-callback";
+  const FRONTEND_URL = (process.env.FRONTEND_URL ?? "").replace(/\/$/, "");
+  const lineRedirect = (path2) => FRONTEND_URL ? `${FRONTEND_URL}${path2}` : path2;
+  const LINE_STATE = "livestage-line-state";
   app2.get("/api/auth/line", (_req, res) => {
+    if (!LINE_CALLBACK_URL) {
+      return res.status(500).json({ error: "LINE_CALLBACK_URL is not configured" });
+    }
     const params = new URLSearchParams({
       response_type: "code",
       client_id: LINE_CHANNEL_ID,
@@ -370,9 +744,10 @@ async function registerRoutes(app2) {
     res.redirect(`https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`);
   });
   app2.get("/api/auth/callback/line", async (req, res) => {
-    const { code, state } = req.query;
+    const code = req.query.code;
+    const state = req.query.state;
     if (!code || state !== LINE_STATE) {
-      return res.redirect("/?line_error=invalid_state");
+      return res.redirect(lineRedirect("/?line_error=invalid_state"));
     }
     try {
       const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
@@ -388,30 +763,84 @@ async function registerRoutes(app2) {
       });
       const tokenData = await tokenRes.json();
       if (!tokenData.access_token) {
-        return res.redirect("/?line_error=token_failed");
+        return res.redirect(lineRedirect("/?line_error=token_failed"));
       }
       const profileRes = await fetch("https://api.line.me/v2/profile", {
         headers: { Authorization: `Bearer ${tokenData.access_token}` }
       });
       const profile = await profileRes.json();
       if (!profile.userId) {
-        return res.redirect("/?line_error=profile_failed");
+        return res.redirect(lineRedirect("/?line_error=profile_failed"));
       }
       const lineId = profile.userId;
       const lineName = profile.displayName ?? "LINE\u30E6\u30FC\u30B6\u30FC";
       const lineAvatar = profile.pictureUrl ?? null;
-      const lineEmail = `line_${lineId}@line.local`;
-      let [existing] = await db.select().from(userAccounts).where(eq(userAccounts.lineId, lineId));
+      let [existing] = await db.select().from(users).where(eq2(users.lineId, lineId));
       if (!existing) {
-        [existing] = await db.insert(userAccounts).values({ email: lineEmail, passwordHash: "line-oauth", name: lineName, avatar: lineAvatar, lineId }).onConflictDoUpdate({ target: userAccounts.email, set: { lineId, name: lineName, avatar: lineAvatar, updatedAt: /* @__PURE__ */ new Date() } }).returning();
+        [existing] = await db.insert(users).values({
+          lineId,
+          displayName: lineName,
+          profileImageUrl: lineAvatar,
+          role: "USER"
+        }).returning();
       } else {
-        [existing] = await db.update(userAccounts).set({ name: lineName, avatar: lineAvatar, updatedAt: /* @__PURE__ */ new Date() }).where(eq(userAccounts.id, existing.id)).returning();
+        [existing] = await db.update(users).set({ displayName: lineName, profileImageUrl: lineAvatar, updatedAt: /* @__PURE__ */ new Date() }).where(eq2(users.id, existing.id)).returning();
       }
       const jwtToken = makeToken(existing.id);
-      res.redirect(`/?line_token=${encodeURIComponent(jwtToken)}`);
+      res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
     } catch (err) {
       console.error("LINE callback error:", err);
-      res.redirect("/?line_error=server_error");
+      res.redirect(lineRedirect("/?line_error=server_error"));
+    }
+  });
+  app2.get("/api/auth/line-callback", async (req, res) => {
+    const code = req.query.code;
+    const state = req.query.state;
+    if (!code || state !== LINE_STATE) {
+      return res.redirect(lineRedirect("/?line_error=invalid_state"));
+    }
+    try {
+      const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: LINE_CALLBACK_URL,
+          client_id: LINE_CHANNEL_ID,
+          client_secret: LINE_CHANNEL_SECRET
+        }).toString()
+      });
+      const tokenData = await tokenRes.json();
+      if (!tokenData.access_token) {
+        return res.redirect(lineRedirect("/?line_error=token_failed"));
+      }
+      const profileRes = await fetch("https://api.line.me/v2/profile", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` }
+      });
+      const profile = await profileRes.json();
+      if (!profile.userId) {
+        return res.redirect(lineRedirect("/?line_error=profile_failed"));
+      }
+      const lineId = profile.userId;
+      const lineName = profile.displayName ?? "LINE\u30E6\u30FC\u30B6\u30FC";
+      const lineAvatar = profile.pictureUrl ?? null;
+      let [existing] = await db.select().from(users).where(eq2(users.lineId, lineId));
+      if (!existing) {
+        [existing] = await db.insert(users).values({
+          lineId,
+          displayName: lineName,
+          profileImageUrl: lineAvatar,
+          role: "USER"
+        }).returning();
+      } else {
+        [existing] = await db.update(users).set({ displayName: lineName, profileImageUrl: lineAvatar, updatedAt: /* @__PURE__ */ new Date() }).where(eq2(users.id, existing.id)).returning();
+      }
+      const jwtToken = makeToken(existing.id);
+      res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
+    } catch (err) {
+      console.error("LINE callback error:", err);
+      res.redirect(lineRedirect("/?line_error=server_error"));
     }
   });
   app2.get("/api/communities", async (_req, res) => {
@@ -419,10 +848,155 @@ async function registerRoutes(app2) {
     res.json(rows);
   });
   app2.get("/api/communities/:id", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const [row] = await db.select().from(communities).where(eq(communities.id, id));
+    const id = paramNum(req, "id");
+    const [row] = await db.select().from(communities).where(eq2(communities.id, id));
     if (!row) return res.status(404).json({ message: "Not found" });
     res.json(row);
+  });
+  app2.get("/api/communities/:id/editors", async (req, res) => {
+    const communityId = paramNum(req, "id");
+    const rows = await db.select().from(videoEditors).where(eq2(videoEditors.communityId, communityId)).orderBy(desc(videoEditors.isAvailable), desc(videoEditors.rating));
+    res.json(rows);
+  });
+  app2.get("/api/communities/:id/creators", async (req, res) => {
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const editors = await db.select().from(videoEditors).where(eq2(videoEditors.communityId, communityId)).orderBy(desc(videoEditors.rating));
+    const livers = await db.select().from(creators).where(eq2(creators.community, community.name)).orderBy(asc(creators.rank));
+    res.json({
+      editors: editors.map((e) => ({ ...e, kind: "editor" })),
+      livers: livers.map((l) => ({ ...l, kind: "liver" }))
+    });
+  });
+  app2.get("/api/communities/:id/staff", async (req, res) => {
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const admin = community.adminId ? (await db.select().from(users).where(eq2(users.id, community.adminId)))[0] ?? null : null;
+    const modRows = await db.select({ userId: communityModerators.userId }).from(communityModerators).where(eq2(communityModerators.communityId, communityId));
+    const moderatorUsers = modRows.length > 0 ? await db.select().from(users).where(inArray(users.id, modRows.map((r) => r.userId))) : [];
+    res.json({
+      adminId: community.adminId,
+      admin: admin ? { id: admin.id, displayName: admin.displayName, profileImageUrl: admin.profileImageUrl } : null,
+      moderatorIds: modRows.map((r) => r.userId),
+      moderators: moderatorUsers.map((u) => ({ id: u.id, displayName: u.displayName, profileImageUrl: u.profileImageUrl }))
+    });
+  });
+  app2.patch("/api/communities/:id/staff", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    if (!isAdmin) return res.status(403).json({ error: "\u7BA1\u7406\u4EBA\u306E\u307F\u8A2D\u5B9A\u3067\u304D\u307E\u3059" });
+    const { adminId, moderatorIds } = req.body;
+    if (adminId !== void 0) {
+      await db.update(communities).set({ adminId: adminId ?? null }).where(eq2(communities.id, communityId));
+    }
+    if (moderatorIds !== void 0 && Array.isArray(moderatorIds)) {
+      await db.delete(communityModerators).where(eq2(communityModerators.communityId, communityId));
+      for (const uid of moderatorIds) {
+        if (Number.isInteger(uid)) {
+          await db.insert(communityModerators).values({ communityId, userId: uid });
+        }
+      }
+    }
+    const [updated] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    res.json(updated);
+  });
+  app2.get("/api/communities/:id/members", async (req, res) => {
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const rows = await db.select({ userId: communityMembers.userId }).from(communityMembers).where(eq2(communityMembers.communityId, communityId));
+    const memberUsers = rows.length > 0 ? await db.select({
+      id: users.id,
+      displayName: users.displayName,
+      profileImageUrl: users.profileImageUrl
+    }).from(users).where(inArray(users.id, rows.map((r) => r.userId))) : [];
+    res.json(memberUsers);
+  });
+  app2.get("/api/communities/:id/members/me", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.json({ isMember: false });
+    const communityId = paramNum(req, "id");
+    const rows = await db.select().from(communityMembers).where(
+      and2(
+        eq2(communityMembers.communityId, communityId),
+        eq2(communityMembers.userId, user.id)
+      )
+    );
+    res.json({ isMember: rows.length > 0 });
+  });
+  app2.post("/api/communities/:id/join", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const existing = await db.select().from(communityMembers).where(
+      and2(
+        eq2(communityMembers.communityId, communityId),
+        eq2(communityMembers.userId, user.id)
+      )
+    );
+    if (existing.length > 0) {
+      return res.json({ ok: true, alreadyMember: true });
+    }
+    await db.insert(communityMembers).values({
+      communityId,
+      userId: user.id
+    });
+    const [c] = await db.select({ m: communities.members }).from(communities).where(eq2(communities.id, communityId));
+    if (c) {
+      await db.update(communities).set({ members: c.m + 1 }).where(eq2(communities.id, communityId));
+    }
+    res.status(201).json({ ok: true });
+  });
+  app2.get("/api/editors/:id", async (req, res) => {
+    const id = paramNum(req, "id");
+    const [editor] = await db.select().from(videoEditors).where(eq2(videoEditors.id, id));
+    if (!editor) return res.status(404).json({ error: "Not found" });
+    res.json(editor);
+  });
+  app2.post("/api/editors/:id/request", async (req, res) => {
+    const editorId = paramNum(req, "id");
+    const { requesterName, title, description, priceType, budget, deadline } = req.body;
+    if (!title || !description || !priceType) {
+      return res.status(400).json({ error: "\u5FC5\u9808\u9805\u76EE\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    }
+    if (priceType !== "per_minute" && priceType !== "revenue_share") {
+      return res.status(400).json({ error: "\u4E0D\u6B63\u306A\u6599\u91D1\u5F62\u5F0F\u3067\u3059" });
+    }
+    const [editor] = await db.select().from(videoEditors).where(eq2(videoEditors.id, editorId));
+    if (!editor) {
+      return res.status(404).json({ error: "Editor not found" });
+    }
+    const user = await getAuthUser(req);
+    const requestUserId = user ? `user-${user.id}` : "guest";
+    const requestUserName = requesterName ?? user?.displayName ?? "\u30B2\u30B9\u30C8\u30E6\u30FC\u30B6\u30FC";
+    const [requestRow] = await db.insert(videoEditRequests).values({
+      editorId,
+      requesterId: requestUserId,
+      requesterName: requestUserName,
+      title,
+      description,
+      priceType,
+      budget: budget ?? null,
+      deadline: deadline ?? null
+    }).returning();
+    await db.insert(notifications).values({
+      type: "editor_request",
+      title: `${requestUserName} \u304B\u3089\u7DE8\u96C6\u4F9D\u983C`,
+      body: `${title}\uFF08\u7DE8\u96C6\u8005ID: ${editorId}\uFF09`,
+      amount: budget ?? null,
+      avatar: editor.avatar ?? null,
+      thumbnail: null,
+      timeAgo: "\u305F\u3063\u305F\u4ECA"
+    });
+    res.status(201).json(requestRow);
   });
   app2.post("/api/communities", async (req, res) => {
     const { name, description, bannerUrl, iconUrl, categories } = req.body;
@@ -459,40 +1033,98 @@ async function registerRoutes(app2) {
     }
   });
   app2.get("/api/videos", async (_req, res) => {
-    const rows = await db.select().from(videos).where(eq(videos.isRanked, false)).orderBy(desc(videos.createdAt));
+    const rows = await db.select().from(videos).where(eq2(videos.isRanked, false)).orderBy(desc(videos.createdAt));
+    res.json(rows);
+  });
+  app2.get("/api/videos/my", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const rows = await db.select().from(videos).where(eq2(videos.creator, user.displayName)).orderBy(desc(videos.createdAt));
     res.json(rows);
   });
   app2.get("/api/videos/ranked", async (_req, res) => {
-    const rows = await db.select().from(videos).where(eq(videos.isRanked, true)).orderBy(asc(videos.rank));
+    const rows = await db.select().from(videos).where(eq2(videos.isRanked, true)).orderBy(asc(videos.rank));
     res.json(rows);
   });
   app2.get("/api/videos/:id", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const [row] = await db.select().from(videos).where(eq(videos.id, id));
+    const id = paramNum(req, "id");
+    const [row] = await db.select().from(videos).where(eq2(videos.id, id));
     if (!row) return res.status(404).json({ message: "Not found" });
     res.json(row);
   });
+  app2.get("/api/videos/:id/comments", async (req, res) => {
+    const videoId = paramNum(req, "id");
+    const rows = await db.select({
+      id: videoComments.id,
+      videoId: videoComments.videoId,
+      userId: videoComments.userId,
+      text: videoComments.text,
+      createdAt: videoComments.createdAt,
+      displayName: users.displayName,
+      profileImageUrl: users.profileImageUrl
+    }).from(videoComments).leftJoin(users, eq2(users.id, videoComments.userId)).where(eq2(videoComments.videoId, videoId)).orderBy(asc(videoComments.createdAt));
+    res.json(rows);
+  });
+  app2.post("/api/videos/:id/comments", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const videoId = paramNum(req, "id");
+    const text2 = req.body.text?.trim();
+    if (!text2) return res.status(400).json({ error: "\u30B3\u30E1\u30F3\u30C8\u672C\u6587\u306F\u5FC5\u9808\u3067\u3059" });
+    const [row] = await db.insert(videoComments).values({ videoId, userId: user.id, text: text2 }).returning();
+    res.status(201).json(row);
+  });
   app2.post("/api/videos", async (req, res) => {
-    const { title, creator, community, duration, price, thumbnail, avatar } = req.body;
-    if (!title || !creator || !community || !duration || !thumbnail || !avatar) {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const { title, community, duration, price, thumbnail } = req.body;
+    if (!title || !community || !duration || !thumbnail) {
       return res.status(400).json({ message: "\u5FC5\u9808\u30D5\u30A3\u30FC\u30EB\u30C9\u304C\u4E0D\u8DB3\u3057\u3066\u3044\u307E\u3059" });
     }
     const [row] = await db.insert(videos).values({
       title,
-      creator,
+      creator: user.displayName,
       community,
       views: 0,
       timeAgo: "\u305F\u3063\u305F\u4ECA",
       duration,
       price: price ?? null,
       thumbnail,
-      avatar,
+      avatar: user.profileImageUrl ?? user.avatar ?? "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop",
       isRanked: false
     }).returning();
     res.status(201).json(row);
   });
+  app2.patch("/api/videos/:id", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const id = paramNum(req, "id");
+    const [video] = await db.select().from(videos).where(eq2(videos.id, id));
+    if (!video) return res.status(404).json({ message: "Not found" });
+    if (video.creator !== user.displayName) {
+      return res.status(403).json({ error: "\u7DE8\u96C6\u6A29\u9650\u304C\u3042\u308A\u307E\u305B\u3093" });
+    }
+    const { title } = req.body;
+    const newTitle = title?.trim();
+    if (!newTitle) return res.status(400).json({ error: "\u30BF\u30A4\u30C8\u30EB\u306F\u5FC5\u9808\u3067\u3059" });
+    const [updated] = await db.update(videos).set({ title: newTitle }).where(eq2(videos.id, id)).returning();
+    res.json(updated);
+  });
+  app2.delete("/api/videos/:id", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const id = paramNum(req, "id");
+    const [video] = await db.select().from(videos).where(eq2(videos.id, id));
+    if (!video) return res.status(404).json({ message: "Not found" });
+    if (video.creator !== user.displayName) {
+      return res.status(403).json({ error: "\u524A\u9664\u6A29\u9650\u304C\u3042\u308A\u307E\u305B\u3093" });
+    }
+    await db.delete(videoComments).where(eq2(videoComments.videoId, id));
+    await db.delete(videos).where(eq2(videos.id, id));
+    res.json({ ok: true });
+  });
   app2.get("/api/live-streams", async (_req, res) => {
-    const rows = await db.select().from(liveStreams).where(eq(liveStreams.isLive, true)).orderBy(desc(liveStreams.viewers));
+    const rows = await db.select().from(liveStreams).where(eq2(liveStreams.isLive, true)).orderBy(desc(liveStreams.viewers));
     res.json(rows);
   });
   app2.get("/api/creators", async (_req, res) => {
@@ -500,16 +1132,16 @@ async function registerRoutes(app2) {
     res.json(rows);
   });
   app2.get("/api/booking-sessions", async (req, res) => {
-    const { category } = req.query;
-    const rows = category && category !== "all" ? await db.select().from(bookingSessions).where(eq(bookingSessions.category, category)) : await db.select().from(bookingSessions);
+    const category = queryStr(req, "category");
+    const rows = category && category !== "all" ? await db.select().from(bookingSessions).where(eq2(bookingSessions.category, category)) : await db.select().from(bookingSessions);
     res.json(rows);
   });
   app2.post("/api/booking-sessions/:id/book", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const [session] = await db.select().from(bookingSessions).where(eq(bookingSessions.id, id));
+    const id = paramNum(req, "id");
+    const [session] = await db.select().from(bookingSessions).where(eq2(bookingSessions.id, id));
     if (!session) return res.status(404).json({ message: "Not found" });
     if (session.spotsLeft <= 0) return res.status(400).json({ message: "\u6E80\u5E2D\u3067\u3059" });
-    const [updated] = await db.update(bookingSessions).set({ spotsLeft: session.spotsLeft - 1 }).where(eq(bookingSessions.id, id)).returning();
+    const [updated] = await db.update(bookingSessions).set({ spotsLeft: session.spotsLeft - 1 }).where(eq2(bookingSessions.id, id)).returning();
     res.json(updated);
   });
   app2.get("/api/dm-messages", async (_req, res) => {
@@ -517,13 +1149,13 @@ async function registerRoutes(app2) {
     res.json(rows);
   });
   app2.post("/api/dm-messages/:id/read", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const [updated] = await db.update(dmMessages).set({ unread: 0 }).where(eq(dmMessages.id, id)).returning();
+    const id = paramNum(req, "id");
+    const [updated] = await db.update(dmMessages).set({ unread: 0 }).where(eq2(dmMessages.id, id)).returning();
     res.json(updated);
   });
   app2.get("/api/notifications", async (req, res) => {
-    const { type } = req.query;
-    const rows = type && type !== "all" ? await db.select().from(notifications).where(eq(notifications.type, type)).orderBy(desc(notifications.createdAt)) : await db.select().from(notifications).orderBy(desc(notifications.createdAt));
+    const type = queryStr(req, "type");
+    const rows = type && type !== "all" ? await db.select().from(notifications).where(eq2(notifications.type, type)).orderBy(desc(notifications.createdAt)) : await db.select().from(notifications).orderBy(desc(notifications.createdAt));
     res.json(rows);
   });
   app2.post("/api/notifications/read-all", async (_req, res) => {
@@ -531,23 +1163,23 @@ async function registerRoutes(app2) {
     res.json({ ok: true });
   });
   app2.post("/api/notifications/:id/read", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const [updated] = await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, id)).returning();
+    const id = paramNum(req, "id");
+    const [updated] = await db.update(notifications).set({ isRead: true }).where(eq2(notifications.id, id)).returning();
     res.json(updated);
   });
   app2.get("/api/live-streams/:id", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const [stream] = await db.select().from(liveStreams).where(eq(liveStreams.id, id));
+    const id = paramNum(req, "id");
+    const [stream] = await db.select().from(liveStreams).where(eq2(liveStreams.id, id));
     if (!stream) return res.status(404).json({ error: "Not found" });
     res.json(stream);
   });
   app2.get("/api/live-streams/:id/chat", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const msgs = await db.select().from(liveStreamChat).where(eq(liveStreamChat.streamId, id)).orderBy(asc(liveStreamChat.createdAt));
+    const id = paramNum(req, "id");
+    const msgs = await db.select().from(liveStreamChat).where(eq2(liveStreamChat.streamId, id)).orderBy(asc(liveStreamChat.createdAt));
     res.json(msgs);
   });
   app2.post("/api/live-streams/:id/chat", async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const { username, avatar, message, isGift, giftAmount } = req.body;
     const [msg] = await db.insert(liveStreamChat).values({
       streamId: id,
@@ -560,12 +1192,12 @@ async function registerRoutes(app2) {
     res.json(msg);
   });
   app2.get("/api/dm-messages/:id/conversation", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const msgs = await db.select().from(dmConversationMessages).where(eq(dmConversationMessages.dmId, id)).orderBy(asc(dmConversationMessages.createdAt));
+    const id = paramNum(req, "id");
+    const msgs = await db.select().from(dmConversationMessages).where(eq2(dmConversationMessages.dmId, id)).orderBy(asc(dmConversationMessages.createdAt));
     res.json(msgs);
   });
   app2.post("/api/dm-messages/:id/conversation", async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const { text: text2 } = req.body;
     const [msg] = await db.insert(dmConversationMessages).values({
       dmId: id,
@@ -573,20 +1205,20 @@ async function registerRoutes(app2) {
       text: text2,
       isRead: true
     }).returning();
-    await db.update(dmMessages).set({ lastMessage: text2, unread: 0 }).where(eq(dmMessages.id, id));
+    await db.update(dmMessages).set({ lastMessage: text2, unread: 0 }).where(eq2(dmMessages.id, id));
     res.json(msg);
   });
   app2.get("/api/jukebox/:communityId", async (req, res) => {
-    const communityId = parseInt(req.params.communityId);
-    const [state] = await db.select().from(jukeboxState).where(eq(jukeboxState.communityId, communityId));
-    const queue = await db.select().from(jukeboxQueue).where(eq(jukeboxQueue.communityId, communityId)).orderBy(asc(jukeboxQueue.position));
-    const chat = await db.select().from(jukeboxChat).where(eq(jukeboxChat.communityId, communityId)).orderBy(asc(jukeboxChat.createdAt));
+    const communityId = paramNum(req, "communityId");
+    const [state] = await db.select().from(jukeboxState).where(eq2(jukeboxState.communityId, communityId));
+    const queue = await db.select().from(jukeboxQueue).where(eq2(jukeboxQueue.communityId, communityId)).orderBy(asc(jukeboxQueue.position));
+    const chat = await db.select().from(jukeboxChat).where(eq2(jukeboxChat.communityId, communityId)).orderBy(asc(jukeboxChat.createdAt));
     res.json({ state: state ?? null, queue, chat });
   });
   app2.post("/api/jukebox/:communityId/add", async (req, res) => {
-    const communityId = parseInt(req.params.communityId);
+    const communityId = paramNum(req, "communityId");
     const { videoId, videoTitle, videoThumbnail, videoDurationSecs, addedBy, addedByAvatar, youtubeId } = req.body;
-    const existing = await db.select().from(jukeboxQueue).where(eq(jukeboxQueue.communityId, communityId)).orderBy(desc(jukeboxQueue.position));
+    const existing = await db.select().from(jukeboxQueue).where(eq2(jukeboxQueue.communityId, communityId)).orderBy(desc(jukeboxQueue.position));
     const nextPos = existing.length > 0 ? existing[0].position + 1 : 1;
     const [item] = await db.insert(jukeboxQueue).values({
       communityId,
@@ -629,11 +1261,11 @@ async function registerRoutes(app2) {
     res.json(item);
   });
   app2.post("/api/jukebox/:communityId/next", async (req, res) => {
-    const communityId = parseInt(req.params.communityId);
-    const queue = await db.select().from(jukeboxQueue).where(eq(jukeboxQueue.communityId, communityId)).orderBy(asc(jukeboxQueue.position));
+    const communityId = paramNum(req, "communityId");
+    const queue = await db.select().from(jukeboxQueue).where(eq2(jukeboxQueue.communityId, communityId)).orderBy(asc(jukeboxQueue.position));
     const next = queue.find((q) => !q.isPlayed);
     if (next) {
-      await db.update(jukeboxQueue).set({ isPlayed: true }).where(eq(jukeboxQueue.id, next.id));
+      await db.update(jukeboxQueue).set({ isPlayed: true }).where(eq2(jukeboxQueue.id, next.id));
       const watchers = Math.floor(Math.random() * 80) + 20;
       await db.insert(jukeboxState).values({
         communityId,
@@ -666,12 +1298,12 @@ async function registerRoutes(app2) {
         currentVideoDurationSecs: 0,
         currentVideoYoutubeId: null,
         isPlaying: false
-      }).where(eq(jukeboxState.communityId, communityId));
+      }).where(eq2(jukeboxState.communityId, communityId));
     }
     res.json({ ok: true });
   });
   app2.post("/api/jukebox/:communityId/chat", async (req, res) => {
-    const communityId = parseInt(req.params.communityId);
+    const communityId = paramNum(req, "communityId");
     const { username, avatar, message } = req.body;
     const [msg] = await db.insert(jukeboxChat).values({
       communityId,
@@ -690,24 +1322,24 @@ async function registerRoutes(app2) {
     }
   });
   app2.get("/api/twoshot/:streamId/bookings", async (req, res) => {
-    const streamId = parseInt(req.params.streamId);
-    const rows = await db.select().from(twoshotBookings).where(eq(twoshotBookings.streamId, streamId)).orderBy(asc(twoshotBookings.queuePosition));
+    const streamId = paramNum(req, "streamId");
+    const rows = await db.select().from(twoshotBookings).where(eq2(twoshotBookings.streamId, streamId)).orderBy(asc(twoshotBookings.queuePosition));
     res.json(rows);
   });
   app2.get("/api/twoshot/:streamId/queue-count", async (req, res) => {
-    const streamId = parseInt(req.params.streamId);
-    const [{ total }] = await db.select({ total: count() }).from(twoshotBookings).where(sql`stream_id = ${streamId} AND status IN ('paid','waiting','notified')`);
+    const streamId = paramNum(req, "streamId");
+    const [{ total }] = await db.select({ total: count() }).from(twoshotBookings).where(sql2`stream_id = ${streamId} AND status IN ('paid','waiting','notified')`);
     res.json({ count: Number(total) });
   });
   app2.post("/api/twoshot/:streamId/checkout", async (req, res) => {
-    const streamId = parseInt(req.params.streamId);
+    const streamId = paramNum(req, "streamId");
     const { userName, userAvatar, price = 3e3 } = req.body;
     if (!userName) return res.status(400).json({ error: "userName required" });
     try {
       const stripe = await getUncachableStripeClient();
-      const [{ total }] = await db.select({ total: count() }).from(twoshotBookings).where(sql`stream_id = ${streamId} AND status IN ('paid','waiting','notified')`);
+      const [{ total }] = await db.select({ total: count() }).from(twoshotBookings).where(sql2`stream_id = ${streamId} AND status IN ('paid','waiting','notified')`);
       const queuePos = Number(total) + 1;
-      const [stream] = await db.select().from(liveStreams).where(eq(liveStreams.id, streamId));
+      const [stream] = await db.select().from(liveStreams).where(eq2(liveStreams.id, streamId));
       const streamTitle = stream?.title ?? "\u30C4\u30FC\u30B7\u30E7\u30C3\u30C8\u64AE\u5F71";
       const creatorName = stream?.creator ?? "\u30AF\u30EA\u30A8\u30A4\u30BF\u30FC";
       const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}` : "http://localhost:8081";
@@ -764,41 +1396,62 @@ async function registerRoutes(app2) {
       if (session.payment_status !== "paid") {
         return res.status(400).json({ error: "Payment not completed" });
       }
+      const [booking] = await db.select().from(twoshotBookings).where(eq2(twoshotBookings.stripeSessionId, sessionId));
+      if (!booking) return res.status(404).json({ error: "Booking not found" });
       await db.update(twoshotBookings).set({
         status: "paid",
         stripePaymentIntentId: session.payment_intent
-      }).where(eq(twoshotBookings.stripeSessionId, sessionId));
-      const [booking] = await db.select().from(twoshotBookings).where(eq(twoshotBookings.stripeSessionId, sessionId));
+      }).where(eq2(twoshotBookings.stripeSessionId, sessionId));
+      const [stream] = await db.select().from(liveStreams).where(eq2(liveStreams.id, booking.streamId));
+      if (stream) {
+        const [creatorUser] = await db.select().from(users).where(eq2(users.displayName, stream.creator));
+        if (creatorUser) {
+          const walletId = await getOrCreateUserWallet(creatorUser.id);
+          await recordRevenue(walletId, booking.price, "twoshot", String(booking.id));
+        }
+      }
       res.json({ ok: true, booking });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
   });
   app2.post("/api/twoshot/:bookingId/notify", async (req, res) => {
-    const bookingId = parseInt(req.params.bookingId);
-    await db.update(twoshotBookings).set({ status: "notified", notifiedAt: /* @__PURE__ */ new Date() }).where(eq(twoshotBookings.id, bookingId));
+    const bookingId = paramNum(req, "bookingId");
+    await db.update(twoshotBookings).set({ status: "notified", notifiedAt: /* @__PURE__ */ new Date() }).where(eq2(twoshotBookings.id, bookingId));
     res.json({ ok: true });
   });
   app2.post("/api/twoshot/:bookingId/complete", async (req, res) => {
-    const bookingId = parseInt(req.params.bookingId);
-    await db.update(twoshotBookings).set({ status: "completed", completedAt: /* @__PURE__ */ new Date() }).where(eq(twoshotBookings.id, bookingId));
+    const bookingId = paramNum(req, "bookingId");
+    await db.update(twoshotBookings).set({ status: "completed", completedAt: /* @__PURE__ */ new Date() }).where(eq2(twoshotBookings.id, bookingId));
     res.json({ ok: true });
   });
   app2.post("/api/twoshot/:bookingId/cancel", async (req, res) => {
-    const bookingId = parseInt(req.params.bookingId);
+    const bookingId = paramNum(req, "bookingId");
     const { reason, isSelfCancel } = req.body;
     await db.update(twoshotBookings).set({
       status: "cancelled",
       cancelledAt: /* @__PURE__ */ new Date(),
       cancelReason: reason ?? "\u30E6\u30FC\u30B6\u30FC\u30AD\u30E3\u30F3\u30BB\u30EB",
       refundable: !isSelfCancel
-    }).where(eq(twoshotBookings.id, bookingId));
+    }).where(eq2(twoshotBookings.id, bookingId));
     res.json({ ok: true });
   });
-  app2.get("/api/revenue/summary", async (_req, res) => {
-    const userId = "guest-001";
-    const earningRows = await db.select().from(earnings).where(eq(earnings.userId, userId));
-    const withdrawalRows = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId));
+  app2.post("/api/revenue/record", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u304C\u5FC5\u8981\u3067\u3059" });
+    const { amount, source, referenceId } = req.body;
+    if (!amount || amount <= 0) return res.status(400).json({ error: "amount \u306F\u6B63\u306E\u6570\u3067\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const src = source ?? "tip";
+    const walletId = await getOrCreateUserWallet(user.id);
+    await recordRevenue(walletId, amount, src, referenceId ?? null);
+    res.status(201).json({ ok: true, amount, source: src });
+  });
+  app2.get("/api/revenue/summary", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u304C\u5FC5\u8981\u3067\u3059" });
+    const userId = `user-${user.id}`;
+    const earningRows = await db.select().from(earnings).where(eq2(earnings.userId, userId));
+    const withdrawalRows = await db.select().from(withdrawals).where(eq2(withdrawals.userId, userId));
     const totalEarned = earningRows.reduce((s, e) => s + e.netAmount, 0);
     const totalWithdrawn = withdrawalRows.filter((w) => w.status === "completed").reduce((s, w) => s + w.amount, 0);
     const pendingWithdrawal = withdrawalRows.filter((w) => w.status === "pending" || w.status === "processing").reduce((s, w) => s + w.amount, 0);
@@ -816,24 +1469,39 @@ async function registerRoutes(app2) {
     }
     res.json({ totalEarned, totalWithdrawn, pendingWithdrawal, available, monthly });
   });
-  app2.get("/api/revenue/earnings", async (_req, res) => {
-    const userId = "guest-001";
-    const rows = await db.select().from(earnings).where(eq(earnings.userId, userId)).orderBy(desc(earnings.createdAt));
+  app2.get("/api/revenue/earnings", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u304C\u5FC5\u8981\u3067\u3059" });
+    const userId = `user-${user.id}`;
+    const rows = await db.select().from(earnings).where(eq2(earnings.userId, userId)).orderBy(desc(earnings.createdAt));
     res.json(rows);
   });
-  app2.get("/api/revenue/withdrawals", async (_req, res) => {
-    const userId = "guest-001";
-    const rows = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId)).orderBy(desc(withdrawals.requestedAt));
+  app2.get("/api/revenue/monthly-rank", async (req, res) => {
+    const month = req.query.month ?? "";
+    const match = /^(\d{4})-(\d{2})$/.exec(month);
+    if (!match) {
+      return res.status(400).json({ error: "month \u306F YYYY-MM \u5F62\u5F0F\u3067\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044" });
+    }
+    const rankings = await getMonthlyRevenueRank(month);
+    res.json({ month, rankings });
+  });
+  app2.get("/api/revenue/withdrawals", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u304C\u5FC5\u8981\u3067\u3059" });
+    const userId = `user-${user.id}`;
+    const rows = await db.select().from(withdrawals).where(eq2(withdrawals.userId, userId)).orderBy(desc(withdrawals.requestedAt));
     res.json(rows);
   });
   app2.post("/api/revenue/withdraw", async (req, res) => {
-    const userId = "guest-001";
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u304C\u5FC5\u8981\u3067\u3059" });
+    const userId = `user-${user.id}`;
     const { amount, bankName, bankBranch, accountType, accountNumber, accountName } = req.body;
     if (!amount || amount < 1e3) {
       return res.status(400).json({ error: "\u6700\u4F4E\u5F15\u304D\u51FA\u3057\u984D\u306F\xA51,000\u3067\u3059" });
     }
-    const earningRows = await db.select().from(earnings).where(eq(earnings.userId, userId));
-    const withdrawalRows = await db.select().from(withdrawals).where(eq(withdrawals.userId, userId));
+    const earningRows = await db.select().from(earnings).where(eq2(earnings.userId, userId));
+    const withdrawalRows = await db.select().from(withdrawals).where(eq2(withdrawals.userId, userId));
     const totalEarned = earningRows.reduce((s, e) => s + e.netAmount, 0);
     const totalUsed = withdrawalRows.filter((w) => w.status !== "failed").reduce((s, w) => s + w.amount, 0);
     const available = totalEarned - totalUsed;
@@ -843,8 +1511,17 @@ async function registerRoutes(app2) {
     const [row] = await db.insert(withdrawals).values({ userId, amount, bankName, bankBranch, accountType, accountNumber, accountName, status: "pending" }).returning();
     res.json(row);
   });
+  app2.get("/api/announcements", async (_req, res) => {
+    const rows = await db.select().from(announcements).where(
+      sql2`(start_at IS NULL OR start_at <= now()) AND (end_at IS NULL OR end_at >= now())`
+    ).orderBy(desc(announcements.isPinned), desc(announcements.createdAt));
+    res.json(rows);
+  });
   app2.get("/api/livers", async (req, res) => {
-    const { name, minScore, category, date } = req.query;
+    const name = queryStr(req, "name");
+    const minScore = queryStr(req, "minScore");
+    const category = queryStr(req, "category");
+    const date = queryStr(req, "date");
     let rows = await db.select().from(creators).orderBy(asc(creators.rank));
     if (name) {
       const q = name.toLowerCase();
@@ -858,22 +1535,22 @@ async function registerRoutes(app2) {
       rows = rows.filter((r) => r.satisfactionScore >= ms);
     }
     if (date) {
-      const avail = await db.select().from(liverAvailability).where(eq(liverAvailability.date, date));
+      const avail = await db.select().from(liverAvailability).where(eq2(liverAvailability.date, date));
       const availIds = new Set(avail.map((a) => a.liverId));
       rows = rows.filter((r) => availIds.has(r.id));
     }
     res.json(rows);
   });
   app2.get("/api/livers/:id", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const [liver] = await db.select().from(creators).where(eq(creators.id, id));
+    const id = paramNum(req, "id");
+    const [liver] = await db.select().from(creators).where(eq2(creators.id, id));
     if (!liver) return res.status(404).json({ error: "Not found" });
     res.json(liver);
   });
   app2.get("/api/profile/roles", async (req, res) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
-    const rows = await db.select().from(creators).where(eq(creators.name, user.name));
+    const rows = await db.select().from(creators).where(eq2(creators.name, user.displayName));
     const isEditor = rows.some((r) => r.category === "editor");
     const isTwoshot = rows.some((r) => r.category === "twoshot");
     res.json({ isEditor, isTwoshot });
@@ -888,9 +1565,9 @@ async function registerRoutes(app2) {
     const category = role === "editor" ? "editor" : "twoshot";
     const communityLabel = role === "editor" ? "\u52D5\u753B\u7DE8\u96C6\u30AF\u30EA\u30A8\u30A4\u30BF\u30FC" : "\u30C4\u30FC\u30B7\u30E7\u30C3\u30C8\u30E9\u30A4\u30D0\u30FC";
     const existing = await db.select().from(creators).where(
-      and(
-        eq(creators.name, user.name),
-        eq(creators.category, category)
+      and2(
+        eq2(creators.name, user.displayName),
+        eq2(creators.category, category)
       )
     );
     if (existing.length > 0) {
@@ -898,7 +1575,7 @@ async function registerRoutes(app2) {
     }
     const avatar = user.avatar ?? "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop";
     const [created] = await db.insert(creators).values({
-      name: user.name,
+      name: user.displayName,
       community: communityLabel,
       avatar,
       rank: 999,
@@ -916,12 +1593,12 @@ async function registerRoutes(app2) {
     res.status(201).json({ ok: true, creator: created });
   });
   app2.get("/api/livers/:id/reviews", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const rows = await db.select().from(liverReviews).where(eq(liverReviews.liverId, id)).orderBy(desc(liverReviews.createdAt));
+    const id = paramNum(req, "id");
+    const rows = await db.select().from(liverReviews).where(eq2(liverReviews.liverId, id)).orderBy(desc(liverReviews.createdAt));
     res.json(rows);
   });
   app2.post("/api/livers/:id/reviews", async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const { userId, userName, userAvatar, satisfactionScore, streamCountScore, attendanceScore, comment, sessionDate } = req.body;
     if (!userName || !comment) return res.status(400).json({ error: "\u5FC5\u9808\u9805\u76EE\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
     const overall = ((satisfactionScore ?? 5) + (streamCountScore ?? 5) + (attendanceScore ?? 5)) / 3;
@@ -937,7 +1614,7 @@ async function registerRoutes(app2) {
       comment,
       sessionDate: sessionDate ?? (/* @__PURE__ */ new Date()).toISOString().slice(0, 10)
     }).returning();
-    const allReviews = await db.select().from(liverReviews).where(eq(liverReviews.liverId, id));
+    const allReviews = await db.select().from(liverReviews).where(eq2(liverReviews.liverId, id));
     const avgOverall = allReviews.reduce((s, r) => s + r.overallScore, 0) / allReviews.length;
     const avgSatisfaction = allReviews.reduce((s, r) => s + r.satisfactionScore, 0) / allReviews.length;
     const avgAttendance = allReviews.reduce((s, r) => s + r.attendanceScore, 0) / allReviews.length;
@@ -945,16 +1622,16 @@ async function registerRoutes(app2) {
       heatScore: parseFloat(avgOverall.toFixed(1)),
       satisfactionScore: parseFloat(avgSatisfaction.toFixed(1)),
       attendanceRate: parseFloat(avgAttendance.toFixed(1))
-    }).where(eq(creators.id, id));
+    }).where(eq2(creators.id, id));
     res.status(201).json(row);
   });
   app2.get("/api/livers/:id/availability", async (req, res) => {
-    const id = parseInt(req.params.id);
-    const rows = await db.select().from(liverAvailability).where(eq(liverAvailability.liverId, id)).orderBy(asc(liverAvailability.date), asc(liverAvailability.startTime));
+    const id = paramNum(req, "id");
+    const rows = await db.select().from(liverAvailability).where(eq2(liverAvailability.liverId, id)).orderBy(asc(liverAvailability.date), asc(liverAvailability.startTime));
     res.json(rows);
   });
   app2.post("/api/livers/:id/availability", async (req, res) => {
-    const id = parseInt(req.params.id);
+    const id = paramNum(req, "id");
     const { date, startTime, endTime, maxSlots, note } = req.body;
     if (!date || !startTime || !endTime) return res.status(400).json({ error: "\u65E5\u4ED8\u3068\u6642\u9593\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
     const [row] = await db.insert(liverAvailability).values({
@@ -969,100 +1646,11 @@ async function registerRoutes(app2) {
     res.status(201).json(row);
   });
   app2.delete("/api/livers/:id/availability/:slotId", async (req, res) => {
-    const slotId = parseInt(req.params.slotId);
-    await db.delete(liverAvailability).where(eq(liverAvailability.id, slotId));
+    const slotId = paramNum(req, "slotId");
+    await db.delete(liverAvailability).where(eq2(liverAvailability.id, slotId));
     res.json({ ok: true });
   });
   app2.post("/api/seed", async (_req, res) => {
-    const existingUsers = await db.select().from(userAccounts);
-    if (existingUsers.length < 10) {
-      const demoEmail = "demo@livestock.jp";
-      const demoPasswordHash = await bcrypt.hash("password", 10);
-      const baseUsers = [
-        {
-          email: demoEmail,
-          passwordHash: demoPasswordHash,
-          name: "\u30C7\u30E2\u30A2\u30AB\u30A6\u30F3\u30C8",
-          bio: "\u8AB0\u3067\u3082\u7DE8\u96C6\u3067\u304D\u308B\u30C7\u30E2\u30E6\u30FC\u30B6\u30FC\u3067\u3059\u3002\u30D7\u30ED\u30D5\u30A3\u30FC\u30EB\u3084\u80A9\u66F8\u304D\u3092\u81EA\u7531\u306B\u5909\u66F4\u3057\u3066\u304A\u8A66\u3057\u304F\u3060\u3055\u3044\u3002",
-          avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop"
-        },
-        {
-          email: "idol1@example.com",
-          passwordHash: demoPasswordHash,
-          name: "\u661F\u7A7A\u307F\u3086",
-          bio: "\u5730\u4E0B\u30A2\u30A4\u30C9\u30EB\u3068\u3057\u3066\u6D3B\u52D5\u4E2D\u3002\u30E9\u30A4\u30D6\u3068\u30C1\u30A7\u30AD\u4F1A\u3067\u307F\u3093\u306A\u306B\u5143\u6C17\u3092\u5C4A\u3051\u307E\u3059\u3002",
-          avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&h=150&fit=crop"
-        },
-        {
-          email: "comedian@example.com",
-          passwordHash: demoPasswordHash,
-          name: "\u30C0\u30D6\u30EB\u30D1\u30F3\u30C1\u5C71\u672C",
-          bio: "\u304A\u7B11\u3044\u30B3\u30F3\u30D3\u300C\u30C0\u30D6\u30EB\u30D1\u30F3\u30C1\u300D\u306E\u30C4\u30C3\u30B3\u30DF\u62C5\u5F53\u3002",
-          avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop"
-        },
-        {
-          email: "host@example.com",
-          passwordHash: demoPasswordHash,
-          name: "\u9E97\u83EF -REIKA-",
-          bio: "\u30AD\u30E3\u30D0\u30AF\u30E9\u3068\u914D\u4FE1\u3092\u4E21\u7ACB\u3059\u308B\u30AB\u30EA\u30B9\u30DE\u30DB\u30B9\u30C6\u30B9\u3002",
-          avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=150&h=150&fit=crop"
-        },
-        {
-          email: "jk@example.com",
-          passwordHash: demoPasswordHash,
-          name: "\u307E\u3044\u307E\u304417\u6B73",
-          bio: "\u653E\u8AB2\u5F8C\u30C8\u30FC\u30AF\u914D\u4FE1\u304C\u4EBA\u6C17\u306EJK\u30E9\u30A4\u30D0\u30FC\u3002",
-          avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&h=150&fit=crop"
-        },
-        {
-          email: "english@example.com",
-          passwordHash: demoPasswordHash,
-          name: "\u7530\u4E2D \u3086\u3046\u304D",
-          bio: "\u82F1\u4F1A\u8A71\u30AF\u30E9\u30D6\u4E3B\u5BB0\u3002\u30D3\u30B8\u30CD\u30B9\u82F1\u8A9E\u304B\u3089\u65E5\u5E38\u4F1A\u8A71\u307E\u3067\u3002",
-          avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop"
-        },
-        {
-          email: "fortune@example.com",
-          passwordHash: demoPasswordHash,
-          name: "\u795E\u5D0E \u30EA\u30CA",
-          bio: "\u30BF\u30ED\u30C3\u30C8\u3068\u897F\u6D0B\u5360\u661F\u8853\u3092\u7D44\u307F\u5408\u308F\u305B\u305F\u5360\u3044\u914D\u4FE1\u3002",
-          avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop"
-        },
-        {
-          email: "fitness@example.com",
-          passwordHash: demoPasswordHash,
-          name: "\u677E\u672C \u3053\u3046\u305F",
-          bio: "\u5143\u30D7\u30ED\u30B5\u30C3\u30AB\u30FC\u9078\u624B\u306E\u30D5\u30A3\u30C3\u30C8\u30CD\u30B9\u30E9\u30A4\u30D0\u30FC\u3002",
-          avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop"
-        },
-        {
-          email: "counselor@example.com",
-          passwordHash: demoPasswordHash,
-          name: "\u4F0A\u85E4 \u3055\u3084\u304B",
-          bio: "\u5FC3\u306E\u30B1\u30A2\u3092\u5C4A\u3051\u308B\u30AA\u30F3\u30E9\u30A4\u30F3\u30AB\u30A6\u30F3\u30BB\u30E9\u30FC\u3002",
-          avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop"
-        },
-        {
-          email: "cooking@example.com",
-          passwordHash: demoPasswordHash,
-          name: "\u4E2D\u6751 \u3042\u304A\u3044",
-          bio: "\u81EA\u5B85\u3067\u3067\u304D\u308B\u672C\u683C\u30EC\u30B7\u30D4\u3092\u914D\u4FE1\u3059\u308B\u6599\u7406\u30E9\u30A4\u30D0\u30FC\u3002",
-          avatar: "https://images.unsplash.com/photo-1502767089025-6572583495b9?w=150&h=150&fit=crop"
-        },
-        {
-          email: "editor@example.com",
-          passwordHash: demoPasswordHash,
-          name: "\u6620\u50CF\u7DE8\u96C6\u30DE\u30F3",
-          bio: "\u30C6\u30ED\u30C3\u30D7\u30FB\u30AB\u30C3\u30C8\u30FB\u30B5\u30E0\u30CD\u307E\u3067\u30EF\u30F3\u30B9\u30C8\u30C3\u30D7\u3067\u5BFE\u5FDC\u3059\u308B\u52D5\u753B\u7DE8\u96C6\u30AF\u30EA\u30A8\u30A4\u30BF\u30FC\u3002",
-          avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop"
-        }
-      ];
-      const existingEmails = new Set(existingUsers.map((u) => u.email.toLowerCase()));
-      const toInsertUsers = baseUsers.filter((u) => !existingEmails.has(u.email.toLowerCase()));
-      if (toInsertUsers.length > 0) {
-        await db.insert(userAccounts).values(toInsertUsers);
-      }
-    }
     const existingCreators = await db.select().from(creators);
     if (existingCreators.length >= 10) {
       return res.json({ ok: true, message: "Already seeded" });
@@ -1318,22 +1906,97 @@ async function registerRoutes(app2) {
     }
     res.json({ ok: true, created: insertedCreators.length });
   });
-  const httpServer = createServer(app2);
-  return httpServer;
+  app2.post("/api/seed-editors", async (_req, res) => {
+    const existing = await db.select().from(videoEditors);
+    if (existing.length >= 5) {
+      return res.json({ ok: true, message: "Already seeded" });
+    }
+    const demoEditors = [
+      {
+        name: "\u6620\u50CF\u7DE8\u96C6\u30DE\u30F3",
+        avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop",
+        bio: "\u30C6\u30ED\u30C3\u30D7\u30FB\u30AB\u30C3\u30C8\u30FB\u30B5\u30E0\u30CD\u307E\u3067\u30EF\u30F3\u30B9\u30C8\u30C3\u30D7\u3067\u5BFE\u5FDC\u3059\u308B\u52D5\u753B\u7DE8\u96C6\u30AF\u30EA\u30A8\u30A4\u30BF\u30FC\u3002",
+        communityId: 1,
+        genres: "YouTube,\u30D0\u30E9\u30A8\u30C6\u30A3,\u30B2\u30FC\u30E0",
+        deliveryDays: 3,
+        priceType: "per_minute",
+        pricePerMinute: 1500,
+        revenueSharePercent: null,
+        rating: 4.9,
+        reviewCount: 128,
+        isAvailable: true
+      },
+      {
+        name: "\u30B7\u30CD\u30DE\u7DE8\u96C6\u30B9\u30BF\u30B8\u30AA",
+        avatar: "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=150&h=150&fit=crop",
+        bio: "\u6620\u753B\u98A8\u306E\u30B7\u30CD\u30DE\u30C6\u30A3\u30C3\u30AF\u306AMV\u5236\u4F5C\u304C\u5F97\u610F\u3067\u3059\u3002",
+        communityId: 1,
+        genres: "MV,\u30A2\u30FC\u30C6\u30A3\u30B9\u30C8,\u30B7\u30CD\u30DE\u30C6\u30A3\u30C3\u30AF",
+        deliveryDays: 7,
+        priceType: "revenue_share",
+        pricePerMinute: null,
+        revenueSharePercent: 40,
+        rating: 4.8,
+        reviewCount: 76,
+        isAvailable: false
+      },
+      {
+        name: "\u30B7\u30E7\u30FC\u30C8\u52D5\u753B\u8077\u4EBA",
+        avatar: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=150&h=150&fit=crop",
+        bio: "TikTok\u30FBYouTube\u30B7\u30E7\u30FC\u30C8\u306E\u4F38\u3073\u308B\u69CB\u6210\u3092\u63D0\u6848\u3057\u307E\u3059\u3002",
+        communityId: 1,
+        genres: "\u30B7\u30E7\u30FC\u30C8\u52D5\u753B,\u7E26\u578B,SNS\u904B\u7528",
+        deliveryDays: 2,
+        priceType: "per_minute",
+        pricePerMinute: 2e3,
+        revenueSharePercent: null,
+        rating: 5,
+        reviewCount: 54,
+        isAvailable: true
+      },
+      {
+        name: "\u30B2\u30FC\u30E0\u5B9F\u6CC1\u30A8\u30C7\u30A3\u30BF\u30FC",
+        avatar: "https://images.unsplash.com/photo-1533236897111-3e94666b2dde?w=150&h=150&fit=crop",
+        bio: "APEX/VALORANT\u306A\u3069FPS\u7CFB\u5B9F\u6CC1\u306E\u7DE8\u96C6\u304C\u4E2D\u5FC3\u3067\u3059\u3002",
+        communityId: 1,
+        genres: "\u30B2\u30FC\u30E0\u5B9F\u6CC1,FPS,\u5207\u308A\u629C\u304D",
+        deliveryDays: 4,
+        priceType: "per_minute",
+        pricePerMinute: 1200,
+        revenueSharePercent: null,
+        rating: 4.6,
+        reviewCount: 90,
+        isAvailable: false
+      },
+      {
+        name: "\u6559\u80B2\u30C1\u30E3\u30F3\u30CD\u30EB\u7DE8\u96C6\u5BA4",
+        avatar: "https://images.unsplash.com/photo-1525134479668-1bee5c7c6845?w=150&h=150&fit=crop",
+        bio: "\u30D3\u30B8\u30CD\u30B9\u30FB\u6559\u80B2\u7CFB\u306E\u5206\u304B\u308A\u3084\u3059\u3044\u56F3\u89E3\u52D5\u753B\u3092\u5236\u4F5C\u3057\u307E\u3059\u3002",
+        communityId: 1,
+        genres: "\u30D3\u30B8\u30CD\u30B9,\u6559\u80B2,\u30BB\u30DF\u30CA\u30FC",
+        deliveryDays: 5,
+        priceType: "revenue_share",
+        pricePerMinute: null,
+        revenueSharePercent: 30,
+        rating: 4.7,
+        reviewCount: 33,
+        isAvailable: true
+      }
+    ];
+    await db.insert(videoEditors).values(demoEditors);
+    res.json({ ok: true, count: demoEditors.length });
+  });
 }
 
-// server/index.ts
-import * as fs from "fs";
-import * as path from "path";
-import { createProxyMiddleware } from "http-proxy-middleware";
-var app = express();
-var log = console.log;
-app.get("/healthcheck", (_req, res) => res.status(200).send("OK"));
+// server/middleware.ts
+import express from "express";
 function setupCors(app2) {
   app2.use((req, res, next) => {
     const origin = req.header("origin");
+    const frontendUrl = process.env.FRONTEND_URL?.replace(/\/$/, "");
     const isLocalhost = origin?.startsWith("http://localhost:") || origin?.startsWith("http://127.0.0.1:");
-    if (origin && isLocalhost) {
+    const isAllowedOrigin = origin && isLocalhost || origin && frontendUrl && origin === frontendUrl;
+    if (isAllowedOrigin && origin) {
       res.header("Access-Control-Allow-Origin", origin);
       res.header(
         "Access-Control-Allow-Methods",
@@ -1358,6 +2021,7 @@ function setupBodyParsing(app2) {
   );
   app2.use(express.urlencoded({ extended: false }));
 }
+var log = console.log;
 function setupRequestLogging(app2) {
   app2.use((req, res, next) => {
     const start = Date.now();
@@ -1383,6 +2047,26 @@ function setupRequestLogging(app2) {
     next();
   });
 }
+function setupErrorHandler(app2) {
+  app2.use((err, _req, res, next) => {
+    const error = err;
+    const status = error.status || error.statusCode || 500;
+    const message = error.message || "Internal Server Error";
+    console.error("Internal Server Error:", err);
+    if (res.headersSent) {
+      return next(err);
+    }
+    return res.status(status).json({ message });
+  });
+}
+
+// server/index.ts
+import * as fs from "fs";
+import * as path from "path";
+import { createProxyMiddleware } from "http-proxy-middleware";
+var app = express2();
+var log2 = console.log;
+app.get("/healthcheck", (_req, res) => res.status(200).send("OK"));
 function serveExpoManifest(platform, res) {
   const manifestPath = path.resolve(
     process.cwd(),
@@ -1401,7 +2085,7 @@ function serveExpoManifest(platform, res) {
 }
 function configureExpoAndLanding(app2) {
   const isDev = process.env.NODE_ENV === "development";
-  log("Serving static Expo files with dynamic manifest routing");
+  log2("Serving static Expo files with dynamic manifest routing");
   app2.use((req, res, next) => {
     if (req.path.startsWith("/api")) {
       return next();
@@ -1416,7 +2100,7 @@ function configureExpoAndLanding(app2) {
   });
   if (isDev) {
     const expoDevPort = 8081;
-    log(`Dev mode: proxying web requests to Expo dev server on port ${expoDevPort}`);
+    log2(`Dev mode: proxying web requests to Expo dev server on port ${expoDevPort}`);
     const expoProxy = createProxyMiddleware({
       target: `http://localhost:${expoDevPort}`,
       changeOrigin: true,
@@ -1439,8 +2123,8 @@ function configureExpoAndLanding(app2) {
   } else {
     const distPath = path.resolve(process.cwd(), "dist");
     if (fs.existsSync(distPath)) {
-      log(`Serving Expo web export from: ${distPath}`);
-      app2.use(express.static(distPath));
+      log2(`Serving Expo web export from: ${distPath}`);
+      app2.use(express2.static(distPath));
       app2.use((req, res, next) => {
         if (req.path.startsWith("/api")) return next();
         const indexPath = path.join(distPath, "index.html");
@@ -1451,43 +2135,31 @@ function configureExpoAndLanding(app2) {
         }
       });
     } else {
-      log("WARNING: dist/ directory not found. Run 'npx expo export --platform web' to build.");
+      log2("WARNING: dist/ directory not found. Run 'npx expo export --platform web' to build.");
       app2.use((req, res, next) => {
         if (req.path.startsWith("/api")) return next();
         res.status(404).send("Web app not built. Please run the build command.");
       });
     }
   }
-  log("Expo routing: Checking expo-platform header on / and /manifest");
-}
-function setupErrorHandler(app2) {
-  app2.use((err, _req, res, next) => {
-    const error = err;
-    const status = error.status || error.statusCode || 500;
-    const message = error.message || "Internal Server Error";
-    console.error("Internal Server Error:", err);
-    if (res.headersSent) {
-      return next(err);
-    }
-    return res.status(status).json({ message });
-  });
+  log2("Expo routing: Checking expo-platform header on / and /manifest");
 }
 (async () => {
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
-  app.get("/healthcheck", (_req, res) => res.status(200).send("OK"));
   configureExpoAndLanding(app);
-  const server = await registerRoutes(app);
+  await registerRoutes(app);
   setupErrorHandler(app);
   const port = parseInt(process.env.PORT || "5000", 10);
+  const server = createServer(app);
   server.listen(
     {
       port,
-      host: "127.0.0.1"
+      host: "0.0.0.0"
     },
     () => {
-      log(`express server serving on port ${port}`);
+      log2(`express server serving on port ${port}`);
     }
   );
 })();

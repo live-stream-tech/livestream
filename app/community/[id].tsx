@@ -363,6 +363,20 @@ export default function CommunityDetailScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<Tab>("新着順");
   const [following, setFollowing] = useState(false);
+  const { user, token, requireAuth } = useAuth();
+  const community = COMMUNITIES.find((c) => c.id === id) ?? COMMUNITIES[0];
+  const communityId = parseInt(community.id, 10);
+  const ad = getAd(community.name);
+  const bottomInset = Platform.OS === "web" ? 34 : 0;
+
+  type StaffData = {
+    adminId: number | null;
+    admin: { id: number; displayName: string; profileImageUrl: string | null } | null;
+    moderatorIds: number[];
+    moderators: { id: number; displayName: string; profileImageUrl: string | null }[];
+  };
+  type MemberItem = { id: number; displayName: string; profileImageUrl: string | null };
+
   const { data: meMemberData } = useQuery<{ isMember: boolean }>({
     queryKey: [`/api/communities/${communityId}/members/me`],
     enabled: !!user?.id,
@@ -379,15 +393,6 @@ export default function CommunityDetailScreen() {
   const [sendingRequest, setSendingRequest] = useState(false);
   const [bannerCheckoutLoading, setBannerCheckoutLoading] = useState(false);
 
-  const { user, token, requireAuth } = useAuth();
-  const community = COMMUNITIES.find((c) => c.id === id) ?? COMMUNITIES[0];
-  const communityId = parseInt(community.id);
-  const ad = getAd(community.name);
-
-  const bottomInset = Platform.OS === "web" ? 34 : 0;
-
-  type StaffData = { adminId: number | null; admin: { id: number; displayName: string; profileImageUrl: string | null } | null; moderatorIds: number[]; moderators: { id: number; displayName: string; profileImageUrl: string | null }[] };
-  type MemberItem = { id: number; displayName: string; profileImageUrl: string | null };
   const { data: staffData } = useQuery<StaffData>({
     queryKey: [`/api/communities/${communityId}/staff`],
   });
@@ -413,6 +418,15 @@ export default function CommunityDetailScreen() {
   const topEditors = [...editors].sort((a, b) => b.rating - a.rating).slice(0, 3);
   const creatorsEditors = creatorsData?.editors ?? [];
   const creatorsLivers = creatorsData?.livers ?? [];
+
+  const { data: apiVideos = [] } = useQuery<any[]>({
+    queryKey: ["/api/videos"],
+  });
+
+  const usingDemoVideos = apiVideos.length === 0;
+  const timelineVideos = usingDemoVideos
+    ? VIDEOS.slice(0, 4)
+    : (apiVideos as any[]).filter((v) => v.community === community.name);
 
   const openRequestModal = (editor: VideoEditor) => {
     setRequestEditor(editor);
@@ -716,11 +730,17 @@ export default function CommunityDetailScreen() {
               </View>
             </View>
 
-            {VIDEOS.slice(0, 4).map((video) => (
+            {timelineVideos.map((video: any) => (
               <Pressable
                 key={video.id}
                 style={styles.postCard}
-                onPress={() => router.push(`/video/${video.id}?demo=1`)}
+                onPress={() =>
+                  router.push(
+                    usingDemoVideos
+                      ? (`/video/${video.id}?demo=1` as any)
+                      : (`/video/${video.id}` as any),
+                  )
+                }
               >
                 <View style={styles.postHeader}>
                   <Image source={{ uri: video.avatar }} style={styles.postAvatar} contentFit="cover" />
