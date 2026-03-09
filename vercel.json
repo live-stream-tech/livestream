@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": "npx expo export --platform web",
+  "buildCommand": "npx expo export --platform web && node scripts/inject-sw-version.js",
   "outputDirectory": "dist",
   "functions": {
     "api/**/*.ts": {

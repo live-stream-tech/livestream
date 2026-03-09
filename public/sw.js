@@ -1,4 +1,5 @@
-const CACHE_NAME = "livestage-v1";
+// ビルド時に __CACHE_VERSION__ がスクリプトで置換され、デプロイごとに古いキャッシュが削除される
+const CACHE_NAME = "livestage-__CACHE_VERSION__";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
@@ -13,11 +14,11 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches.keys().then((keys) => {
+      const toDelete = keys.filter((k) => k.startsWith("livestage-") && k !== CACHE_NAME);
+      return Promise.all(toDelete.map((k) => caches.delete(k)));
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
