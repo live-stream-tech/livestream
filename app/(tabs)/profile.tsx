@@ -21,7 +21,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Svg, { Polygon, Circle, Line, Text as SvgText } from "react-native-svg";
 import { useAuth } from "@/lib/auth";
 import { C } from "@/constants/colors";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 
 type Notif = { id: number; isRead: boolean };
 function useUnreadCount() {
@@ -29,17 +29,7 @@ function useUnreadCount() {
   return (data as Notif[]).filter((n) => !n.isRead).length;
 }
 
-const POST_IMAGES = [
-  "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&h=300&fit=crop",
-  "https://images.unsplash.com/photo-1555685812-4b943f1cb0eb?w=300&h=300&fit=crop",
-  "https://images.unsplash.com/photo-1574155462052-a5c83003e3e5?w=300&h=300&fit=crop",
-  "https://images.unsplash.com/photo-1555685812-4b943f1cb0eb?w=300&h=300&fit=crop",
-  "https://images.unsplash.com/photo-1574155462052-a5c83003e3e5?w=300&h=300&fit=crop",
-  "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&h=300&fit=crop",
-  "https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=300&h=300&fit=crop",
-  "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&h=300&fit=crop",
-  "https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=300&h=300&fit=crop",
-];
+type MyVideo = { id: number; title: string; thumbnail: string; creator: string; community: string; [key: string]: unknown };
 
 const ENNEAGRAM_TYPES = [
   { label: "完璧主義者", num: 1, color: "#E53935" },
@@ -181,7 +171,7 @@ export default function ProfileScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
   const unreadCount = useUnreadCount();
-  const { user, loading: authLoading, logout, updateProfile } = useAuth();
+  const { user, token, loading: authLoading, logout, updateProfile } = useAuth();
 
   // Enneagram state
   const [scores, setScores] = useState<number[]>(DEFAULT_SCORES);
@@ -200,6 +190,19 @@ export default function ProfileScreen() {
   const { data: roleStatus, refetch: refetchRoles } = useQuery<{ isEditor: boolean; isTwoshot: boolean } | null>({
     queryKey: ["/api/profile/roles"],
     enabled: !!user,
+  });
+
+  const { data: myVideos = [] } = useQuery<MyVideo[]>({
+    queryKey: ["/api/videos/my"],
+    enabled: !!user && !!token,
+    queryFn: async () => {
+      const baseUrl = getApiUrl();
+      const res = await fetch(new URL("/api/videos/my", baseUrl).toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
   });
   const [roleLoading, setRoleLoading] = useState<"editor" | "twoshot" | null>(null);
 
@@ -276,9 +279,9 @@ export default function ProfileScreen() {
   }
 
   function openProfileEdit() {
-    setEditName(user?.name ?? "");
+    setEditName(user?.name ?? user?.displayName ?? "");
     setEditBio(user?.bio ?? "");
-    setEditAvatar(user?.avatar ?? "");
+    setEditAvatar(user?.avatar ?? user?.profileImageUrl ?? "");
     setShowProfileModal(true);
   }
 
@@ -320,11 +323,17 @@ export default function ProfileScreen() {
   const dominantIdx = scores.indexOf(Math.max(...scores));
   const dominantType = ENNEAGRAM_TYPES[dominantIdx];
 
-  // Not logged in state
+  // Not logged in state: LINEログインボタンを表示
   if (!authLoading && !user) {
     function handleLineLogin() {
       if (Platform.OS === "web" && typeof window !== "undefined") {
-        window.location.href = "/api/auth/line";
+        try {
+          localStorage.setItem("line_login_return", window.location.pathname);
+        } catch {}
+        const apiBase = getApiUrl();
+        window.location.href = new URL("/api/auth/line", apiBase).toString();
+      } else {
+        router.replace("/(tabs)");
       }
     }
 
@@ -350,7 +359,7 @@ export default function ProfileScreen() {
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <Text style={styles.logo}>
           <Text style={styles.logoLive}>Live</Text>
-          <Text style={styles.logoStock}>Stock</Text>
+          <Text style={styles.logoStock}>Stage</Text>
         </Text>
         <View style={styles.headerRight}>
           <Pressable style={styles.identityBtn}>
@@ -383,9 +392,9 @@ export default function ProfileScreen() {
         <View style={styles.profileHeader}>
           <View style={styles.profileLeft}>
             <Pressable style={styles.avatarContainer} onPress={openProfileEdit}>
-              {user?.avatar ? (
+              {(user?.avatar ?? user?.profileImageUrl) ? (
                 <Image
-                  source={{ uri: user.avatar }}
+                  source={{ uri: (user.avatar ?? user.profileImageUrl) ?? "" }}
                   style={styles.avatar}
                   contentFit="cover"
                 />
@@ -399,17 +408,7 @@ export default function ProfileScreen() {
               </View>
             </Pressable>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{user?.name ?? ""}</Text>
-              <View style={styles.followRow}>
-                <View style={styles.followStat}>
-                  <Text style={styles.followNumber}>567</Text>
-                  <Text style={styles.followLabel}>FOLLOWING</Text>
-                </View>
-                <View style={styles.followStat}>
-                  <Text style={styles.followNumber}>1,234</Text>
-                  <Text style={styles.followLabel}>FOLLOWERS</Text>
-                </View>
-              </View>
+              <Text style={styles.profileName}>{user?.name ?? user?.displayName ?? ""}</Text>
             </View>
           </View>
           <View style={styles.headerActions}>
@@ -442,8 +441,6 @@ export default function ProfileScreen() {
         {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
 
         <View style={styles.tagsRow}>
-          <View style={styles.tag}><Text style={styles.tagText}>男性</Text></View>
-          <View style={styles.tag}><Text style={styles.tagText}>28 YEARS OLD</Text></View>
           <View style={[styles.tag, { borderColor: dominantType.color + "66" }]}>
             <Text style={[styles.tagText, { color: dominantType.color }]}>
               TYPE {dominantType.num}：{dominantType.label}
@@ -553,7 +550,7 @@ export default function ProfileScreen() {
         <View style={styles.postsHeader}>
           <View style={styles.postsLeft}>
             <Text style={styles.postsTitle}>POSTS</Text>
-            <Text style={styles.postsCount}>15 TOTAL</Text>
+            <Text style={styles.postsCount}>{myVideos.length} TOTAL</Text>
           </View>
           <Pressable style={styles.uploadBtn} onPress={() => router.push("/upload")}>
             <Ionicons name="add" size={16} color="#fff" />
@@ -562,9 +559,13 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.postsGrid}>
-          {POST_IMAGES.map((uri, i) => (
-            <Pressable key={i} style={styles.postThumbContainer}>
-              <Image source={{ uri }} style={styles.postThumb} contentFit="cover" />
+          {myVideos.map((video) => (
+            <Pressable
+              key={video.id}
+              style={styles.postThumbContainer}
+              onPress={() => router.push(`/video/${video.id}`)}
+            >
+              <Image source={{ uri: video.thumbnail }} style={styles.postThumb} contentFit="cover" />
             </Pressable>
           ))}
         </View>
