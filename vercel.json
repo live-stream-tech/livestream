@@ -3,7 +3,7 @@
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
   "functions": {
-    "api/**/*.ts": {
+    "api/[...path].ts": {
       "maxDuration": 30
     }
   },
