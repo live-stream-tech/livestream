@@ -17,6 +17,7 @@ const app = express();
 const log = console.log;
 
 app.get("/healthcheck", (_req, res) => res.status(200).send("OK"));
+app.get("/api/healthcheck", (_req, res) => res.status(200).send("OK"));
 
 function getAppName(): string {
   try {

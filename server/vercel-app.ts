@@ -20,6 +20,7 @@ export async function createApiApp(): Promise<express.Express> {
   setupRequestLogging(app);
 
   app.get("/healthcheck", (_req, res) => res.status(200).send("OK"));
+  app.get("/api/healthcheck", (_req, res) => res.status(200).send("OK"));
 
   await registerRoutes(app);
   setupErrorHandler(app);
