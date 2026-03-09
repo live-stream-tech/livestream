@@ -102,6 +102,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
+    // ログアウト後は常にログイン画面へ戻す
+    router.replace("/auth/login");
   }, []);
 
   const updateProfile = useCallback(async (data: Partial<Pick<User, "name" | "bio" | "avatar">>) => {
