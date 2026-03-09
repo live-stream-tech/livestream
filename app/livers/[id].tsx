@@ -60,6 +60,24 @@ type Slot = {
   note: string;
 };
 
+type VideoSummary = {
+  id: number;
+  title: string;
+  thumbnail: string;
+  creator: string;
+  community: string;
+  timeAgo?: string | null;
+};
+
+type CommunitySummary = {
+  id: number;
+  name: string;
+  members: number;
+  thumbnail: string;
+  online: boolean;
+  category: string;
+};
+
 function StarRow({ score, max = 5 }: { score: number; max?: number }) {
   return (
     <View style={{ flexDirection: "row", gap: 2 }}>
@@ -124,6 +142,12 @@ export default function LiverDetailScreen() {
 
   const { data: slots = [] } = useQuery<Slot[]>({
     queryKey: [`/api/livers/${liverId}/availability`],
+  });
+  const { data: allVideos = [] } = useQuery<VideoSummary[]>({
+    queryKey: ["/api/videos"],
+  });
+  const { data: allCommunities = [] } = useQuery<CommunitySummary[]>({
+    queryKey: ["/api/communities"],
   });
 
   const reviewMutation = useMutation({
@@ -234,7 +258,6 @@ export default function LiverDetailScreen() {
               </View>
             </View>
             <Text style={styles.community}>{displayLiver.community}</Text>
-            <Text style={styles.bio}>{displayLiver.bio}</Text>
             <View style={styles.statRow}>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{displayLiver.followers.toLocaleString()}</Text>
@@ -253,6 +276,89 @@ export default function LiverDetailScreen() {
             </View>
           </View>
         </View>
+
+        {/* コンパクトなタイムライン + 参加コミュニティ */}
+        {(() => {
+          const myVideos = (allVideos as VideoSummary[]).filter((v) => v.creator === displayLiver.name).slice(0, 3);
+          const liverCommunities = (allCommunities as CommunitySummary[]).filter(
+            (c) => c.name === displayLiver.community
+          );
+          return (
+            <>
+              {myVideos.length > 0 && (
+                <View style={styles.miniTimelineSection}>
+                  <View style={styles.miniTimelineHeader}>
+                    <Text style={styles.miniTimelineTitle}>最近の投稿</Text>
+                    <Text style={styles.miniTimelineCount}>{myVideos.length}</Text>
+                  </View>
+                  <View style={styles.miniTimelineList}>
+                    {myVideos.map((v) => (
+                      <Pressable
+                        key={v.id}
+                        style={styles.miniTimelineItem}
+                        onPress={() => router.push(`/video/${v.id}`)}
+                      >
+                        <View style={styles.miniTimelineIcon}>
+                          <Ionicons name="document-text-outline" size={14} color={C.accent} />
+                        </View>
+                        <View style={styles.miniTimelineBody}>
+                          <Text style={styles.miniTimelineText} numberOfLines={2}>
+                            {v.title}
+                          </Text>
+                          <Text style={styles.miniTimelineMeta} numberOfLines={1}>
+                            {v.community} ・ {v.timeAgo ?? "たった今"}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {liverCommunities.length > 0 && (
+                <View style={styles.miniCommunitiesSection}>
+                  <View style={styles.miniCommunitiesHeader}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Ionicons name="people-outline" size={16} color={C.accent} />
+                      <Text style={styles.miniCommunitiesTitle}>参加コミュニティ</Text>
+                    </View>
+                    <Text style={styles.miniCommunitiesCount}>{liverCommunities.length}</Text>
+                  </View>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.miniCommunitiesList}
+                  >
+                    {liverCommunities.map((c) => (
+                      <Pressable
+                        key={c.id}
+                        style={styles.miniCommunityCard}
+                        onPress={() => router.push(`/community/${c.id}`)}
+                      >
+                        <Image source={{ uri: c.thumbnail }} style={styles.miniCommunityThumb} contentFit="cover" />
+                        <View style={styles.miniCommunityOverlay} />
+                        {c.online && (
+                          <View style={styles.miniCommunityLiveBadge}>
+                            <View style={styles.miniCommunityLiveDot} />
+                            <Text style={styles.miniCommunityLiveText}>LIVE</Text>
+                          </View>
+                        )}
+                        <View style={styles.miniCommunityBottom}>
+                          <Text style={styles.miniCommunityName} numberOfLines={1}>
+                            {c.name}
+                          </Text>
+                          <Text style={styles.miniCommunityMeta} numberOfLines={1}>
+                            {c.members.toLocaleString()}人
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </>
+          );
+        })()}
 
         <View style={styles.tabs}>
           {(["overview", "reviews", "schedule"] as const).map((tab) => {
@@ -522,12 +628,147 @@ const styles = StyleSheet.create({
   },
   rankText: { fontSize: 11, fontWeight: "700", color: C.orange },
   community: { fontSize: 12, color: C.textMuted, marginBottom: 4 },
-  bio: { fontSize: 12, color: C.textSec, lineHeight: 17, marginBottom: 10 },
   statRow: { flexDirection: "row", alignItems: "center" },
   statItem: { flex: 1, alignItems: "center" },
   statValue: { fontSize: 16, fontWeight: "800", color: C.text },
   statLabel: { fontSize: 10, color: C.textMuted, marginTop: 2 },
   statDivider: { width: 1, height: 28, backgroundColor: C.border },
+  miniTimelineSection: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+  },
+  miniTimelineHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  miniTimelineTitle: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  miniTimelineCount: {
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  miniTimelineList: {
+    gap: 6,
+  },
+  miniTimelineItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: C.surface,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  miniTimelineIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: C.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  miniTimelineBody: {
+    flex: 1,
+  },
+  miniTimelineText: {
+    color: C.text,
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 1,
+  },
+  miniTimelineMeta: {
+    color: C.textMuted,
+    fontSize: 10,
+  },
+  miniCommunitiesSection: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+  },
+  miniCommunitiesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  miniCommunitiesTitle: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  miniCommunitiesCount: {
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  miniCommunitiesList: {
+    gap: 10,
+  },
+  miniCommunityCard: {
+    width: 130,
+    height: 110,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  miniCommunityThumb: {
+    width: "100%",
+    height: "100%",
+  },
+  miniCommunityOverlay: {
+    ...StyleSheet.absoluteFillObject as any,
+    backgroundColor: "rgba(0,0,0,0.25)",
+  },
+  miniCommunityBottom: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: 8,
+  },
+  miniCommunityName: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  miniCommunityMeta: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 10,
+    marginTop: 2,
+  },
+  miniCommunityLiveBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: C.live,
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  miniCommunityLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#fff",
+  },
+  miniCommunityLiveText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
+  },
   tabs: {
     flexDirection: "row", marginHorizontal: 16, marginBottom: 12,
     backgroundColor: C.surface, borderRadius: 10, padding: 4,

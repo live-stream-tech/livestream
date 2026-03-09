@@ -702,6 +702,30 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.json(rows);
   });
 
+  /** 現在ログイン中ユーザーが参加しているコミュニティ一覧 */
+  app.get("/api/communities/me", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const memberships = await db
+      .select({ communityId: communityMembers.communityId })
+      .from(communityMembers)
+      .where(eq(communityMembers.userId, user.id));
+
+    if (memberships.length === 0) {
+      return res.json([]);
+    }
+
+    const ids = memberships.map((m) => m.communityId);
+    const rows = await db
+      .select()
+      .from(communities)
+      .where(inArray(communities.id, ids))
+      .orderBy(desc(communities.members));
+
+    res.json(rows);
+  });
+
   app.get("/api/communities/:id", async (req: Request, res: Response) => {
     const id = paramNum(req, "id");
     const [row] = await db.select().from(communities).where(eq(communities.id, id));

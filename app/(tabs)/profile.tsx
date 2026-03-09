@@ -16,7 +16,7 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Svg, { Polygon, Circle, Line, Text as SvgText } from "react-native-svg";
 import { useAuth } from "@/lib/auth";
@@ -37,6 +37,15 @@ type MyVideo = {
   creator: string;
   community: string;
   timeAgo?: string | null;
+};
+
+type MyCommunity = {
+  id: number;
+  name: string;
+  members: number;
+  thumbnail: string;
+  online: boolean;
+  category: string;
 };
 
 const ENNEAGRAM_TYPES = [
@@ -180,6 +189,7 @@ export default function ProfileScreen() {
   const bottomInset = Platform.OS === "web" ? 34 : 0;
   const unreadCount = useUnreadCount();
   const { user, token, loading: authLoading, logout, updateProfile } = useAuth();
+  const queryClient = useQueryClient();
 
   // Enneagram state
   const [scores, setScores] = useState<number[]>(DEFAULT_SCORES);
@@ -211,6 +221,10 @@ export default function ProfileScreen() {
       if (!res.ok) throw new Error("Failed to fetch");
       return res.json();
     },
+  });
+  const { data: myCommunities = [] } = useQuery<MyCommunity[]>({
+    queryKey: ["/api/communities/me"],
+    enabled: !!user && !!token,
   });
   const [roleLoading, setRoleLoading] = useState<"editor" | "twoshot" | null>(null);
 
@@ -307,6 +321,25 @@ export default function ProfileScreen() {
     } finally {
       setProfileSaving(false);
     }
+  }
+
+  async function deleteVideo(id: number) {
+    Alert.alert("投稿を削除しますか？", "この操作は取り消せません。", [
+      { text: "キャンセル", style: "cancel" },
+      {
+        text: "削除する",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await apiRequest("DELETE", `/api/videos/${id}`);
+            queryClient.invalidateQueries({ queryKey: ["/api/videos/my"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
+          } catch (e: any) {
+            Alert.alert("削除に失敗しました", e?.message ?? "時間をおいて再度お試しください。");
+          }
+        },
+      },
+    ]);
   }
 
   async function registerRole(role: "editor" | "twoshot") {
@@ -554,6 +587,49 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* 参加コミュニティパネル */}
+        {myCommunities.length > 0 && (
+          <View style={styles.myCommunitiesSection}>
+            <View style={styles.myCommunitiesHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons name="people-outline" size={16} color={C.accent} />
+                <Text style={styles.myCommunitiesTitle}>参加コミュニティ</Text>
+              </View>
+              <Text style={styles.myCommunitiesCount}>{myCommunities.length}</Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.myCommunitiesList}
+            >
+              {myCommunities.map((c) => (
+                <Pressable
+                  key={c.id}
+                  style={styles.myCommunityCard}
+                  onPress={() => router.push(`/community/${c.id}`)}
+                >
+                  <Image source={{ uri: c.thumbnail }} style={styles.myCommunityThumb} contentFit="cover" />
+                  <View style={styles.myCommunityOverlay} />
+                  {c.online && (
+                    <View style={styles.myCommunityLiveBadge}>
+                      <View style={styles.myCommunityLiveDot} />
+                      <Text style={styles.myCommunityLiveText}>LIVE</Text>
+                    </View>
+                  )}
+                  <View style={styles.myCommunityBottom}>
+                    <Text style={styles.myCommunityName} numberOfLines={1}>
+                      {c.name}
+                    </Text>
+                    <Text style={styles.myCommunityMeta} numberOfLines={1}>
+                      {c.members.toLocaleString()}人
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         <View style={styles.postsHeader}>
           <View style={styles.postsLeft}>
             <Text style={styles.postsTitle}>タイムライン</Text>
@@ -566,22 +642,30 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.timelineList}>
-          {myVideos.map((video) => (
-            <Pressable
-              key={video.id}
-              style={styles.timelineItem}
-              onPress={() => router.push(`/video/${video.id}`)}
-            >
-              <Image source={{ uri: video.thumbnail }} style={styles.timelineThumb} contentFit="cover" />
-              <View style={styles.timelineBody}>
-                <Text style={styles.timelineTitle} numberOfLines={2}>
-                  {video.title}
-                </Text>
-                <Text style={styles.timelineMeta} numberOfLines={1}>
-                  {video.community} ・ {video.timeAgo ?? "たった今"}
-                </Text>
-              </View>
-            </Pressable>
+          {myVideos.slice(0, 4).map((video) => (
+            <View key={video.id} style={styles.timelineItem}>
+              <Pressable
+                style={styles.timelineMain}
+                onPress={() => router.push(`/video/${video.id}`)}
+              >
+                <Image source={{ uri: video.thumbnail }} style={styles.timelineThumb} contentFit="cover" />
+                <View style={styles.timelineBody}>
+                  <Text style={styles.timelineTitle} numberOfLines={2}>
+                    {video.title}
+                  </Text>
+                  <Text style={styles.timelineMeta} numberOfLines={1}>
+                    {video.community} ・ {video.timeAgo ?? "たった今"}
+                  </Text>
+                </View>
+              </Pressable>
+              <Pressable
+                style={styles.timelineDeleteBtn}
+                onPress={() => deleteVideo(video.id)}
+                hitSlop={8}
+              >
+                <Ionicons name="trash-outline" size={16} color={C.textMuted} />
+              </Pressable>
+            </View>
           ))}
           {myVideos.length === 0 && (
             <View style={styles.timelineEmpty}>
@@ -1044,24 +1128,115 @@ const styles = StyleSheet.create({
   uploadBtnText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   postsTitle: { color: C.text, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
   postsCount: { color: C.textMuted, fontSize: 12, fontWeight: "600" },
-  timelineList: { paddingHorizontal: 16, gap: 10, marginBottom: 16 },
+  timelineList: { paddingHorizontal: 16, gap: 6, marginBottom: 12 },
   timelineItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
     backgroundColor: C.surface,
-    borderRadius: 12,
-    padding: 10,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: C.border,
   },
-  timelineThumb: { width: 56, height: 56, borderRadius: 8, backgroundColor: C.surface2 },
+  timelineMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  timelineThumb: { width: 40, height: 40, borderRadius: 8, backgroundColor: C.surface2 },
   timelineBody: { flex: 1 },
-  timelineTitle: { color: C.text, fontSize: 13, fontWeight: "700", marginBottom: 2 },
-  timelineMeta: { color: C.textMuted, fontSize: 11 },
+  timelineTitle: { color: C.text, fontSize: 12, fontWeight: "700", marginBottom: 1 },
+  timelineMeta: { color: C.textMuted, fontSize: 10 },
+  timelineDeleteBtn: {
+    paddingLeft: 6,
+    paddingVertical: 4,
+  },
   timelineEmpty: { paddingHorizontal: 16, paddingVertical: 12, alignItems: "center" },
   timelineEmptyText: { color: C.textSec, fontSize: 13, fontWeight: "700" },
   timelineEmptySub: { color: C.textMuted, fontSize: 11, marginTop: 4 },
+  myCommunitiesSection: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  myCommunitiesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  myCommunitiesTitle: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  myCommunitiesCount: {
+    color: C.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  myCommunitiesList: {
+    gap: 10,
+  },
+  myCommunityCard: {
+    width: 140,
+    height: 120,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  myCommunityThumb: {
+    width: "100%",
+    height: "100%",
+  },
+  myCommunityOverlay: {
+    ...StyleSheet.absoluteFillObject as any,
+    backgroundColor: "rgba(0,0,0,0.25)",
+  },
+  myCommunityBottom: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: 8,
+  },
+  myCommunityName: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  myCommunityMeta: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  myCommunityLiveBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: C.live,
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
+  myCommunityLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#fff",
+  },
+  myCommunityLiveText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
+  },
   startFab: {
     position: "absolute",
     right: 16,
