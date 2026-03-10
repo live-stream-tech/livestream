@@ -283,7 +283,7 @@ export default function LiveScreen() {
     return matchSearch;
   });
 
-  const topInset = Platform.OS === "web" ? 12 : insets.top;
+  const topInset = Platform.OS === "web" ? 8 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
   return (

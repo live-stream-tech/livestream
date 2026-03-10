@@ -350,7 +350,7 @@ export default function HomeScreen() {
   const creators = DUMMY_CREATORS[creatorFilter];
   const nowJuke = jukeData?.state ?? null;
 
-  const topInset = Platform.OS === "web" ? 12 : insets.top;
+  const topInset = Platform.OS === "web" ? 8 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
 
   return (

@@ -7,7 +7,6 @@ import { C } from "@/constants/colors";
 import { getApiUrl } from "@/lib/query-client";
 import { saveLoginReturn, getLoginReturn } from "@/lib/login-return";
 import { useAuth } from "@/lib/auth";
-import { TopStageBackground } from "@/components/TopStageBackground";
 
 /** LINEログインのみ。メール/パスワードは廃止。 */
 export default function LoginScreen() {
@@ -50,8 +49,6 @@ export default function LoginScreen() {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <TopStageBackground height={56} />
-
       <View style={styles.logoWrap}>
         <Text style={styles.logo}>
           <Text style={styles.logoLive}>Live</Text>
@@ -94,7 +91,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 24, justifyContent: "center", backgroundColor: C.bg },
-  logoWrap: { alignItems: "center", marginBottom: 20 },
+  logoWrap: { alignItems: "center", marginBottom: 16 },
   logo: { fontSize: 26, fontWeight: "800" },
   logoLive: { color: C.text },
   logoStage: { color: C.accent },
@@ -139,5 +136,5 @@ const styles = StyleSheet.create({
     borderColor: C.border,
   },
   googleIcon: { width: 20, height: 20 },
-  googleLoginText: { color: C.text, fontSize: 15, fontWeight: "700" },
+  googleLoginText: { color: "#202124", fontSize: 15, fontWeight: "700" },
 });

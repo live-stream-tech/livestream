@@ -185,7 +185,7 @@ function EnneagramChart({ scores }: { scores: number[] }) {
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const topInset = Platform.OS === "web" ? 67 : insets.top;
+  const topInset = Platform.OS === "web" ? 12 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
   const unreadCount = useUnreadCount();
   const { user, token, loading: authLoading, logout, updateProfile } = useAuth();
