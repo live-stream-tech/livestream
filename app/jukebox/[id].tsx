@@ -283,7 +283,12 @@ export default function JukeboxScreen() {
 
   const [chatInput, setChatInput] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
-   const [ytUrl, setYtUrl] = useState("");
+  const [ytUrl, setYtUrl] = useState("");
+  const [ytQuery, setYtQuery] = useState("");
+  const [ytResults, setYtResults] = useState<
+    { videoId: string; title: string; thumbnail: string }[]
+  >([]);
+  const [ytSearching, setYtSearching] = useState(false);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -362,6 +367,28 @@ export default function JukeboxScreen() {
       youtubeId: idPart,
     };
     addMutation.mutate(video);
+  };
+
+  const handleSearchYouTube = async () => {
+    const q = ytQuery.trim();
+    if (!q || ytSearching) return;
+    setYtSearching(true);
+    try {
+      const res = await apiRequest(
+        "GET",
+        `/api/youtube/search?q=${encodeURIComponent(q)}`,
+      );
+      const data = (await res.json()) as {
+        videoId: string;
+        title: string;
+        thumbnail: string;
+      }[];
+      setYtResults(data);
+    } catch (e: any) {
+      alert("YouTube 検索に失敗しました。時間をおいて再度お試しください。");
+    } finally {
+      setYtSearching(false);
+    }
   };
 
   const sendChat = useCallback(() => {
@@ -466,9 +493,38 @@ export default function JukeboxScreen() {
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Jukeboxに動画を追加</Text>
 
-            {/* YouTube URL input */}
+            {/* YouTube 検索 */}
             <View style={styles.ytInputSection}>
-              <Text style={styles.ytLabel}>YouTubeのURL</Text>
+              <Text style={styles.ytLabel}>YouTube で検索</Text>
+              <View style={styles.ytRow}>
+                <TextInput
+                  style={styles.ytInput}
+                  placeholder="曲名・チャンネル名などで検索"
+                  placeholderTextColor={C.textMuted}
+                  value={ytQuery}
+                  onChangeText={setYtQuery}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Pressable
+                  style={[
+                    styles.ytSearchButton,
+                    (ytSearching || !ytQuery.trim()) && styles.ytSearchButtonDisabled,
+                  ]}
+                  onPress={handleSearchYouTube}
+                  disabled={ytSearching || !ytQuery.trim()}
+                >
+                  <Ionicons name="search" size={16} color="#fff" />
+                  <Text style={styles.ytSearchButtonText}>
+                    {ytSearching ? "検索中..." : "検索"}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* YouTube URL input（直接貼り付けたい人向け） */}
+            <View style={styles.ytInputSection}>
+              <Text style={styles.ytLabel}>YouTube のURLから追加</Text>
               <View style={styles.ytRow}>
                 <TextInput
                   style={styles.ytInput}
@@ -490,9 +546,53 @@ export default function JukeboxScreen() {
               </View>
             </View>
 
-            {/* Purchased videos */}
-            <Text style={styles.modalSubtitle}>自分の購入済み動画</Text>
+            {/* List */}
             <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
+              {/* YouTube 検索結果 */}
+              {ytResults.length > 0 && (
+                <>
+                  <Text style={styles.modalSubtitle}>YouTube 検索結果</Text>
+                  {ytResults.map((r) => {
+                    const video: Video & { youtubeId: string } = {
+                      id: Math.floor(Math.random() * 2000000),
+                      title: r.title,
+                      thumbnail: r.thumbnail,
+                      duration: "0:00",
+                      category: "YouTube",
+                      price: null,
+                      youtubeId: r.videoId,
+                    };
+                    return (
+                      <Pressable
+                        key={r.videoId}
+                        style={styles.modalItem}
+                        onPress={() => addMutation.mutate(video)}
+                      >
+                        <Image
+                          source={{ uri: r.thumbnail }}
+                          style={styles.modalThumb}
+                          contentFit="cover"
+                        />
+                        <View style={styles.modalItemInfo}>
+                          <Text style={styles.modalItemTitle} numberOfLines={2}>
+                            {r.title}
+                          </Text>
+                          <View style={styles.modalItemMeta}>
+                            <Ionicons name="logo-youtube" size={12} color="#FF0000" />
+                            <Text style={styles.modalItemMetaText}>
+                              YouTube から追加
+                            </Text>
+                          </View>
+                        </View>
+                        <Ionicons name="add-circle" size={24} color={C.accent} />
+                      </Pressable>
+                    );
+                  })}
+                </>
+              )}
+
+              {/* Purchased videos */}
+              <Text style={styles.modalSubtitle}>自分の購入済み動画</Text>
               {purchasedVideos.length === 0 && (
                 <Text style={styles.emptyPurchasedText}>まだ購入済み動画がありません</Text>
               )}
@@ -883,6 +983,23 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   ytAddButtonText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  ytSearchButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: C.accent,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  ytSearchButtonDisabled: {
+    opacity: 0.4,
+  },
+  ytSearchButtonText: {
     color: "#fff",
     fontSize: 11,
     fontWeight: "700",

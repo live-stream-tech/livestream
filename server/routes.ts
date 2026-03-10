@@ -362,6 +362,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   const GOOGLE_CALLBACK_URL =
     process.env.GOOGLE_CALLBACK_URL ?? "https://livestream-nu-ten.vercel.app/api/auth/google-callback";
   const GOOGLE_STATE = "livestage-google-state";
+  const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY ?? "";
 
   app.get("/api/auth/line", (_req: Request, res: Response) => {
     if (!LINE_CALLBACK_URL) {
@@ -461,6 +462,51 @@ export async function registerRoutes(app: Express): Promise<void> {
     } catch (err) {
       console.error("Google callback error:", err);
       res.redirect(lineRedirect("/?line_error=server_error"));
+    }
+  });
+
+  // ── YouTube Search for Jukebox ─────────────────────────────────────
+  app.get("/api/youtube/search", async (req: Request, res: Response) => {
+    const q = queryStr(req, "q").trim();
+    if (!q) {
+      return res.status(400).json({ error: "検索キーワードを入力してください" });
+    }
+    if (!YOUTUBE_API_KEY) {
+      return res.status(500).json({ error: "YouTube API キーが設定されていません" });
+    }
+    try {
+      const params = new URLSearchParams({
+        key: YOUTUBE_API_KEY,
+        part: "snippet",
+        type: "video",
+        q,
+        maxResults: "8",
+      });
+      const ytRes = await fetch(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
+      if (!ytRes.ok) {
+        const text = await ytRes.text();
+        console.error("YouTube search error:", ytRes.status, text);
+        return res.status(502).json({ error: "YouTube 検索に失敗しました" });
+      }
+      const json = (await ytRes.json()) as {
+        items?: { id?: { videoId?: string }; snippet?: { title?: string; thumbnails?: { default?: { url?: string }; medium?: { url?: string }; high?: { url?: string } } } }[];
+      };
+      const items = json.items ?? [];
+      const results = items
+        .map((item) => {
+          const videoId = item.id?.videoId;
+          const title = item.snippet?.title ?? "";
+          const thumbs = item.snippet?.thumbnails;
+          const thumbUrl =
+            thumbs?.high?.url ?? thumbs?.medium?.url ?? thumbs?.default?.url ?? "";
+          if (!videoId || !thumbUrl) return null;
+          return { videoId, title, thumbnail: thumbUrl };
+        })
+        .filter(Boolean);
+      res.json(results);
+    } catch (e: any) {
+      console.error("YouTube search exception:", e);
+      res.status(500).json({ error: "YouTube 検索でエラーが発生しました" });
     }
   });
 
