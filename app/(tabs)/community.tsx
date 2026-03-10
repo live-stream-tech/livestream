@@ -135,7 +135,7 @@ function PurchaseRankCard({
 
 export default function CommunityScreen() {
   const insets = useSafeAreaInsets();
-  const topInset = Platform.OS === "web" ? 40 : insets.top;
+  const topInset = Platform.OS === "web" ? 12 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
   const [search, setSearch] = useState("");
   const [purchaseTab, setPurchaseTab] = useState<PurchaseTab>("週間");
@@ -168,7 +168,7 @@ export default function CommunityScreen() {
 
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
-      <TopStageBackground height={120} />
+      <TopStageBackground height={56} />
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <View style={styles.searchRow}>
           <View style={styles.searchWrap}>

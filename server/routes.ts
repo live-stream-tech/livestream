@@ -34,8 +34,42 @@ import { getUncachableStripeClient, getStripePublishableKey, createConnectExpres
 import { getMonthlyRevenueRank } from "./aggregateRevenue";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+// Twilio は CommonJS エクスポートのため require 形式で読み込む
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const twilio = require("twilio") as typeof import("twilio");
 
 const JWT_SECRET = process.env.SESSION_SECRET ?? "livestage-dev-secret";
+
+// ── Twilio SMS クライアント（電話番号認証用）─────────────────────────────
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID ?? "";
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN ?? "";
+const TWILIO_FROM_NUMBER = process.env.TWILIO_FROM_NUMBER ?? "";
+
+const twilioEnabled =
+  !!TWILIO_ACCOUNT_SID && !!TWILIO_AUTH_TOKEN && !!TWILIO_FROM_NUMBER;
+
+const twilioClient = twilioEnabled
+  ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+  : null;
+
+async function sendSms(to: string, body: string) {
+  if (!twilioEnabled || !twilioClient) {
+    console.warn("[sms] Twilio not configured. Skipping real SMS send.", {
+      to,
+      body,
+    });
+    return;
+  }
+  try {
+    await twilioClient.messages.create({
+      to,
+      from: TWILIO_FROM_NUMBER,
+      body,
+    });
+  } catch (err) {
+    console.error("[sms] Failed to send SMS via Twilio", err);
+  }
+}
 
 function makeToken(userId: number) {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "90d" });
@@ -173,10 +207,15 @@ export async function registerRoutes(app: Express): Promise<void> {
       expiresAt,
     } as typeof phoneVerifications.$inferInsert);
 
-    // 実運用ではここでSMSプロバイダへ送信する。現在はログ出力のみ。
+    const smsBody = `LiveStage 認証コード: ${code}（10分間有効）`;
+
+    // Twilio でSMS送信（未設定の場合はログのみ）
+    await sendSms(normalized, smsBody);
+
     console.log("[phone/start] SMS verification code", { to: normalized, code });
 
-    res.json({ ok: true });
+    // 開発・検証しやすいよう、レスポンスにもコードを含めておく（本番で不要なら code を外す）
+    res.json({ ok: true, code });
   });
 
   /** 電話番号認証コード検証（ログイン済みユーザー向け） */
@@ -277,9 +316,14 @@ export async function registerRoutes(app: Express): Promise<void> {
       expiresAt,
     } as typeof phoneVerifications.$inferInsert);
 
+    const smsBody = `LiveStage ログインコード: ${code}（10分間有効）`;
+
+    await sendSms(normalized, smsBody);
+
     console.log("[phone/login/start] SMS verification code", { to: normalized, code });
 
-    res.json({ ok: true });
+    // 開発・検証しやすいよう、レスポンスにもコードを含めておく（本番で不要なら code を外す）
+    res.json({ ok: true, code });
   });
 
   /** 未ログインユーザー向け：電話番号＋コードでログイン（JWT発行） */

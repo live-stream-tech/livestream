@@ -111,10 +111,17 @@ export default function SettingsScreen() {
       const res = await apiRequest("POST", "/api/auth/phone/start", {
         phoneNumber: normalized,
       });
-      await res.json();
+      const data = (await res.json()) as { ok: boolean; code?: string };
       setPhone(normalized);
       setCodeSent(true);
-      Alert.alert("認証コードを送信しました", "SMSで届いた6桁のコードを入力してください。");
+      if (data.code) {
+        Alert.alert(
+          "認証コードを送信しました",
+          `SMSで届いた6桁のコードを入力してください。\n\n（開発中につきテスト用コード: ${data.code}）`,
+        );
+      } else {
+        Alert.alert("認証コードを送信しました", "SMSで届いた6桁のコードを入力してください。");
+      }
     } catch (e: any) {
       if (e instanceof ApiError) {
         if (e.status === 400) {

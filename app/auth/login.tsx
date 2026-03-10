@@ -22,7 +22,7 @@ import { TopStageBackground } from "@/components/TopStageBackground";
 /** LINEログインのみ。メール/パスワードは廃止。 */
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const topInset = Platform.OS === "web" ? 40 : insets.top;
+  const topInset = Platform.OS === "web" ? 12 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
   const { loginWithToken } = useAuth();
 
@@ -70,10 +70,17 @@ export default function LoginScreen() {
       const res = await apiRequest("POST", "/api/auth/phone/login/start", {
         phoneNumber: normalized,
       });
-      await res.json();
+      const data = (await res.json()) as { ok: boolean; code?: string };
       setPhone(normalized);
       setCodeSent(true);
-      Alert.alert("認証コードを送信しました", "SMSで届いた6桁のコードを入力してください。");
+      if (data.code) {
+        Alert.alert(
+          "認証コードを送信しました",
+          `SMSで届いた6桁のコードを入力してください。\n\n（開発中につきテスト用コード: ${data.code}）`,
+        );
+      } else {
+        Alert.alert("認証コードを送信しました", "SMSで届いた6桁のコードを入力してください。");
+      }
     } catch (err: any) {
       if (err instanceof ApiError) {
         if (err.status === 404) {
@@ -143,7 +150,7 @@ export default function LoginScreen() {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <TopStageBackground height={120} />
+      <TopStageBackground height={56} />
 
       <View style={styles.logoWrap}>
         <Text style={styles.logo}>
@@ -252,8 +259,8 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 24, justifyContent: "center", backgroundColor: C.bg },
-  logoWrap: { alignItems: "center", marginBottom: 36 },
-  logo: { fontSize: 38, fontWeight: "800" },
+  logoWrap: { alignItems: "center", marginBottom: 20 },
+  logo: { fontSize: 26, fontWeight: "800" },
   logoLive: { color: C.text },
   logoStage: { color: C.accent },
   tagline: { color: C.textMuted, fontSize: 13, marginTop: 4 },
