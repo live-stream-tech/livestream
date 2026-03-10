@@ -202,6 +202,9 @@ export default function ProfileScreen() {
   const [editName, setEditName] = useState("");
   const [editBio, setEditBio] = useState("");
   const [editAvatar, setEditAvatar] = useState("");
+  const [editGender, setEditGender] = useState("");
+  const [editAge, setEditAge] = useState("");
+  const [editLocation, setEditLocation] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
 
   // Role / creator registration state
@@ -304,6 +307,7 @@ export default function ProfileScreen() {
     setEditName(user?.name ?? user?.displayName ?? "");
     setEditBio(user?.bio ?? "");
     setEditAvatar(user?.avatar ?? user?.profileImageUrl ?? "");
+    // 性別・年齢・住まいは現状サーバー未保存のため、そのままのローカル値を維持
     setShowProfileModal(true);
   }
 
@@ -790,6 +794,45 @@ export default function ProfileScreen() {
             {editAvatar ? (
               <Image source={{ uri: editAvatar }} style={styles.avatarPreview} contentFit="cover" />
             ) : null}
+
+            <Text style={styles.profileFieldLabel}>性別</Text>
+            <View style={styles.profileInputWrap}>
+              <Ionicons name="male-female-outline" size={16} color={C.textMuted} />
+              <TextInput
+                style={styles.profileInput}
+                value={editGender}
+                onChangeText={setEditGender}
+                placeholder="例）女性 / 男性 / その他 / 非公開"
+                placeholderTextColor={C.textMuted}
+                maxLength={20}
+              />
+            </View>
+
+            <Text style={styles.profileFieldLabel}>年齢</Text>
+            <View style={styles.profileInputWrap}>
+              <Ionicons name="hourglass-outline" size={16} color={C.textMuted} />
+              <TextInput
+                style={styles.profileInput}
+                value={editAge}
+                onChangeText={setEditAge}
+                placeholder="例）20代前半 / 30歳 など"
+                placeholderTextColor={C.textMuted}
+                maxLength={20}
+              />
+            </View>
+
+            <Text style={styles.profileFieldLabel}>住まい</Text>
+            <View style={styles.profileInputWrap}>
+              <Ionicons name="home-outline" size={16} color={C.textMuted} />
+              <TextInput
+                style={styles.profileInput}
+                value={editLocation}
+                onChangeText={setEditLocation}
+                placeholder="例）東京都 / 関西 / 海外 など"
+                placeholderTextColor={C.textMuted}
+                maxLength={40}
+              />
+            </View>
 
             <View style={styles.modalActions}>
               <Pressable style={styles.cancelBtn} onPress={() => setShowProfileModal(false)}>

@@ -1234,14 +1234,117 @@ export async function registerRoutes(app: Express): Promise<void> {
   // ── Jukebox ───────────────────────────────────────────────────────
   app.get("/api/jukebox/:communityId", async (req: Request, res: Response) => {
     const communityId = paramNum(req, "communityId");
-    const [state] = await db.select().from(jukeboxState).where(eq(jukeboxState.communityId, communityId));
-    const queue = await db.select().from(jukeboxQueue)
+    const now = new Date();
+
+    const [stateRaw] = await db
+      .select()
+      .from(jukeboxState)
+      .where(eq(jukeboxState.communityId, communityId));
+
+    const queue = await db
+      .select()
+      .from(jukeboxQueue)
       .where(eq(jukeboxQueue.communityId, communityId))
       .orderBy(asc(jukeboxQueue.position));
-    const chat = await db.select().from(jukeboxChat)
+
+    let state = stateRaw ?? null;
+
+    // 放送室ロジック: 再生時間を過ぎていたらサーバー側で自動的に次の曲へ繰り上げる
+    if (
+      state &&
+      state.currentVideoDurationSecs &&
+      state.currentVideoDurationSecs > 0 &&
+      state.startedAt
+    ) {
+      const elapsedSecs =
+        (now.getTime() - new Date(state.startedAt as any).getTime()) / 1000;
+      if (elapsedSecs >= state.currentVideoDurationSecs) {
+        // 次の曲へ繰り上げ
+        const next = queue.find((q) => !q.isPlayed);
+        if (next) {
+          await db
+            .update(jukeboxQueue)
+            .set({
+              isPlayed: true,
+            } as Partial<typeof jukeboxQueue.$inferInsert>)
+            .where(eq(jukeboxQueue.id, next.id));
+
+          const watchers = Math.floor(Math.random() * 80) + 20;
+          const [updated] = await db
+            .insert(jukeboxState)
+            .values({
+              communityId,
+              currentVideoId: next.videoId,
+              currentVideoTitle: next.videoTitle,
+              currentVideoThumbnail: next.videoThumbnail,
+              currentVideoDurationSecs: next.videoDurationSecs ?? 0,
+              currentVideoYoutubeId: (next as any).youtubeId ?? null,
+              startedAt: now,
+              isPlaying: true,
+              watchersCount: watchers,
+            } as typeof jukeboxState.$inferInsert)
+            .onConflictDoUpdate({
+              target: jukeboxState.communityId,
+              set: {
+                currentVideoId: next.videoId,
+                currentVideoTitle: next.videoTitle,
+                currentVideoThumbnail: next.videoThumbnail,
+                currentVideoDurationSecs: next.videoDurationSecs ?? 0,
+                currentVideoYoutubeId: (next as any).youtubeId ?? null,
+                startedAt: now,
+                isPlaying: true,
+                watchersCount: watchers,
+              } as Partial<typeof jukeboxState.$inferInsert>,
+            })
+            .returning();
+          state = updated;
+        } else {
+          // キューが空なら停止
+          const [updated] = await db
+            .update(jukeboxState)
+            .set({
+              currentVideoId: null,
+              currentVideoTitle: null,
+              currentVideoThumbnail: null,
+              currentVideoDurationSecs: 0,
+              currentVideoYoutubeId: null,
+              isPlaying: false,
+            } as Partial<typeof jukeboxState.$inferInsert>)
+            .where(eq(jukeboxState.communityId, communityId))
+            .returning();
+          state = updated;
+        }
+      }
+    }
+
+    const chat = await db
+      .select()
+      .from(jukeboxChat)
       .where(eq(jukeboxChat.communityId, communityId))
       .orderBy(asc(jukeboxChat.createdAt));
-    res.json({ state: state ?? null, queue, chat });
+
+    // ラジオ的に「今何秒目か」を返す
+    let elapsedSecs = 0;
+    if (state?.startedAt && (state.currentVideoDurationSecs ?? 0) > 0) {
+      elapsedSecs = Math.max(
+        0,
+        Math.min(
+          state.currentVideoDurationSecs ?? 0,
+          (now.getTime() - new Date(state.startedAt as any).getTime()) / 1000
+        )
+      );
+    }
+
+    res.json({
+      state: state
+        ? {
+            ...state,
+            elapsedSecs,
+          }
+        : null,
+      queue,
+      chat,
+    });
   });
 
   app.post("/api/jukebox/:communityId/add", async (req: Request, res: Response) => {

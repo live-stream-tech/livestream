@@ -31,6 +31,8 @@ type JukeboxState = {
   startedAt: string;
   isPlaying: boolean;
   watchersCount: number;
+  /** サーバーが計算した経過秒数（放送位置）。存在しない場合は startedAt から計算 */
+  elapsedSecs?: number;
 };
 
 type QueueItem = {
@@ -106,21 +108,13 @@ function NowPlaying({
   state: JukeboxState | null;
   onNext: () => void;
 }) {
-  const [progress, setProgress] = useState(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const youtubePlayerRef = useRef<any | null>(null);
+  const playerContainerIdRef = useRef<string>(
+    `jukebox-yt-${Math.random().toString(36).slice(2)}`
+  );
 
-  useEffect(() => {
-    if (!state?.isPlaying) return;
-    const iv = setInterval(() => {
-      const p = calcProgress(state.startedAt, state.currentVideoDurationSecs);
-      setProgress(p);
-      if (p >= 1 && state.currentVideoDurationSecs > 0) {
-        onNext();
-      }
-    }, 1000);
-    return () => clearInterval(iv);
-  }, [state?.startedAt, state?.currentVideoDurationSecs, state?.isPlaying, onNext]);
-
+  // LIVE ラベルのパルスアニメーション
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
@@ -129,8 +123,132 @@ function NowPlaying({
       ])
     );
     pulse.start();
-    return () => pulse.stop();
-  }, []);
+    return () => {
+      pulse.stop();
+    };
+  }, [pulseAnim]);
+
+  // Web 環境: YouTube IFrame API を使って再生終了(ENDED)を検知し、自動で次の曲へ
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+
+    // 再生対象の YouTube ID がなければプレイヤーを破棄
+    if (!state?.currentVideoYoutubeId) {
+      if (youtubePlayerRef.current) {
+        try {
+          youtubePlayerRef.current.destroy();
+        } catch {
+          // ignore
+        }
+        youtubePlayerRef.current = null;
+      }
+      return;
+    }
+
+    let cancelled = false;
+
+    function ensureYouTubeApi(): Promise<any> {
+      return new Promise((resolve) => {
+        const w = window as any;
+        if (w.YT && w.YT.Player) {
+          resolve(w.YT);
+          return;
+        }
+
+        const prev = w.onYouTubeIframeAPIReady;
+        w.onYouTubeIframeAPIReady = () => {
+          if (prev) prev();
+          resolve(w.YT);
+        };
+
+        if (!document.querySelector("script[src=\"https://www.youtube.com/iframe_api\"]")) {
+          const tag = document.createElement("script");
+          tag.src = "https://www.youtube.com/iframe_api";
+          document.body.appendChild(tag);
+        }
+      });
+    }
+
+    ensureYouTubeApi()
+      .then((YT: any) => {
+        if (cancelled) return;
+        const containerId = playerContainerIdRef.current;
+        if (!containerId) return;
+
+        // すでにプレイヤーがあれば動画だけ差し替え
+        if (youtubePlayerRef.current) {
+          try {
+            const startSeconds =
+              state.elapsedSecs && state.elapsedSecs > 0
+                ? state.elapsedSecs
+                : Math.max(
+                    0,
+                    (Date.now() - new Date(state.startedAt).getTime()) / 1000
+                  );
+            youtubePlayerRef.current.loadVideoById({
+              videoId: state.currentVideoYoutubeId,
+              startSeconds,
+            });
+          } catch {
+            // 読み込みに失敗した場合は作り直し
+            try {
+              youtubePlayerRef.current.destroy();
+            } catch {
+              // ignore
+            }
+            youtubePlayerRef.current = null;
+          }
+        }
+
+        if (!youtubePlayerRef.current) {
+          const startSeconds =
+            state.elapsedSecs && state.elapsedSecs > 0
+              ? state.elapsedSecs
+              : Math.max(
+                  0,
+                  (Date.now() - new Date(state.startedAt).getTime()) / 1000
+                );
+          youtubePlayerRef.current = new YT.Player(containerId, {
+            videoId: state.currentVideoYoutubeId,
+            playerVars: {
+              autoplay: 1,
+              rel: 0,
+              controls: 0,
+              disablekb: 1,
+              playsinline: 1,
+            },
+            events: {
+              onStateChange: (event: any) => {
+                try {
+                  const w = window as any;
+                  if (event.data === w.YT?.PlayerState?.ENDED) {
+                    onNext();
+                  }
+                } catch {
+                  // ignore
+                }
+              },
+            },
+          });
+        }
+      })
+      .catch(() => {
+        // API ロード失敗時は静的サムネイル表示のみ
+      });
+
+    return () => {
+      cancelled = true;
+      // 画面遷移時にプレイヤーを確実に破棄
+      if (youtubePlayerRef.current) {
+        try {
+          youtubePlayerRef.current.destroy();
+        } catch {
+          // ignore
+        }
+        youtubePlayerRef.current = null;
+      }
+    };
+  }, [state?.currentVideoYoutubeId, onNext]);
 
   if (!state) {
     return (
@@ -141,29 +259,21 @@ function NowPlaying({
     );
   }
 
-  const elapsed = Math.min(
-    (Date.now() - new Date(state.startedAt).getTime()) / 1000,
-    state.currentVideoDurationSecs
-  );
-
   const isYouTube = !!state.currentVideoYoutubeId;
-  const youtubeEmbedUrl = isYouTube
-    ? `https://www.youtube.com/embed/${state.currentVideoYoutubeId}?autoplay=1`
-    : null;
+  const elapsedSource =
+    typeof state.elapsedSecs === "number"
+      ? state.elapsedSecs
+      : (Date.now() - new Date(state.startedAt).getTime()) / 1000;
+  const elapsed = Math.min(elapsedSource, state.currentVideoDurationSecs);
+  const progress =
+    state.currentVideoDurationSecs > 0
+      ? Math.min(elapsed / state.currentVideoDurationSecs, 1)
+      : 0;
 
   return (
     <View style={styles.nowPlaying}>
       {Platform.OS === "web" && isYouTube ? (
-        <View style={styles.youtubeContainer}>
-          {/* React Native Web では iframe を直接使用 */}
-          {/* eslint-disable-next-line react/no-danger */}
-          <iframe
-            src={youtubeEmbedUrl ?? ""}
-            style={{ width: "100%", height: "100%", border: "none", borderRadius: 16 }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
-        </View>
+        <View style={styles.youtubeContainer} nativeID={playerContainerIdRef.current} />
       ) : (
         <>
           {state.currentVideoThumbnail ? (
@@ -398,6 +508,10 @@ export default function JukeboxScreen() {
     chatMutation.mutate(msg);
   }, [chatInput]);
 
+  const handleNext = useCallback(() => {
+    nextMutation.mutate();
+  }, [nextMutation]);
+
   useEffect(() => {
     if (chat.length > 0) {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -427,7 +541,7 @@ export default function JukeboxScreen() {
         </View>
 
         {/* Now Playing */}
-        <NowPlaying state={state} onNext={() => nextMutation.mutate()} />
+        <NowPlaying state={state} onNext={handleNext} />
 
         {/* Queue */}
         <QueueRow items={queue} onAdd={() => setShowAddModal(true)} />

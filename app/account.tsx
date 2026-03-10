@@ -26,6 +26,10 @@ export default function AccountEditScreen() {
   const [bio, setBio] = useState(user?.bio ?? "");
   const [avatar, setAvatar] = useState(user?.avatar ?? user?.profileImageUrl ?? "");
   const [saving, setSaving] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
+  const [lineInfo, setLineInfo] = useState("");
+  const [birthday, setBirthday] = useState("");
 
   async function handleSave() {
     if (!name.trim()) {
@@ -114,6 +118,62 @@ export default function AccountEditScreen() {
           {avatar ? (
             <Image source={{ uri: avatar }} style={styles.avatarPreview} contentFit="cover" />
           ) : null}
+
+          <Text style={styles.sectionTitle}>アカウント情報（非公開）</Text>
+
+          <Text style={styles.label}>電話番号</Text>
+          <View style={styles.inputRow}>
+            <Ionicons name="call-outline" size={18} color={C.textMuted} />
+            <TextInput
+              style={styles.input}
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              placeholder="例）09012345678"
+              placeholderTextColor={C.textMuted}
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          <Text style={styles.label}>メールアドレス</Text>
+          <View style={styles.inputRow}>
+            <Ionicons name="mail-outline" size={18} color={C.textMuted} />
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="example@example.com"
+              placeholderTextColor={C.textMuted}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
+
+          <Text style={styles.label}>LINE情報</Text>
+          <View style={styles.inputRow}>
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color={C.textMuted} />
+            <TextInput
+              style={styles.input}
+              value={lineInfo}
+              onChangeText={setLineInfo}
+              placeholder="LINE ID やメモ（公開されません）"
+              placeholderTextColor={C.textMuted}
+              autoCapitalize="none"
+              maxLength={80}
+            />
+          </View>
+
+          <Text style={styles.label}>生年月日（プロフィール連動）</Text>
+          <View style={styles.inputRow}>
+            <Ionicons name="calendar-outline" size={18} color={C.textMuted} />
+            <TextInput
+              style={styles.input}
+              value={birthday}
+              onChangeText={setBirthday}
+              placeholder="例）1990-01-01"
+              placeholderTextColor={C.textMuted}
+              autoCapitalize="none"
+            />
+          </View>
 
           <View style={styles.footer}>
             <Pressable style={styles.cancelBtn} onPress={() => router.back()}>
