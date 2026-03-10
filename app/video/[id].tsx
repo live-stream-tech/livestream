@@ -143,13 +143,14 @@ export default function VideoDetailScreen() {
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Video Player Area */}
+        {/* メディア領域（テキスト / 写真展 / 動画など共通レイアウト） */}
         <View style={styles.playerContainer}>
           <Image source={{ uri: video.thumbnail }} style={styles.playerThumb} contentFit="cover" />
           <View style={styles.playerOverlay}>
+            {/* 有料コンテンツの場合のみロック表示 */}
             {!purchased && video.price && (
               <View style={styles.lockedOverlay}>
-                <Ionicons name="lock-closed" size={32} color="rgba(255,255,255,0.5)" />
+                <Ionicons name="lock-closed" size={32} color="rgba(255,255,255,0.6)" />
               </View>
             )}
             <View style={styles.playerControls}>
@@ -240,28 +241,29 @@ export default function VideoDetailScreen() {
             </View>
           </View>
 
-          {/* Purchase / Play Button */}
-          {video.price && !purchased ? (
+          {/* 課金コンテンツ用 CTA（テキスト / 写真 / 動画 いずれも共通） */}
+          {video.price && (
             <View style={styles.purchaseSection}>
-              <Pressable
-                style={styles.purchaseBtn}
-                onPress={() => setPurchased(true)}
-              >
-                <Ionicons name="play" size={16} color="#fff" />
-                <Text style={styles.purchaseBtnText}>
-                  動画を見る！ ¥{video.price.toLocaleString()}
+              {!purchased ? (
+                <>
+                  <Pressable
+                    style={styles.purchaseBtn}
+                    onPress={() => setPurchased(true)}
+                  >
+                    <Ionicons name="cart" size={16} color="#fff" />
+                    <Text style={styles.purchaseBtnText}>
+                      このコンテンツを購入 ¥{video.price.toLocaleString()}
+                    </Text>
+                  </Pressable>
+                  <Text style={styles.viewCount}>
+                    {video.views.toLocaleString()}人が閲覧
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles.viewCount}>
+                  購入済みコンテンツです（テキスト・写真・動画に対応）
                 </Text>
-              </Pressable>
-              <Text style={styles.viewCount}>
-                {(video.views).toLocaleString()}人が視聴
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.purchaseSection}>
-              <Pressable style={[styles.purchaseBtn, { backgroundColor: C.green }]}>
-                <Ionicons name="play" size={16} color="#fff" />
-                <Text style={styles.purchaseBtnText}>今すぐ視聴</Text>
-              </Pressable>
+              )}
             </View>
           )}
         </View>
