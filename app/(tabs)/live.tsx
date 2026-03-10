@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
+import { TopStageBackground } from "@/components/TopStageBackground";
 import type { BookingSession } from "@/constants/data";
 
 const 個別セッション_CATEGORY_ICONS: Record<string, string> = {
@@ -287,6 +288,7 @@ export default function LiveScreen() {
 
   return (
     <View style={[styles.container]}>
+      <TopStageBackground height={200} />
       {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <Pressable style={styles.backBtn} onPress={() => router.push("/livers")}>

@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
+import { TopStageBackground } from "@/components/TopStageBackground";
 import { COMMUNITIES, RANKED_VIDEOS } from "@/constants/data";
 import { useQuery } from "@tanstack/react-query";
 
@@ -161,6 +162,7 @@ export default function CommunityScreen() {
 
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
+      <TopStageBackground height={200} />
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <View style={styles.searchRow}>
           <View style={styles.searchWrap}>

@@ -17,6 +17,7 @@ import { C } from "@/constants/colors";
 import { apiRequest, ApiError, getApiUrl } from "@/lib/query-client";
 import { saveLoginReturn, getLoginReturn } from "@/lib/login-return";
 import { useAuth } from "@/lib/auth";
+import { TopStageBackground } from "@/components/TopStageBackground";
 
 /** LINEログインのみ。メール/パスワードは廃止。 */
 export default function LoginScreen() {
@@ -137,11 +138,13 @@ export default function LoginScreen() {
     <ScrollView
       contentContainerStyle={[
         styles.container,
-        { paddingTop: topInset + 40, paddingBottom: bottomInset + 40 },
+        { paddingTop: topInset, paddingBottom: bottomInset + 40 },
       ]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
+      <TopStageBackground height={200} />
+
       <View style={styles.logoWrap}>
         <Text style={styles.logo}>
           <Text style={styles.logoLive}>Live</Text>

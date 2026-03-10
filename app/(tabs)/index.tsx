@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
+import { TopStageBackground } from "@/components/TopStageBackground";
 
 type Notif = { id: number; isRead: boolean };
 
@@ -354,6 +355,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
+      <TopStageBackground height={200} />
       {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <Text style={styles.logo}>
