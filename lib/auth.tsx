@@ -14,8 +14,6 @@ export type User = {
   avatar: string | null;
   profileImageUrl?: string | null;
   role?: string;
-  phoneNumber?: string | null;
-  phoneVerifiedAt?: string | null;
 };
 
 type AuthCtx = {
@@ -24,10 +22,9 @@ type AuthCtx = {
   loading: boolean;
   loginWithToken: (token: string) => Promise<void>;
   logout: () => void;
-  reloadMe: () => Promise<void>;
   updateProfile: (data: Partial<Pick<User, "name" | "bio" | "avatar">>) => Promise<void>;
   /** 未ログイン時にLINEログインへ誘導する。戻り値はログイン済みなら true */
-  requireAuth: (actionLabel?: string, options?: { requirePhone?: boolean }) => boolean;
+  requireAuth: (actionLabel?: string) => boolean;
 };
 
 const AuthContext = createContext<AuthCtx>({
@@ -36,7 +33,6 @@ const AuthContext = createContext<AuthCtx>({
   loading: true,
   loginWithToken: async () => {},
   logout: () => {},
-  reloadMe: async () => {},
   updateProfile: async () => {},
   requireAuth: () => false,
 });
@@ -64,8 +60,6 @@ function normalizeMe(me: Record<string, unknown>): User {
     avatar: (me.avatar ?? me.profileImageUrl ?? null) as string | null,
     profileImageUrl: (me.profileImageUrl ?? me.avatar) as string | null | undefined,
     role: me.role as string | undefined,
-    phoneNumber: (me.phoneNumber ?? null) as string | null,
-    phoneVerifiedAt: (me.phoneVerifiedAt ?? null) as string | null,
   };
 }
 
@@ -100,26 +94,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(normalizeMe(me));
   }, []);
 
-  const reloadMe = useCallback(async () => {
-    const t = await AsyncStorage.getItem(TOKEN_KEY);
-    if (!t) {
-      setToken(null);
-      setUser(null);
-      return;
-    }
-    try {
-      const me = await apiFetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${t}` },
-      });
-      setToken(t);
-      setUser(normalizeMe(me));
-    } catch {
-      await AsyncStorage.removeItem(TOKEN_KEY);
-      setToken(null);
-      setUser(null);
-    }
-  }, []);
-
   const logout = useCallback(async () => {
     await AsyncStorage.removeItem(TOKEN_KEY);
     setToken(null);
@@ -143,7 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const requireAuth = useCallback(
-    (actionLabel?: string, options?: { requirePhone?: boolean }): boolean => {
+    (actionLabel?: string): boolean => {
       // まだログインしていない場合は、LINEログインへ誘導
       if (!user) {
         if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("line_token")) {
@@ -158,26 +132,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      // 電話番号認証まで必須なアクションの場合
-      if (options?.requirePhone) {
-        const isVerified = !!user.phoneNumber && !!user.phoneVerifiedAt;
-        if (!isVerified) {
-          const label = actionLabel ?? "この操作";
-          Alert.alert(
-            "電話番号の確認が必要です",
-            `${label}を行うには、電話番号の認証が必要です。マイページから電話番号を登録・認証してください。`,
-            [
-              {
-                text: "マイページへ",
-                onPress: () => router.replace("/(tabs)/profile"),
-              },
-              { text: "キャンセル", style: "cancel" },
-            ]
-          );
-          return false;
-        }
-      }
-
       return true;
     },
     [user]
@@ -185,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, loading, loginWithToken, logout, reloadMe, updateProfile, requireAuth }}
+      value={{ user, token, loading, loginWithToken, logout, updateProfile, requireAuth }}
     >
       {children}
     </AuthContext.Provider>

@@ -34,42 +34,8 @@ import { getUncachableStripeClient, getStripePublishableKey, createConnectExpres
 import { getMonthlyRevenueRank } from "./aggregateRevenue";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-// Twilio は CommonJS エクスポートのため require 形式で読み込む
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const twilio = require("twilio") as typeof import("twilio");
 
 const JWT_SECRET = process.env.SESSION_SECRET ?? "livestage-dev-secret";
-
-// ── Twilio SMS クライアント（電話番号認証用）─────────────────────────────
-const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID ?? "";
-const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN ?? "";
-const TWILIO_FROM_NUMBER = process.env.TWILIO_FROM_NUMBER ?? "";
-
-const twilioEnabled =
-  !!TWILIO_ACCOUNT_SID && !!TWILIO_AUTH_TOKEN && !!TWILIO_FROM_NUMBER;
-
-const twilioClient = twilioEnabled
-  ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-  : null;
-
-async function sendSms(to: string, body: string) {
-  if (!twilioEnabled || !twilioClient) {
-    console.warn("[sms] Twilio not configured. Skipping real SMS send.", {
-      to,
-      body,
-    });
-    return;
-  }
-  try {
-    await twilioClient.messages.create({
-      to,
-      from: TWILIO_FROM_NUMBER,
-      body,
-    });
-  } catch (err) {
-    console.error("[sms] Failed to send SMS via Twilio", err);
-  }
-}
 
 function makeToken(userId: number) {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "90d" });
@@ -98,8 +64,6 @@ async function getAuthUser(req: Request): Promise<{
   role: string;
   bio: string;
   stripeConnectId: string | null;
-  phoneNumber: string | null;
-  phoneVerifiedAt: Date | null;
 } | null> {
   const auth = (req as any).headers?.authorization ?? "";
   if (!auth.startsWith("Bearer ")) return null;
@@ -112,8 +76,6 @@ async function getAuthUser(req: Request): Promise<{
     return {
       ...user,
       avatar: user.profileImageUrl,
-      phoneNumber: (user as any).phoneNumber ?? null,
-      phoneVerifiedAt: (user as any).phoneVerifiedAt ?? null,
     };
   } catch {
     return null;
@@ -170,214 +132,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       role: user.role,
       bio: user.bio,
       stripeConnectId: user.stripeConnectId ?? null,
-      phoneNumber: user.phoneNumber,
-      phoneVerifiedAt: user.phoneVerifiedAt,
     });
-  });
-
-  /** 電話番号認証コード送信（ログイン済みユーザー向け） */
-  app.post("/api/auth/phone/start", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-
-    const { phoneNumber } = req.body as { phoneNumber?: string };
-    const raw = (phoneNumber ?? "").trim();
-    if (!raw) return res.status(400).json({ error: "電話番号を入力してください" });
-
-    // 非常にシンプルなバリデーション（詳細な形式チェックは別途検討）
-    const normalized = raw.replace(/[^0-9+]/g, "");
-    if (normalized.length < 8) {
-      return res.status(400).json({ error: "電話番号の形式が正しくありません" });
-    }
-
-    // 別ユーザーで既に使われていないか確認
-    const existing = await db.select().from(users).where(eq(users.phoneNumber, normalized));
-    if (existing.length > 0 && existing[0].id !== user.id) {
-      return res.status(409).json({ error: "この電話番号は既に別のアカウントで使用されています" });
-    }
-
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const codeHash = await bcrypt.hash(code, 10);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10分有効
-
-    await db.insert(phoneVerifications).values({
-      userId: user.id,
-      phoneNumber: normalized,
-      codeHash,
-      expiresAt,
-    } as typeof phoneVerifications.$inferInsert);
-
-    const smsBody = `LiveStage 認証コード: ${code}（10分間有効）`;
-
-    // Twilio でSMS送信（未設定の場合はログのみ）
-    await sendSms(normalized, smsBody);
-
-    console.log("[phone/start] SMS verification code", { to: normalized, code });
-
-    // 開発・検証しやすいよう、レスポンスにもコードを含めておく（本番で不要なら code を外す）
-    res.json({ ok: true, code });
-  });
-
-  /** 電話番号認証コード検証（ログイン済みユーザー向け） */
-  app.post("/api/auth/phone/verify", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-
-    const { phoneNumber, code } = req.body as { phoneNumber?: string; code?: string };
-    const normalized = (phoneNumber ?? "").trim().replace(/[^0-9+]/g, "");
-    const inputCode = (code ?? "").trim();
-
-    if (!normalized || !inputCode) {
-      return res.status(400).json({ error: "電話番号とコードを入力してください" });
-    }
-
-    const [latest] = await db
-      .select()
-      .from(phoneVerifications)
-      .where(and(eq(phoneVerifications.userId, user.id), eq(phoneVerifications.phoneNumber, normalized)))
-      .orderBy(desc(phoneVerifications.createdAt))
-      .limit(1);
-
-    if (!latest) {
-      return res.status(400).json({ error: "認証コードが見つかりません。再度コードを送信してください。" });
-    }
-    if (latest.consumed) {
-      return res.status(400).json({ error: "この認証コードは既に使用されています" });
-    }
-    if (latest.expiresAt && latest.expiresAt < new Date()) {
-      return res.status(400).json({ error: "認証コードの有効期限が切れています" });
-    }
-    if (latest.attempts >= 5) {
-      return res.status(400).json({ error: "試行回数が上限に達しました。再度コードを送信してください。" });
-    }
-
-    const ok = await bcrypt.compare(inputCode, latest.codeHash);
-    if (!ok) {
-      await db
-        .update(phoneVerifications)
-        .set({ attempts: latest.attempts + 1 } as Partial<typeof phoneVerifications.$inferInsert>)
-        .where(eq(phoneVerifications.id, latest.id));
-      return res.status(400).json({ error: "認証コードが正しくありません" });
-    }
-
-    // 成功: コードを消費済みにし、ユーザーに電話番号を紐付け・認証日時を保存
-    await db
-      .update(phoneVerifications)
-      .set({ consumed: true } as Partial<typeof phoneVerifications.$inferInsert>)
-      .where(eq(phoneVerifications.id, latest.id));
-
-    // 別ユーザーが同じ番号を持っていないことを改めて確認
-    const others = await db
-      .select()
-      .from(users)
-      .where(and(eq(users.phoneNumber, normalized), sql`id <> ${user.id}`));
-    if (others.length > 0) {
-      return res.status(409).json({ error: "この電話番号は既に別のアカウントで使用されています" });
-    }
-
-    await db
-      .update(users)
-      .set({
-        phoneNumber: normalized,
-        phoneVerifiedAt: new Date(),
-        updatedAt: new Date(),
-      } as Partial<typeof users.$inferInsert>)
-      .where(eq(users.id, user.id));
-
-    res.json({ ok: true, phoneNumber: normalized });
-  });
-
-  /** 未ログインユーザー向け：電話番号でのログイン開始（認証コード送信） */
-  app.post("/api/auth/phone/login/start", async (req: Request, res: Response) => {
-    const { phoneNumber } = req.body as { phoneNumber?: string };
-    const raw = (phoneNumber ?? "").trim();
-    if (!raw) return res.status(400).json({ error: "電話番号を入力してください" });
-
-    const normalized = raw.replace(/[^0-9+]/g, "");
-    if (normalized.length < 8) {
-      return res.status(400).json({ error: "電話番号の形式が正しくありません" });
-    }
-
-    // 既にこの電話番号が紐付いているユーザーを探す
-    const [user] = await db.select().from(users).where(eq(users.phoneNumber, normalized));
-    if (!user) {
-      // 仕様に合わせて：電話番号だけで新規アカウントは作らず、先にLINEログインさせる
-      return res.status(404).json({ error: "この電話番号に紐づくアカウントがありません。先にLINEログインでアカウントを作成してください。" });
-    }
-
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const codeHash = await bcrypt.hash(code, 10);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10分
-
-    await db.insert(phoneVerifications).values({
-      userId: user.id,
-      phoneNumber: normalized,
-      codeHash,
-      expiresAt,
-    } as typeof phoneVerifications.$inferInsert);
-
-    const smsBody = `LiveStage ログインコード: ${code}（10分間有効）`;
-
-    await sendSms(normalized, smsBody);
-
-    console.log("[phone/login/start] SMS verification code", { to: normalized, code });
-
-    // 開発・検証しやすいよう、レスポンスにもコードを含めておく（本番で不要なら code を外す）
-    res.json({ ok: true, code });
-  });
-
-  /** 未ログインユーザー向け：電話番号＋コードでログイン（JWT発行） */
-  app.post("/api/auth/phone/login/verify", async (req: Request, res: Response) => {
-    const { phoneNumber, code } = req.body as { phoneNumber?: string; code?: string };
-    const normalized = (phoneNumber ?? "").trim().replace(/[^0-9+]/g, "");
-    const inputCode = (code ?? "").trim();
-
-    if (!normalized || !inputCode) {
-      return res.status(400).json({ error: "電話番号とコードを入力してください" });
-    }
-
-    // 対象ユーザーを電話番号から取得
-    const [user] = await db.select().from(users).where(eq(users.phoneNumber, normalized));
-    if (!user) {
-      return res.status(404).json({ error: "この電話番号に紐づくアカウントがありません" });
-    }
-
-    const [latest] = await db
-      .select()
-      .from(phoneVerifications)
-      .where(and(eq(phoneVerifications.userId, user.id), eq(phoneVerifications.phoneNumber, normalized)))
-      .orderBy(desc(phoneVerifications.createdAt))
-      .limit(1);
-
-    if (!latest) {
-      return res.status(400).json({ error: "認証コードが見つかりません。再度コードを送信してください。" });
-    }
-    if (latest.consumed) {
-      return res.status(400).json({ error: "この認証コードは既に使用されています" });
-    }
-    if (latest.expiresAt && latest.expiresAt < new Date()) {
-      return res.status(400).json({ error: "認証コードの有効期限が切れています" });
-    }
-    if (latest.attempts >= 5) {
-      return res.status(400).json({ error: "試行回数が上限に達しました。再度コードを送信してください。" });
-    }
-
-    const ok = await bcrypt.compare(inputCode, latest.codeHash);
-    if (!ok) {
-      await db
-        .update(phoneVerifications)
-        .set({ attempts: latest.attempts + 1 } as Partial<typeof phoneVerifications.$inferInsert>)
-        .where(eq(phoneVerifications.id, latest.id));
-      return res.status(400).json({ error: "認証コードが正しくありません" });
-    }
-
-    await db
-      .update(phoneVerifications)
-      .set({ consumed: true } as Partial<typeof phoneVerifications.$inferInsert>)
-      .where(eq(phoneVerifications.id, latest.id));
-
-    const jwtToken = makeToken(user.id);
-    res.json({ token: jwtToken });
   });
 
   // ── Stripe Connect（出金先連携）────────────────────────────────────────
@@ -601,6 +356,13 @@ export async function registerRoutes(app: Express): Promise<void> {
   const lineRedirect = (path: string) => (FRONTEND_URL ? `${FRONTEND_URL}${path}` : path);
   const LINE_STATE = "livestage-line-state";
 
+  // ── Google OAuth ──────────────────────────────────────────────────
+  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
+  const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
+  const GOOGLE_CALLBACK_URL =
+    process.env.GOOGLE_CALLBACK_URL ?? "https://livestream-nu-ten.vercel.app/api/auth/google-callback";
+  const GOOGLE_STATE = "livestage-google-state";
+
   app.get("/api/auth/line", (_req: Request, res: Response) => {
     if (!LINE_CALLBACK_URL) {
       return res.status(500).json({ error: "LINE_CALLBACK_URL is not configured" });
@@ -613,6 +375,93 @@ export async function registerRoutes(app: Express): Promise<void> {
       scope: "profile openid email",
     });
     res.redirect(`https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`);
+  });
+
+  app.get("/api/auth/google", (_req: Request, res: Response) => {
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_CALLBACK_URL) {
+      return res.status(500).json({ error: "Google OAuth is not configured" });
+    }
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: GOOGLE_CALLBACK_URL,
+      scope: "openid email profile",
+      state: GOOGLE_STATE,
+      access_type: "offline",
+      prompt: "consent",
+    });
+    res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+  });
+
+  app.get("/api/auth/google-callback", async (req: Request, res: Response) => {
+    const code = req.query.code as string;
+    const state = req.query.state as string;
+    if (!code || state !== GOOGLE_STATE) {
+      return res.redirect(lineRedirect("/?line_error=invalid_state"));
+    }
+    try {
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: GOOGLE_CALLBACK_URL,
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
+        }).toString(),
+      });
+      const tokenData = (await tokenRes.json()) as {
+        access_token?: string;
+        id_token?: string;
+        error?: string;
+      };
+      if (!tokenData.access_token) {
+        return res.redirect(lineRedirect("/?line_error=token_failed"));
+      }
+
+      const profileRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const profile = (await profileRes.json()) as {
+        sub?: string;
+        name?: string;
+        picture?: string;
+        email?: string;
+      };
+      if (!profile.sub) {
+        return res.redirect(lineRedirect("/?line_error=profile_failed"));
+      }
+
+      const googleKey = `google:${profile.sub}`;
+      const displayName = profile.name ?? profile.email ?? "Googleユーザー";
+      const avatar = profile.picture ?? null;
+
+      let [existing] = await db.select().from(users).where(eq(users.lineId, googleKey));
+      if (!existing) {
+        [existing] = await db
+          .insert(users)
+          .values({
+            lineId: googleKey,
+            displayName,
+            profileImageUrl: avatar,
+            role: "USER",
+          } as typeof users.$inferInsert)
+          .returning();
+      } else {
+        [existing] = await db
+          .update(users)
+          .set({ displayName, profileImageUrl: avatar, updatedAt: new Date() } as Partial<typeof users.$inferInsert>)
+          .where(eq(users.id, existing.id))
+          .returning();
+      }
+
+      const jwtToken = makeToken(existing.id);
+      res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
+    } catch (err) {
+      console.error("Google callback error:", err);
+      res.redirect(lineRedirect("/?line_error=server_error"));
+    }
   });
 
   app.get("/api/auth/callback/line", async (req: Request, res: Response) => {

@@ -139,8 +139,8 @@ export default function UploadScreen() {
       Alert.alert("", "テキストを入力してください");
       return;
     }
-    // 投稿は「ログイン + 電話番号認証済み」を必須にする
-    if (!requireAuth("投稿", { requirePhone: true })) return;
+    // 投稿はログイン必須
+    if (!requireAuth("投稿")) return;
     setUploading(true);
     try {
       const communityName = selectedCommunity?.name ?? "一般";
