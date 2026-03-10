@@ -94,9 +94,9 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <SettingRow
               icon="person-outline"
-              label="プロフィール編集"
-              sublabel="表示名・プロフィール文・アイコン"
-              onPress={() => router.push("/(tabs)/profile")}
+              label="登録情報の編集"
+              sublabel="氏名・自己紹介・アイコン画像など"
+              onPress={() => router.push("/account")}
             />
           </View>
 

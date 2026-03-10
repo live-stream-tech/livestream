@@ -452,20 +452,32 @@ export default function ProfileScreen() {
             </View>
           </View>
           <View style={styles.headerActions}>
-            <Pressable style={styles.editBtn} onPress={openProfileEdit}>
-              <Ionicons name="pencil-outline" size={18} color={C.text} />
+            <Pressable
+              style={({ pressed }) => [
+                styles.editBtn,
+                pressed && styles.headerBtnPressed,
+              ]}
+              onPress={openProfileEdit}
+            >
+              <Ionicons name="pencil-outline" size={18} color={C.accent} />
             </Pressable>
             <Pressable
-              style={styles.settingsBtn}
+              style={({ pressed }) => [
+                styles.settingsBtn,
+                pressed && styles.headerBtnPressed,
+              ]}
               onPress={() => router.push("/settings")}
             >
-              <Ionicons name="settings-outline" size={18} color={C.textMuted} />
+              <Ionicons name="settings-outline" size={18} color={C.accent} />
             </Pressable>
             <Pressable
               testID="logout-button"
               accessibilityLabel="ログアウト"
               accessibilityRole="button"
-              style={styles.logoutBtn}
+              style={({ pressed }) => [
+                styles.logoutBtn,
+                pressed && styles.headerBtnPressed,
+              ]}
               onPress={() => {
                 if (Platform.OS === "web" && typeof window !== "undefined") {
                   const ok = window.confirm("ログアウトしますか？");
@@ -480,7 +492,7 @@ export default function ProfileScreen() {
                 ]);
               }}
             >
-              <Ionicons name="log-out-outline" size={18} color={C.textMuted} />
+              <Ionicons name="log-out-outline" size={18} color={C.live} />
             </Pressable>
           </View>
         </View>
@@ -1395,6 +1407,10 @@ const styles = StyleSheet.create({
     borderColor: C.border,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerBtnPressed: {
+    backgroundColor: C.surface2,
+    borderColor: C.accent,
   },
 
   // Avatar fallback + edit badge
