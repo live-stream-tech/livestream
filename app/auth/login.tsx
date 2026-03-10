@@ -22,7 +22,7 @@ import { TopStageBackground } from "@/components/TopStageBackground";
 /** LINEログインのみ。メール/パスワードは廃止。 */
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const topInset = Platform.OS === "web" ? 67 : insets.top;
+  const topInset = Platform.OS === "web" ? 40 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
   const { loginWithToken } = useAuth();
 
@@ -143,7 +143,7 @@ export default function LoginScreen() {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <TopStageBackground height={200} />
+      <TopStageBackground height={120} />
 
       <View style={styles.logoWrap}>
         <Text style={styles.logo}>

@@ -350,12 +350,12 @@ export default function HomeScreen() {
   const creators = DUMMY_CREATORS[creatorFilter];
   const nowJuke = jukeData?.state ?? null;
 
-  const topInset = Platform.OS === "web" ? 67 : insets.top;
+  const topInset = Platform.OS === "web" ? 40 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : 0;
 
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
-      <TopStageBackground height={200} />
+      <TopStageBackground height={120} />
       {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <Text style={styles.logo}>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -64,6 +64,18 @@ export default function SettingsScreen() {
   const [codeSent, setCodeSent] = useState(false);
 
   const isVerified = !!user?.phoneNumber && !!user?.phoneVerifiedAt;
+
+  // ログインユーザーに電話番号があれば初期値として軽く反映
+  useEffect(() => {
+    if (user?.phoneNumber && !phone) {
+      // +81始まりなら 0 から始まる国内向け表記に戻す
+      if (user.phoneNumber.startsWith("+81")) {
+        setPhone("0" + user.phoneNumber.slice(3));
+      } else {
+        setPhone(user.phoneNumber);
+      }
+    }
+  }, [user?.phoneNumber, phone]);
 
   function normalizePhone(input: string): string {
     const trimmed = input.trim().replace(/[\s-]/g, "");
@@ -211,9 +223,9 @@ export default function SettingsScreen() {
               <Pressable
                 style={[
                   styles.phoneButton,
-                  (sendingCode || !phone.trim()) && styles.phoneButtonDisabled,
+                  (sendingCode || (!phone.trim() && !user?.phoneNumber)) && styles.phoneButtonDisabled,
                 ]}
-                disabled={sendingCode || !phone.trim()}
+                disabled={sendingCode || (!phone.trim() && !user?.phoneNumber)}
                 onPress={handleSendPhoneCode}
               >
                 {sendingCode ? (
@@ -444,5 +456,69 @@ const styles = StyleSheet.create({
     color: C.textMuted,
     marginTop: 24,
     marginBottom: 8,
+  },
+  // 電話番号認証ブロック
+  phoneWrap: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: C.surface2,
+  },
+  phoneHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  phoneLabel: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  phoneStatus: {
+    fontSize: 11,
+    fontWeight: "700",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  phoneStatusOk: {
+    backgroundColor: "rgba(76,175,80,0.18)",
+    color: "#AED581",
+  },
+  phoneStatusWarn: {
+    backgroundColor: "rgba(255,193,7,0.16)",
+    color: "#FFCA28",
+  },
+  phoneHelp: {
+    color: C.textMuted,
+    fontSize: 11,
+    marginBottom: 6,
+  },
+  phoneInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "web" ? 8 : 6,
+    color: C.text,
+    fontSize: 13,
+    backgroundColor: C.surface,
+    marginTop: 4,
+  },
+  phoneButton: {
+    marginTop: 8,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: C.accent,
+  },
+  phoneButtonDisabled: {
+    backgroundColor: C.surface3,
+  },
+  phoneButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });

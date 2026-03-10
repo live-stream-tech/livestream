@@ -15,8 +15,8 @@ type Props = {
  * 各画面の上部に入れるネオンステージ背景。
  * 画面幅いっぱいに表示し、下端を暗くグラデーションさせてコンテンツに馴染ませる。
  */
-export function TopStageBackground({ height = 180 }: Props) {
-  const headerHeight = Platform.OS === "web" ? height : height + 24;
+export function TopStageBackground({ height = 140 }: Props) {
+  const headerHeight = Platform.OS === "web" ? height : height + 8;
 
   return (
     <View style={[styles.container, { height: headerHeight }]}>
