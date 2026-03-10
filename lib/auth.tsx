@@ -24,6 +24,7 @@ type AuthCtx = {
   loading: boolean;
   loginWithToken: (token: string) => Promise<void>;
   logout: () => void;
+  reloadMe: () => Promise<void>;
   updateProfile: (data: Partial<Pick<User, "name" | "bio" | "avatar">>) => Promise<void>;
   /** 未ログイン時にLINEログインへ誘導する。戻り値はログイン済みなら true */
   requireAuth: (actionLabel?: string, options?: { requirePhone?: boolean }) => boolean;
@@ -35,6 +36,7 @@ const AuthContext = createContext<AuthCtx>({
   loading: true,
   loginWithToken: async () => {},
   logout: () => {},
+  reloadMe: async () => {},
   updateProfile: async () => {},
   requireAuth: () => false,
 });
@@ -96,6 +98,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem(TOKEN_KEY, t);
     setToken(t);
     setUser(normalizeMe(me));
+  }, []);
+
+  const reloadMe = useCallback(async () => {
+    const t = await AsyncStorage.getItem(TOKEN_KEY);
+    if (!t) {
+      setToken(null);
+      setUser(null);
+      return;
+    }
+    try {
+      const me = await apiFetch("/api/auth/me", {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      setToken(t);
+      setUser(normalizeMe(me));
+    } catch {
+      await AsyncStorage.removeItem(TOKEN_KEY);
+      setToken(null);
+      setUser(null);
+    }
   }, []);
 
   const logout = useCallback(async () => {
@@ -162,7 +184,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, loginWithToken, logout, updateProfile, requireAuth }}>
+    <AuthContext.Provider
+      value={{ user, token, loading, loginWithToken, logout, reloadMe, updateProfile, requireAuth }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -7,12 +7,15 @@ import {
   Pressable,
   Platform,
   Alert,
+  TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useAuth, AuthGuard } from "@/lib/auth";
 import { C } from "@/constants/colors";
+import { apiRequest, ApiError } from "@/lib/query-client";
 
 function SettingRow({
   icon,
@@ -52,13 +55,106 @@ function SectionHeader({ title }: { title: string }) {
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const topInset = Platform.OS === "web" ? 67 : insets.top;
-  const { user, logout } = useAuth();
+  const { user, logout, reloadMe } = useAuth();
+
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+
+  const isVerified = !!user?.phoneNumber && !!user?.phoneVerifiedAt;
+
+  function normalizePhone(input: string): string {
+    const trimmed = input.trim().replace(/[\s-]/g, "");
+    if (!trimmed) return "";
+    if (trimmed.startsWith("+")) return trimmed;
+    if (trimmed.startsWith("0")) {
+      return "+81" + trimmed.slice(1);
+    }
+    return "+81" + trimmed;
+  }
 
   function handleLogout() {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const ok = window.confirm("ログアウトしますか？");
+      if (ok) logout();
+      return;
+    }
     Alert.alert("ログアウト", "ログアウトしますか？", [
       { text: "キャンセル", style: "cancel" },
       { text: "ログアウト", style: "destructive", onPress: logout },
     ]);
+  }
+
+  async function handleSendPhoneCode() {
+    if (sendingCode) return;
+    const normalized = normalizePhone(phone || user?.phoneNumber || "");
+    if (!normalized) {
+      Alert.alert("電話番号を入力してください");
+      return;
+    }
+    setSendingCode(true);
+    try {
+      const res = await apiRequest("POST", "/api/auth/phone/start", {
+        phoneNumber: normalized,
+      });
+      await res.json();
+      setPhone(normalized);
+      setCodeSent(true);
+      Alert.alert("認証コードを送信しました", "SMSで届いた6桁のコードを入力してください。");
+    } catch (e: any) {
+      if (e instanceof ApiError) {
+        if (e.status === 400) {
+          Alert.alert("エラー", "電話番号の形式を確認してください。");
+        } else if (e.status === 409) {
+          Alert.alert("エラー", "この電話番号は既に別のアカウントで使用されています。");
+        } else if (e.status === 401) {
+          Alert.alert("エラー", "ログインが切れています。再度ログインしてください。");
+        } else {
+          Alert.alert("エラー", "認証コードの送信に失敗しました。");
+        }
+      } else {
+        Alert.alert("エラー", "認証コードの送信に失敗しました。");
+      }
+    } finally {
+      setSendingCode(false);
+    }
+  }
+
+  async function handleVerifyPhone() {
+    if (verifying) return;
+    const normalized = normalizePhone(phone || user?.phoneNumber || "");
+    if (!normalized || !code.trim()) {
+      Alert.alert("電話番号とコードを入力してください");
+      return;
+    }
+    setVerifying(true);
+    try {
+      const res = await apiRequest("POST", "/api/auth/phone/verify", {
+        phoneNumber: normalized,
+        code: code.trim(),
+      });
+      await res.json();
+      await reloadMe();
+      Alert.alert("認証完了", "電話番号の認証が完了しました。");
+    } catch (e: any) {
+      if (e instanceof ApiError) {
+        if (e.status === 400) {
+          Alert.alert("認証に失敗しました", "コードが正しくないか、有効期限が切れています。");
+        } else if (e.status === 409) {
+          Alert.alert("エラー", "この電話番号は既に別のアカウントで使用されています。");
+        } else if (e.status === 401) {
+          Alert.alert("エラー", "ログインが切れています。再度ログインしてください。");
+        } else {
+          Alert.alert("エラー", "認証に失敗しました。");
+        }
+      } else {
+        Alert.alert("エラー", "認証に失敗しました。");
+      }
+    } finally {
+      setVerifying(false);
+    }
   }
 
   return (
@@ -93,6 +189,70 @@ export default function SettingsScreen() {
               sublabel="表示名・プロフィール文・アイコン"
               onPress={() => router.push("/(tabs)/profile")}
             />
+            <View style={styles.rowDivider} />
+            <View style={styles.phoneWrap}>
+              <View style={styles.phoneHeaderRow}>
+                <Text style={styles.phoneLabel}>電話番号認証</Text>
+                <Text style={[styles.phoneStatus, isVerified ? styles.phoneStatusOk : styles.phoneStatusWarn]}>
+                  {isVerified ? "認証済み" : "未認証"}
+                </Text>
+              </View>
+              <Text style={styles.phoneHelp}>
+                投稿や一部の機能には電話番号認証が必要です。SMSで届くコードで本人確認を行います。
+              </Text>
+              <TextInput
+                style={styles.phoneInput}
+                placeholder="例: 09012345678"
+                placeholderTextColor={C.textMuted}
+                keyboardType="phone-pad"
+                value={phone}
+                onChangeText={setPhone}
+              />
+              <Pressable
+                style={[
+                  styles.phoneButton,
+                  (sendingCode || !phone.trim()) && styles.phoneButtonDisabled,
+                ]}
+                disabled={sendingCode || !phone.trim()}
+                onPress={handleSendPhoneCode}
+              >
+                {sendingCode ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.phoneButtonText}>認証コードを送信</Text>
+                )}
+              </Pressable>
+              {codeSent && (
+                <>
+                  <Text style={[styles.phoneHelp, { marginTop: 12 }]}>
+                    SMSで届いた6桁のコードを入力してください。
+                  </Text>
+                  <TextInput
+                    style={styles.phoneInput}
+                    placeholder="123456"
+                    placeholderTextColor={C.textMuted}
+                    keyboardType="number-pad"
+                    value={code}
+                    onChangeText={setCode}
+                    maxLength={6}
+                  />
+                  <Pressable
+                    style={[
+                      styles.phoneButton,
+                      (verifying || !code.trim()) && styles.phoneButtonDisabled,
+                    ]}
+                    disabled={verifying || !code.trim()}
+                    onPress={handleVerifyPhone}
+                  >
+                    {verifying ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={styles.phoneButtonText}>認証して保存</Text>
+                    )}
+                  </Pressable>
+                </>
+              )}
+            </View>
           </View>
 
         <SectionHeader title="収益・お支払い" />

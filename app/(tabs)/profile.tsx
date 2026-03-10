@@ -467,6 +467,13 @@ export default function ProfileScreen() {
               accessibilityRole="button"
               style={styles.logoutBtn}
               onPress={() => {
+                if (Platform.OS === "web" && typeof window !== "undefined") {
+                  const ok = window.confirm("ログアウトしますか？");
+                  if (ok) {
+                    logout();
+                  }
+                  return;
+                }
                 Alert.alert("ログアウト", "ログアウトしますか？", [
                   { text: "キャンセル", style: "cancel" },
                   { text: "ログアウト", style: "destructive", onPress: logout },

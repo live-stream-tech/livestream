@@ -1,6 +1,5 @@
 import React from "react";
 import { View, StyleSheet, Platform } from "react-native";
-import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { C } from "@/constants/colors";
 
@@ -21,15 +20,10 @@ export function TopStageBackground({ height = 180 }: Props) {
 
   return (
     <View style={[styles.container, { height: headerHeight }]}>
-      <Image
-        source={require("@/../assets/image-4bd85440-25cb-4e98-aa14-193a3e75b664.png")}
-        style={styles.image}
-        contentFit="cover"
-      />
       <LinearGradient
-        colors={["rgba(0,0,0,0.0)", "rgba(0,0,0,0.65)", C.bg]}
-        locations={[0.1, 0.6, 1]}
-        style={styles.overlay}
+        colors={["#050913", "#050913", C.bg]}
+        locations={[0, 0.4, 1]}
+        style={styles.gradient}
       />
     </View>
   );
@@ -41,11 +35,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#02050A",
   },
-  image: {
-    width: "100%",
-    height: "100%",
-  },
-  overlay: {
+  gradient: {
     ...(StyleSheet.absoluteFillObject as any),
   },
 });

@@ -364,8 +364,19 @@ export default function CommunityDetailScreen() {
   const [activeTab, setActiveTab] = useState<Tab>("新着順");
   const [following, setFollowing] = useState(false);
   const { user, token, requireAuth } = useAuth();
-  const community = COMMUNITIES.find((c) => c.id === id) ?? COMMUNITIES[0];
-  const communityId = parseInt(community.id, 10);
+  const numericId = Number(id);
+
+  const { data: apiCommunity } = useQuery<any>({
+    queryKey: [`/api/communities/${numericId}`],
+    enabled: !Number.isNaN(numericId),
+  });
+
+  const community =
+    apiCommunity ??
+    COMMUNITIES.find((c) => c.id === id) ??
+    COMMUNITIES[0];
+
+  const communityId = Number(community.id ?? numericId);
   const ad = getAd(community.name);
   const bottomInset = Platform.OS === "web" ? 34 : 0;
 

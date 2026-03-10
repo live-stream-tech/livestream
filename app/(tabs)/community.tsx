@@ -140,7 +140,13 @@ export default function CommunityScreen() {
   const [search, setSearch] = useState("");
   const [purchaseTab, setPurchaseTab] = useState<PurchaseTab>("週間");
 
-  const sortedCommunities = [...COMMUNITIES].sort((a, b) => b.members - a.members);
+  const { data: apiCommunities = [] } = useQuery<any[]>({
+    queryKey: ["/api/communities"],
+  });
+
+  const usingDemoCommunities = apiCommunities.length === 0;
+  const sourceCommunities = usingDemoCommunities ? COMMUNITIES : apiCommunities;
+  const sortedCommunities = [...sourceCommunities].sort((a, b) => b.members - a.members);
 
   const { data: rankedApiVideos = [] } = useQuery<any[]>({
     queryKey: ["/api/videos/ranked"],
