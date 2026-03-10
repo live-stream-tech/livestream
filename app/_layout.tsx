@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { getLoginReturn, saveLoginReturn } from "@/lib/login-return";
+import { GlobalJukeboxPlayer } from "@/components/GlobalJukeboxPlayer";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -178,7 +179,10 @@ export default function RootLayout() {
             <KeyboardProvider>
               <LineTokenHandler>
                 <GlobalAuthGate>
-                  <RootLayoutNav />
+                  <View style={{ flex: 1 }}>
+                    <RootLayoutNav />
+                    <GlobalJukeboxPlayer />
+                  </View>
                 </GlobalAuthGate>
               </LineTokenHandler>
             </KeyboardProvider>

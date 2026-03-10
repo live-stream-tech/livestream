@@ -109,10 +109,6 @@ function NowPlaying({
   onNext: () => void;
 }) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const youtubePlayerRef = useRef<any | null>(null);
-  const playerContainerIdRef = useRef<string>(
-    `jukebox-yt-${Math.random().toString(36).slice(2)}`
-  );
 
   // LIVE ラベルのパルスアニメーション
   useEffect(() => {
@@ -128,128 +124,6 @@ function NowPlaying({
     };
   }, [pulseAnim]);
 
-  // Web 環境: YouTube IFrame API を使って再生終了(ENDED)を検知し、自動で次の曲へ
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-
-    // 再生対象の YouTube ID がなければプレイヤーを破棄
-    if (!state?.currentVideoYoutubeId) {
-      if (youtubePlayerRef.current) {
-        try {
-          youtubePlayerRef.current.destroy();
-        } catch {
-          // ignore
-        }
-        youtubePlayerRef.current = null;
-      }
-      return;
-    }
-
-    let cancelled = false;
-
-    function ensureYouTubeApi(): Promise<any> {
-      return new Promise((resolve) => {
-        const w = window as any;
-        if (w.YT && w.YT.Player) {
-          resolve(w.YT);
-          return;
-        }
-
-        const prev = w.onYouTubeIframeAPIReady;
-        w.onYouTubeIframeAPIReady = () => {
-          if (prev) prev();
-          resolve(w.YT);
-        };
-
-        if (!document.querySelector("script[src=\"https://www.youtube.com/iframe_api\"]")) {
-          const tag = document.createElement("script");
-          tag.src = "https://www.youtube.com/iframe_api";
-          document.body.appendChild(tag);
-        }
-      });
-    }
-
-    ensureYouTubeApi()
-      .then((YT: any) => {
-        if (cancelled) return;
-        const containerId = playerContainerIdRef.current;
-        if (!containerId) return;
-
-        // すでにプレイヤーがあれば動画だけ差し替え
-        if (youtubePlayerRef.current) {
-          try {
-            const startSeconds =
-              state.elapsedSecs && state.elapsedSecs > 0
-                ? state.elapsedSecs
-                : Math.max(
-                    0,
-                    (Date.now() - new Date(state.startedAt).getTime()) / 1000
-                  );
-            youtubePlayerRef.current.loadVideoById({
-              videoId: state.currentVideoYoutubeId,
-              startSeconds,
-            });
-          } catch {
-            // 読み込みに失敗した場合は作り直し
-            try {
-              youtubePlayerRef.current.destroy();
-            } catch {
-              // ignore
-            }
-            youtubePlayerRef.current = null;
-          }
-        }
-
-        if (!youtubePlayerRef.current) {
-          const startSeconds =
-            state.elapsedSecs && state.elapsedSecs > 0
-              ? state.elapsedSecs
-              : Math.max(
-                  0,
-                  (Date.now() - new Date(state.startedAt).getTime()) / 1000
-                );
-          youtubePlayerRef.current = new YT.Player(containerId, {
-            videoId: state.currentVideoYoutubeId,
-            playerVars: {
-              autoplay: 1,
-              rel: 0,
-              controls: 0,
-              disablekb: 1,
-              playsinline: 1,
-            },
-            events: {
-              onStateChange: (event: any) => {
-                try {
-                  const w = window as any;
-                  if (event.data === w.YT?.PlayerState?.ENDED) {
-                    onNext();
-                  }
-                } catch {
-                  // ignore
-                }
-              },
-            },
-          });
-        }
-      })
-      .catch(() => {
-        // API ロード失敗時は静的サムネイル表示のみ
-      });
-
-    return () => {
-      cancelled = true;
-      // 画面遷移時にプレイヤーを確実に破棄
-      if (youtubePlayerRef.current) {
-        try {
-          youtubePlayerRef.current.destroy();
-        } catch {
-          // ignore
-        }
-        youtubePlayerRef.current = null;
-      }
-    };
-  }, [state?.currentVideoYoutubeId, onNext]);
-
   if (!state) {
     return (
       <View style={styles.nowPlayingEmpty}>
@@ -259,7 +133,6 @@ function NowPlaying({
     );
   }
 
-  const isYouTube = !!state.currentVideoYoutubeId;
   const elapsedSource =
     typeof state.elapsedSecs === "number"
       ? state.elapsedSecs
@@ -271,21 +144,17 @@ function NowPlaying({
       : 0;
 
   return (
-    <View style={styles.nowPlaying}>
-      {Platform.OS === "web" && isYouTube ? (
-        <View style={styles.youtubeContainer} nativeID={playerContainerIdRef.current} />
-      ) : (
-        <>
-          {state.currentVideoThumbnail ? (
-            <Image
-              source={{ uri: state.currentVideoThumbnail }}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-            />
-          ) : null}
-          <View style={styles.nowPlayingOverlay} />
-        </>
-      )}
+  <View style={styles.nowPlaying}>
+      <>
+        {state.currentVideoThumbnail ? (
+          <Image
+            source={{ uri: state.currentVideoThumbnail }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+          />
+        ) : null}
+        <View style={styles.nowPlayingOverlay} />
+      </>
 
       <View style={styles.nowPlayingTop}>
         <View style={styles.liveChip}>
@@ -300,17 +169,9 @@ function NowPlaying({
 
       <View style={styles.nowPlayingBottom}>
         <View style={styles.nowPlayingCenter}>
-          <Pressable
-            style={styles.playIcon}
-            onPress={() => {
-              if (isYouTube && state.currentVideoYoutubeId) {
-                const url = `https://www.youtube.com/watch?v=${state.currentVideoYoutubeId}`;
-                Linking.openURL(url);
-              }
-            }}
-          >
+          <View style={styles.playIcon}>
             <Ionicons name="play" size={28} color="rgba(255,255,255,0.9)" />
-          </Pressable>
+          </View>
         </View>
 
         <Text style={styles.nowPlayingTitle} numberOfLines={2}>
