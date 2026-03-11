@@ -75,6 +75,17 @@ export const liveStreams = pgTable("live_streams", {
   isLive: boolean("is_live").notNull().default(true),
 });
 
+/** Cloudflare Stream の Live Input を管理するテーブル */
+export const streams = pgTable("streams", {
+  id: serial("id").primaryKey(),
+  cfLiveInputId: text("cf_live_input_id").notNull(),
+  webRtcUrl: text("webrtc_url").notNull(),
+  rtmpsUrl: text("rtmps_url").notNull(),
+  rtmpsStreamKey: text("rtmps_stream_key").notNull(),
+  currentViewers: integer("current_viewers").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const creators = pgTable("creators", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),

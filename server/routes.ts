@@ -28,6 +28,7 @@ import {
   liverAvailability,
   announcements,
   phoneVerifications,
+  streams,
 } from "./schema";
 import { eq, asc, desc, count, sql, and, gte, lte, isNull, inArray } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey, createConnectExpressAccount, createConnectAccountLink, getConnectAccount, createBannerPaymentIntent, getPaymentIntentStatus } from "./stripeClient";
@@ -36,6 +37,8 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
 const JWT_SECRET = process.env.SESSION_SECRET ?? "livestage-dev-secret";
+const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? "";
+const CLOUDFLARE_STREAM_TOKEN = process.env.CLOUDFLARE_STREAM_TOKEN ?? "";
 
 function makeToken(userId: number) {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "90d" });
@@ -1335,16 +1338,96 @@ export async function registerRoutes(app: Express): Promise<void> {
       );
     }
 
+    const effectiveState =
+      state && state.isPlaying && state.currentVideoYoutubeId ? state : null;
+
     res.json({
-      state: state
+      state: effectiveState
         ? {
-            ...state,
+            ...effectiveState,
             elapsedSecs,
           }
         : null,
       queue,
       chat,
     });
+  });
+
+  // ── Cloudflare Stream Live Input 作成 ───────────────────────────────
+  app.post("/api/stream/create", async (req: Request, res: Response) => {
+    if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_STREAM_TOKEN) {
+      return res.status(500).json({ error: "Cloudflare Stream is not configured" });
+    }
+
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const { name } = req.body ?? {};
+
+    try {
+      const cfRes = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/stream/live_inputs`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${CLOUDFLARE_STREAM_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            meta: {
+              name: name || `LiveStage Stream by ${user.displayName}`,
+            },
+          }),
+        }
+      );
+
+      const json = (await cfRes.json()) as {
+        success?: boolean;
+        result?: {
+          uid?: string;
+          rtmps?: { url?: string; streamKey?: string };
+          webRTC?: { url?: string };
+          webRTCPlayback?: { url?: string };
+        };
+        errors?: unknown;
+      };
+
+      if (!cfRes.ok || !json.success || !json.result) {
+        console.error("Cloudflare Stream create error:", json.errors);
+        return res.status(502).json({ error: "Cloudflare Stream live input 作成に失敗しました" });
+      }
+
+      const result = json.result;
+      const cfId = result.uid ?? "";
+      const rtmpsUrl = result.rtmps?.url ?? "";
+      const rtmpsStreamKey = result.rtmps?.streamKey ?? "";
+      const webRtcPlaybackUrl =
+        result.webRTCPlayback?.url ?? result.webRTC?.url ?? "";
+
+      if (!cfId || !rtmpsUrl || !rtmpsStreamKey || !webRtcPlaybackUrl) {
+        return res.status(502).json({ error: "Cloudflare Stream レスポンスが不完全です" });
+      }
+
+      const [row] = await db
+        .insert(streams)
+        .values({
+          cfLiveInputId: cfId,
+          webRtcUrl: webRtcPlaybackUrl,
+          rtmpsUrl,
+          rtmpsStreamKey,
+          currentViewers: 0,
+        } as typeof streams.$inferInsert)
+        .returning();
+
+      res.json({
+        id: row.id,
+        webRtc: { url: webRtcPlaybackUrl },
+        rtmps: { url: rtmpsUrl, streamKey: rtmpsStreamKey },
+      });
+    } catch (e: any) {
+      console.error("Cloudflare Stream create exception:", e);
+      res.status(500).json({ error: "Cloudflare Stream API 通信でエラーが発生しました" });
+    }
   });
 
   app.post("/api/jukebox/:communityId/add", async (req: Request, res: Response) => {
@@ -1364,8 +1447,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       addedBy: addedBy ?? "あなた", addedByAvatar, position: nextPos, isPlayed: false,
     } as typeof jukeboxQueue.$inferInsert).returning();
 
-    // 最初の1件が追加されたときは自動で再生を開始する
-    if (existing.length === 0) {
+    // 未再生の曲が1つもない場合（新しいセッション）は自動で再生を開始する
+    const hasUnplayed = existing.some((q) => !q.isPlayed);
+    if (!hasUnplayed) {
       const watchers = Math.floor(Math.random() * 80) + 20;
       await db
         .insert(jukeboxState)

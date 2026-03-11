@@ -8,6 +8,7 @@ import {
   Pressable,
   Modal,
   Platform,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +18,7 @@ import { router } from "expo-router";
 import { C } from "@/constants/colors";
 import { TopStageBackground } from "@/components/TopStageBackground";
 import type { BookingSession } from "@/constants/data";
+import { apiRequest } from "@/lib/query-client";
 
 const 個別セッション_CATEGORY_ICONS: Record<string, string> = {
   english: "language-outline",
@@ -122,14 +124,11 @@ type FeeType = "free" | "paid";
 type PriceOption = 500 | 1000 | 3000 | 5000;
 
 function LiveStartModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const handleStart = () => {
-    onClose();
-    router.push("/broadcast");
-  };
   const insets = useSafeAreaInsets();
   const [scope, setScope] = useState<PublicScope>("public");
   const [fee, setFee] = useState<FeeType>("paid");
   const [price, setPrice] = useState<PriceOption>(500);
+  const [creating, setCreating] = useState(false);
 
   const prices: PriceOption[] = [500, 1000, 3000, 5000];
 
@@ -253,9 +252,39 @@ function LiveStartModal({ visible, onClose }: { visible: boolean; onClose: () =>
               </View>
             </View>
 
-            <Pressable style={styles.startBtn} onPress={handleStart}>
+            <Pressable
+              style={styles.startBtn}
+              onPress={async () => {
+                if (creating) return;
+                try {
+                  setCreating(true);
+                  const res = await apiRequest("POST", "/api/stream/create", {
+                    scope,
+                    fee,
+                    price,
+                  });
+                  const data = (await res.json()) as {
+                    id: number;
+                    webRtc: { url: string };
+                    rtmps: { url: string; streamKey: string };
+                  };
+                  onClose();
+                  Alert.alert(
+                    "配信入力を作成しました",
+                    `配信ソフト(OBSなど)には次を設定してください:\n\nサーバーURL:\n${data.rtmps.url}\n\nストリームキー:\n${data.rtmps.streamKey}`
+                  );
+                  router.push("/broadcast");
+                } catch (e: any) {
+                  Alert.alert("エラー", e?.message ?? "ライブ入力の作成に失敗しました");
+                } finally {
+                  setCreating(false);
+                }
+              }}
+            >
               <View style={styles.startDot} />
-              <Text style={styles.startBtnText}>ライブ配信を開始</Text>
+              <Text style={styles.startBtnText}>
+                {creating ? "作成中..." : "ライブ配信を開始"}
+              </Text>
             </Pressable>
           </ScrollView>
         </Pressable>
