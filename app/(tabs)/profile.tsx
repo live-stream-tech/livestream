@@ -66,6 +66,71 @@ const ENNEAGRAM_TYPES = [
 const STORAGE_KEY = "enneagram_scores";
 const DEFAULT_SCORES = [6, 5, 7, 4, 8, 5, 6, 4, 7];
 
+const PWA_DISMISSED_KEY = "pwa_add_to_home_dismissed";
+
+/** PWA「ホーム画面に追加」バナー表示可否。Web かつ 未インストール かつ 未閉じの場合のみ true */
+function usePwaInstallBanner() {
+  const [showBanner, setShowBanner] = useState(false);
+  const [showIosModal, setShowIosModal] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<{ prompt(): Promise<void> } | null>(null);
+
+  const isWeb = Platform.OS === "web";
+  const isIos =
+    isWeb &&
+    typeof navigator !== "undefined" &&
+    /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  useEffect(() => {
+    if (!isWeb || typeof window === "undefined") return;
+
+    const standalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (navigator as any).standalone === true;
+    if (standalone) {
+      setShowBanner(false);
+      return;
+    }
+
+    const dismissed = window.localStorage.getItem(PWA_DISMISSED_KEY);
+    if (dismissed === "1") {
+      setShowBanner(false);
+      return;
+    }
+
+    const onBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as unknown as { prompt(): Promise<void> });
+    };
+    window.addEventListener("beforeinstallprompt", onBeforeInstall);
+    setShowBanner(true);
+
+    return () => window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+  }, [isWeb]);
+
+  const onDismiss = () => {
+    if (isWeb && typeof window !== "undefined") {
+      window.localStorage.setItem(PWA_DISMISSED_KEY, "1");
+    }
+    setShowBanner(false);
+  };
+
+  const onAddPress = () => {
+    if (isIos) {
+      setShowIosModal(true);
+      return;
+    }
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      setShowBanner(false);
+      if (isWeb && typeof window !== "undefined") {
+        window.localStorage.setItem(PWA_DISMISSED_KEY, "1");
+      }
+    }
+  };
+
+  return { showBanner, showIosModal, setShowIosModal, onAddPress, onDismiss, isIos, hasDeferredPrompt: !!deferredPrompt };
+}
+
 function getPolygonPoints(
   cx: number,
   cy: number,
@@ -233,6 +298,8 @@ export default function ProfileScreen() {
     enabled: !!user && !!token,
   });
   const [roleLoading, setRoleLoading] = useState<"editor" | "twoshot" | null>(null);
+
+  const pwaBanner = usePwaInstallBanner();
 
   // Search state
   const [searchText, setSearchText] = useState("");
@@ -424,6 +491,26 @@ export default function ProfileScreen() {
         </View>
       </View>
       <MetallicLine thickness={1} style={{ marginHorizontal: 16 }} />
+
+      {/* PWA ホーム画面に追加バナー（Web かつ 未インストール かつ 未閉じの場合のみ） */}
+      {Platform.OS === "web" && pwaBanner.showBanner && (
+        <View style={styles.pwaBanner}>
+          <View style={styles.pwaBannerContent}>
+            <Text style={styles.pwaBannerText} numberOfLines={2}>
+              ホーム画面に追加してアプリとして使う
+            </Text>
+            <Pressable
+              style={[styles.pwaBannerBtn, (!pwaBanner.hasDeferredPrompt && !pwaBanner.isIos) && styles.pwaBannerBtnDisabled]}
+              onPress={pwaBanner.onAddPress}
+            >
+              <Text style={styles.pwaBannerBtnText}>追加</Text>
+            </Pressable>
+          </View>
+          <Pressable style={styles.pwaBannerClose} onPress={pwaBanner.onDismiss} hitSlop={8}>
+            <Ionicons name="close" size={20} color={C.textMuted} />
+          </Pressable>
+        </View>
+      )}
 
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={16} color={C.textMuted} />
@@ -857,6 +944,22 @@ export default function ProfileScreen() {
                 )}
               </Pressable>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* iOS: ホーム画面に追加の手順モーダル */}
+      <Modal visible={pwaBanner.showIosModal} transparent animationType="fade">
+        <View style={styles.modalBg}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => pwaBanner.setShowIosModal(false)} />
+          <View style={styles.pwaIosModalBox}>
+            <Text style={styles.pwaIosModalTitle}>ホーム画面に追加</Text>
+            <Text style={styles.pwaIosModalBody}>
+              Safariの画面下部にある「共有」ボタン（□に上矢印）をタップし、一覧から「ホーム画面に追加」を選んでください。
+            </Text>
+            <Pressable style={styles.pwaIosModalBtn} onPress={() => pwaBanner.setShowIosModal(false)}>
+              <Text style={styles.pwaIosModalBtnText}>OK</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -1430,6 +1533,51 @@ const styles = StyleSheet.create({
   },
   lineIcon: { width: 22, height: 22 },
   lineLoginText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+
+  pwaBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingLeft: 14,
+    paddingRight: 8,
+    borderWidth: 1,
+    borderColor: C.accent + "44",
+  },
+  pwaBannerContent: { flex: 1, gap: 10 },
+  pwaBannerText: { color: C.text, fontSize: 13, fontWeight: "600" },
+  pwaBannerBtn: {
+    alignSelf: "flex-start",
+    backgroundColor: C.accent,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  pwaBannerBtnDisabled: { opacity: 0.6 },
+  pwaBannerBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  pwaBannerClose: { padding: 6 },
+
+  pwaIosModalBox: {
+    marginHorizontal: 24,
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  pwaIosModalTitle: { color: C.text, fontSize: 17, fontWeight: "800", marginBottom: 12, textAlign: "center" },
+  pwaIosModalBody: { color: C.textSec, fontSize: 14, lineHeight: 22, marginBottom: 20, textAlign: "center" },
+  pwaIosModalBtn: {
+    backgroundColor: C.accent,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  pwaIosModalBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
 
   // Header actions (edit + logout)
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
