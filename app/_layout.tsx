@@ -111,6 +111,7 @@ function isPublicPath(pathname: string): boolean {
   if (pathname === "/auth/login") return true;
   if (pathname === "/community" || pathname.startsWith("/community/")) return true; // /(tabs)/community + 詳細
   if (pathname === "/live" || pathname.startsWith("/live")) return true; // /(tabs)/live + /live/[id]
+  if (pathname === "/terms") return true;
   return false;
 }
 
@@ -161,6 +162,7 @@ function RootLayoutNav() {
       <Stack.Screen name="payout-settings" options={{ headerShown: false }} />
       <Stack.Screen name="auth/login" options={{ headerShown: false }} />
       <Stack.Screen name="auth/register" options={{ headerShown: false }} />
+      <Stack.Screen name="terms" options={{ headerShown: false }} />
     </Stack>
   );
 }

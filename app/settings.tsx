@@ -167,7 +167,7 @@ export default function SettingsScreen() {
           <SettingRow
             icon="document-text-outline"
             label="利用規約"
-            onPress={() => Alert.alert("準備中", "この機能は近日公開予定です")}
+            onPress={() => router.push("/terms")}
           />
           <View style={styles.rowDivider} />
           <SettingRow
