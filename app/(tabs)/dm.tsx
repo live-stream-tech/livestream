@@ -13,6 +13,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
+import { getTabTopInset, getTabBottomInset } from "@/constants/layout";
+import { MetallicLine } from "@/components/MetallicLine";
 
 type DMItem = {
   id: number;
@@ -101,8 +103,8 @@ const PLACEHOLDER = [
 
 export default function DMScreen() {
   const insets = useSafeAreaInsets();
-  const topInset = Platform.OS === "web" ? 67 : insets.top;
-  const bottomInset = Platform.OS === "web" ? 34 : 0;
+  const topInset = getTabTopInset(insets);
+  const bottomInset = getTabBottomInset();
 
   const { data: dmList = [] } = useQuery<DMItem[]>({
     queryKey: ["/api/dm-messages"],
@@ -116,6 +118,7 @@ export default function DMScreen() {
           <Ionicons name="create-outline" size={22} color={C.text} />
         </Pressable>
       </View>
+      <MetallicLine thickness={1} style={{ marginHorizontal: 16 }} />
 
       <ScrollView
         style={styles.scroll}

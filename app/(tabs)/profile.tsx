@@ -21,7 +21,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Svg, { Polygon, Circle, Line, Text as SvgText } from "react-native-svg";
 import { useAuth } from "@/lib/auth";
 import { C } from "@/constants/colors";
+import { getTabTopInset, getTabBottomInset } from "@/constants/layout";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { AppLogo } from "@/components/AppLogo";
+import { MetallicLine } from "@/components/MetallicLine";
 import { saveLoginReturn } from "@/lib/login-return";
 
 type Notif = { id: number; isRead: boolean };
@@ -185,8 +188,8 @@ function EnneagramChart({ scores }: { scores: number[] }) {
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const topInset = Platform.OS === "web" ? 12 : insets.top;
-  const bottomInset = Platform.OS === "web" ? 34 : 0;
+  const topInset = getTabTopInset(insets);
+  const bottomInset = getTabBottomInset(insets);
   const unreadCount = useUnreadCount();
   const { user, token, loading: authLoading, logout, updateProfile } = useAuth();
   const queryClient = useQueryClient();
@@ -375,7 +378,12 @@ export default function ProfileScreen() {
         const returnTo = window.location.pathname + window.location.search;
         saveLoginReturn(returnTo);
         const apiBase = getApiUrl();
-        window.location.href = new URL("/api/auth/line", apiBase).toString();
+        const url = new URL("/api/auth/line", apiBase).toString();
+        try {
+          (window.top || window).location.replace(url);
+        } catch {
+          window.location.replace(url);
+        }
       } else {
         router.replace("/(tabs)");
       }
@@ -384,11 +392,9 @@ export default function ProfileScreen() {
     return (
       <View style={[styles.container, styles.guestContainer, { paddingTop: topInset + 40 }]}>
         <Ionicons name="person-circle-outline" size={80} color={C.textMuted} />
-        <Text style={styles.guestTitle}>
-          <Text style={styles.logoLive}>Live</Text>
-          <Text style={styles.logoS}>S</Text>
-          <Text style={styles.logoLive}>tage</Text>
-        </Text>
+        <View style={styles.guestLogoWrap}>
+          <AppLogo width={180} />
+        </View>
         <Text style={styles.guestSub}>ログインしてマイページを確認しよう</Text>
         <Pressable style={styles.lineLoginBtn} onPress={handleLineLogin}>
           <Image source={{ uri: "https://upload.wikimedia.org/wikipedia/commons/4/41/LINE_logo.svg" }} style={styles.lineIcon} contentFit="contain" />
@@ -401,10 +407,7 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-        <Text style={styles.logo}>
-          <Text style={styles.logoLive}>Live</Text>
-          <Text style={styles.logoStock}>Stage</Text>
-        </Text>
+        <AppLogo width={140} />
         <View style={styles.headerRight}>
           <Pressable style={styles.identityBtn}>
             <Ionicons name="shield-checkmark-outline" size={13} color={C.orange} />
@@ -420,6 +423,7 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
       </View>
+      <MetallicLine thickness={1} style={{ marginHorizontal: 16 }} />
 
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={16} color={C.textMuted} />
@@ -744,7 +748,7 @@ export default function ProfileScreen() {
       <Modal visible={showProfileModal} transparent animationType="slide">
         <View style={styles.modalBg}>
           <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowProfileModal(false)} />
-          <View style={[styles.modalSheet, { paddingBottom: (Platform.OS === "web" ? 34 : insets.bottom) + 16 }]}>
+          <View style={[styles.modalSheet, { paddingBottom: getTabBottomInset(insets) + 16 }]}>
             <View style={styles.modalHandle} />
             <View style={styles.modalTitleRow}>
               <Ionicons name="person-circle-outline" size={20} color={C.accent} />
@@ -863,7 +867,7 @@ export default function ProfileScreen() {
           <Animated.View
             style={[
               styles.modalSheet,
-              { paddingBottom: (Platform.OS === "web" ? 34 : insets.bottom) + 16 },
+              { paddingBottom: getTabBottomInset(insets) + 16 },
               {
                 transform: [
                   {
@@ -948,10 +952,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 8,
   },
-  logo: { fontSize: 18, fontWeight: "800" },
-  logoLive: { color: C.text },
-  logoS: { color: C.accent },
-  logoStock: { color: C.accent },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
   identityBtn: {
     flexDirection: "row",
@@ -1403,7 +1403,7 @@ const styles = StyleSheet.create({
 
   // Guest / not logged in
   guestContainer: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 40 },
-  guestTitle: { color: C.text, fontSize: 28, fontWeight: "800" },
+  guestLogoWrap: { marginBottom: 4 },
   guestSub: { color: C.textMuted, fontSize: 14, textAlign: "center" },
   guestLoginBtn: {
     marginTop: 12,

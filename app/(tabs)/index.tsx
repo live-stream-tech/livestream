@@ -13,7 +13,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
-import { TopStageBackground } from "@/components/TopStageBackground";
+import { getTabTopInset, getTabBottomInset } from "@/constants/layout";
+import { MetallicLine } from "@/components/MetallicLine";
+import { AppLogo } from "@/components/AppLogo";
 
 type Notif = { id: number; isRead: boolean };
 
@@ -350,19 +352,13 @@ export default function HomeScreen() {
   const creators = DUMMY_CREATORS[creatorFilter];
   const nowJuke = jukeData?.state ?? null;
 
-  const topInset = Platform.OS === "web" ? 8 : insets.top;
-  const bottomInset = Platform.OS === "web" ? 34 : 0;
+  const topInset = getTabTopInset(insets);
+  const bottomInset = getTabBottomInset();
 
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
-      <TopStageBackground height={56} />
-      {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-        <Text style={styles.logo}>
-          <Text style={styles.logoLive}>Live</Text>
-          <Text style={styles.logoS}>S</Text>
-          <Text style={styles.logoLive}>tage</Text>
-        </Text>
+        <AppLogo width={160} />
         <View style={styles.headerRight}>
           <Pressable style={styles.notifButton} onPress={() => router.push("/notifications?filter=purchase")}>
             <Ionicons name="notifications-outline" size={22} color={C.text} />
@@ -374,6 +370,7 @@ export default function HomeScreen() {
           </Pressable>
         </View>
       </View>
+      <MetallicLine thickness={1} style={{ marginHorizontal: 16 }} />
 
       {/* Mini Jukebox widget */}
       {nowJuke && (
@@ -613,19 +610,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     backgroundColor: C.bg,
-  },
-  logo: {
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  logoLive: {
-    color: C.text,
-  },
-  logoS: {
-    color: C.accent,
-  },
-  logoStock: {
-    color: C.accent,
   },
   headerRight: {
     flexDirection: "row",

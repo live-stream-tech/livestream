@@ -7,113 +7,116 @@ import {
   Pressable,
   Platform,
 } from "react-native";
+import { Image } from "expo-image";
 import { useLocalSearchParams, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "@/constants/colors";
+import { getTabTopInset, getTabBottomInset } from "@/constants/layout";
+import { AppLogo } from "@/components/AppLogo";
+import { COMMUNITIES } from "@/constants/data";
+import { useQuery } from "@tanstack/react-query";
 
-type Playlist = {
-  id: number;
-  title: string;
-  description: string;
-  url: string;
+const GENRE_TO_CATEGORY: Record<string, string[]> = {
+  anime: ["アニメ", "音楽"],
+  band: ["バンド", "音楽"],
+  subcul: ["サブカル", "ライフスタイル", "アート"],
+  english: ["英会話"],
+  fortune: ["占い"],
 };
 
-const GENRE_DATA: Record<string, { name: string; icon: string; color: string; playlists: Playlist[] }> = {
+const GENRE_DATA: Record<string, { name: string; icon: string; color: string }> = {
+  anime: { name: "アニメ", icon: "tv-outline", color: "#E91E8C" },
+  band: { name: "バンド", icon: "musical-notes-outline", color: C.accent },
+  subcul: { name: "サブカル", icon: "sparkles-outline", color: C.orange },
+  english: { name: "英会話", icon: "language-outline", color: C.green },
+  fortune: { name: "占い", icon: "moon-outline", color: "#9C27B0" },
+};
+
+type AdData = { title: string; sub: string; cta: string; bg: string; accent: string; thumb: string };
+
+const GENRE_ADS: Record<string, AdData> = {
   anime: {
-    name: "アニメ",
-    icon: "tv-outline",
-    color: "#E91E8C",
-    playlists: [
-      { id: 1, title: "深夜のチルプレイリスト", description: "リラックスできる曲まとめ", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxAnime01" },
-      { id: 2, title: "神OPメドレー2024", description: "今年の名曲オープニングを厳選", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxAnime02" },
-      { id: 3, title: "泣けるアニソン特集", description: "感動シーンのBGMコレクション", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxAnime03" },
-      { id: 4, title: "戦闘BGM最強まとめ", description: "テンション上がる戦闘曲だけ集めた", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxAnime04" },
-      { id: 5, title: "ジブリ名曲セレクション", description: "久石譲作品の名曲を網羅", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxAnime05" },
-      { id: 6, title: "ロボットアニメ主題歌", description: "ガンダムからエヴァまで", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxAnime06" },
-      { id: 7, title: "少女漫画アニメED集", description: "エンディングの名曲特集", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxAnime07" },
-      { id: 8, title: "進撃BGMコンプリート", description: "進撃の巨人全シーズンBGM", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxAnime08" },
-      { id: 9, title: "ドラゴンボール主題歌全部", description: "Z〜超まで全部入り", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxAnime09" },
-      { id: 10, title: "勉強用アニソンBGM", description: "歌詞なし・集中できるアレンジ集", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxAnime10" },
-    ],
+    title: "アニソンフェス2026",
+    sub: "5/3 幕張メッセ • S席好評発売",
+    cta: "チケット",
+    bg: "#1a0828",
+    accent: "#E040FB",
+    thumb: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=120&h=80&fit=crop",
   },
   band: {
-    name: "バンド",
-    icon: "musical-notes-outline",
-    color: C.accent,
-    playlists: [
-      { id: 1, title: "邦ロック名盤セレクト", description: "ドライブで聴きたい邦ロックまとめ", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxBand01" },
-      { id: 2, title: "ライブ映像神回まとめ", description: "フェスのベストパフォーマンス集", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxBand02" },
-      { id: 3, title: "ギターソロ名曲100選", description: "コピーしたい神ソロをピックアップ", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxBand03" },
-      { id: 4, title: "90年代ビジュアル系名曲", description: "X JAPANからGacktまで", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxBand04" },
-      { id: 5, title: "インディーズ注目バンド", description: "メジャー前の神曲を掘り起こし", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxBand05" },
-      { id: 6, title: "夏フェスド定番セトリ", description: "サマソニ・ロッキン定番曲まとめ", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxBand06" },
-      { id: 7, title: "弾き語りカバー傑作選", description: "アコースティックアレンジが神すぎる", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxBand07" },
-      { id: 8, title: "ベース神プレイまとめ", description: "スラップからフィンガーまで", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxBand08" },
-      { id: 9, title: "ELLEGARDENトリビュート", description: "エルレ曲のカバー動画コレクション", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxBand09" },
-      { id: 10, title: "深夜ロックセッション", description: "眠れない夜に聴く轟音ギター", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxBand10" },
-    ],
+    title: "夏フェスド定番セトリ",
+    sub: "サマソニ・ロッキン先行チケット",
+    cta: "購入する",
+    bg: "#0a1520",
+    accent: C.accent,
+    thumb: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=120&h=80&fit=crop",
   },
   subcul: {
-    name: "サブカル",
-    icon: "sparkles-outline",
-    color: C.orange,
-    playlists: [
-      { id: 1, title: "シティポップ黄金期セレクト", description: "80年代シティポップの名盤たち", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxSub01" },
-      { id: 2, title: "エモい映画サントラ集", description: "ミニシアター系作品のBGM特集", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxSub02" },
-      { id: 3, title: "コミケ応援プレイリスト", description: "創作活動が捗る曲まとめ", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxSub03" },
-      { id: 4, title: "ゲームミュージック名曲選", description: "レトロゲーから最新作まで", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxSub04" },
-      { id: 5, title: "渋谷系ポップ名盤まとめ", description: "フリッパーズギターから始まる旅", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxSub05" },
-      { id: 6, title: "カセットテープの音楽たち", description: "ローファイ・サウンド特集", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxSub06" },
-      { id: 7, title: "アングラ演劇BGM", description: "小劇場の世界観を音で表現", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxSub07" },
-      { id: 8, title: "同人音楽の神曲特集", description: "コミケ頒布CDから厳選", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxSub08" },
-      { id: 9, title: "ZINE制作用BGM", description: "原稿が進む静かな音楽たち", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxSub09" },
-      { id: 10, title: "レコードショップ掘り出し物", description: "中古レコード店で見つけた隠れ名盤", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxSub10" },
-    ],
+    title: "コミケ応援プレイリスト",
+    sub: "創作活動が捗る曲まとめ",
+    cta: "聴く",
+    bg: "#1a0f08",
+    accent: C.orange,
+    thumb: "https://images.unsplash.com/photo-1521119989659-a83eee488004?w=120&h=80&fit=crop",
   },
   english: {
-    name: "英会話",
-    icon: "language-outline",
-    color: C.green,
-    playlists: [
-      { id: 1, title: "日常英会話フレーズ100", description: "ネイティブがよく使う表現まとめ", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxEng01" },
-      { id: 2, title: "英語ポップスで学ぶ発音", description: "洋楽を聴きながらリスニング強化", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxEng02" },
-      { id: 3, title: "TED Talks おすすめ10選", description: "英語力アップのためのTED厳選集", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxEng03" },
-      { id: 4, title: "映画で学ぶスラング集", description: "ハリウッド映画に出てくる口語表現", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxEng04" },
-      { id: 5, title: "ビジネス英語フレーズ", description: "会議・メールで使えるフォーマル表現", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxEng05" },
-      { id: 6, title: "英語の歌で単語暗記", description: "耳に残る洋楽で語彙力アップ", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxEng06" },
-      { id: 7, title: "ニュース英語入門", description: "BBCニュースで時事単語を学ぶ", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxEng07" },
-      { id: 8, title: "子ども向け英語ソング", description: "初心者が楽しく始められる英語歌", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxEng08" },
-      { id: 9, title: "IELTS対策スピーキング", description: "試験頻出トピックの模範解答集", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxEng09" },
-      { id: 10, title: "英語で聴く落語・漫談", description: "コメディで自然な英語リズムを習得", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxEng10" },
-    ],
+    title: "ビジネス英語フレーズ",
+    sub: "会議・メールで使えるフォーマル表現",
+    cta: "学ぶ",
+    bg: "#0a1f10",
+    accent: C.green,
+    thumb: "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=120&h=80&fit=crop",
   },
   fortune: {
-    name: "占い",
-    icon: "moon-outline",
-    color: "#9C27B0",
-    playlists: [
-      { id: 1, title: "深夜の瞑想BGM", description: "占いセッションに合う静寂の音楽", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxFor01" },
-      { id: 2, title: "タロット読み解き動画集", description: "人気占い師のタロット解説まとめ", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxFor02" },
-      { id: 3, title: "星座別運勢ソング", description: "12星座ごとのテーマ曲セレクト", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxFor03" },
-      { id: 4, title: "クリスタルボウル ヒーリング", description: "浄化と癒しのサウンドバス", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxFor04" },
-      { id: 5, title: "月のリズムで聴く音楽", description: "新月・満月に合わせたプレイリスト", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxFor05" },
-      { id: 6, title: "西洋占星術入門動画", description: "ホロスコープの読み方を学ぶ", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxFor06" },
-      { id: 7, title: "神秘的なアンビエント集", description: "霊感が冴えると話題の音楽たち", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxFor07" },
-      { id: 8, title: "数秘術解説シリーズ", description: "誕生日から運命数を読む方法", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxFor08" },
-      { id: 9, title: "ルーン文字学習プレイリスト", description: "北欧神話と占いを音で体験", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxFor09" },
-      { id: 10, title: "朝の引き寄せルーティン", description: "アファメーション＋ヒーリング音楽", url: "https://www.youtube.com/playlist?list=PLxxxxxxxxFor10" },
-    ],
+    title: "タロット読み解き動画集",
+    sub: "人気占い師のタロット解説まとめ",
+    cta: "見る",
+    bg: "#1a0828",
+    accent: "#9C27B0",
+    thumb: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&h=80&fit=crop",
   },
 };
+
+const DEFAULT_AD: AdData = {
+  title: "プレミアム配信チケット発売中",
+  sub: "今すぐ購入で会員10%OFF",
+  cta: "購入する",
+  bg: "#0a1520",
+  accent: C.accent,
+  thumb: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=120&h=80&fit=crop",
+};
+
+function formatNum(n: number): string {
+  if (n >= 10000) return (n / 10000).toFixed(1) + "万";
+  return n.toLocaleString();
+}
+
+function filterCommunitiesByGenre(items: { id: string | number; category?: string }[], genreId: string) {
+  const terms = GENRE_TO_CATEGORY[genreId];
+  if (!terms) return items;
+  return items.filter((r) => terms.some((t) => (r.category ?? "").includes(t)));
+}
 
 export default function GenreScreen() {
   const { genreId } = useLocalSearchParams<{ genreId: string }>();
   const insets = useSafeAreaInsets();
-  const topInset = Platform.OS === "web" ? 67 : insets.top;
-  const bottomInset = Platform.OS === "web" ? 34 : 0;
+  const topInset = getTabTopInset(insets);
+  const bottomInset = getTabBottomInset();
 
   const genre = GENRE_DATA[genreId ?? ""] ?? null;
+
+  const { data: apiCommunities = [] } = useQuery<any[]>({
+    queryKey: [`/api/communities${genreId ? `?genre=${genreId}` : ""}`],
+    enabled: !!genreId,
+  });
+
+  const usingDemo = apiCommunities.length === 0;
+  const source = usingDemo ? COMMUNITIES : apiCommunities;
+  const communities = genreId ? filterCommunitiesByGenre(source, genreId) : source;
+  const sortedCommunities = [...communities].sort((a, b) => (b.members ?? 0) - (a.members ?? 0));
+
+  const ad = (genreId && GENRE_ADS[genreId]) ?? DEFAULT_AD;
 
   if (!genre) {
     return (
@@ -126,6 +129,7 @@ export default function GenreScreen() {
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
+        <AppLogo width={120} />
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={22} color={C.text} />
         </Pressable>
@@ -136,29 +140,58 @@ export default function GenreScreen() {
         <View style={{ width: 32 }} />
       </View>
 
-      <View style={styles.sectionHeader}>
-        <View style={[styles.sectionAccent, { backgroundColor: genre.color }]} />
-        <Text style={styles.sectionTitle}>おすすめプレイリスト</Text>
-      </View>
-
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        {genre.playlists.map((item, index) => (
-          <View key={item.id} style={styles.card}>
-            <View style={styles.cardLeft}>
-              <View style={[styles.indexBadge, { backgroundColor: genre.color + "33" }]}>
-                <Text style={[styles.indexText, { color: genre.color }]}>{index + 1}</Text>
-              </View>
-            </View>
-            <View style={styles.cardBody}>
-              <Text style={styles.cardTitle}>{item.title}</Text>
-              <Text style={styles.cardDesc}>{item.description}</Text>
-              <View style={styles.urlRow}>
-                <Ionicons name="play-circle-outline" size={13} color={C.accent} />
-                <Text style={styles.urlText} numberOfLines={1}>{item.url}</Text>
-              </View>
-            </View>
+        <Pressable activeOpacity={0.85} style={[styles.bannerAd, { backgroundColor: ad.bg }]}>
+          <View style={styles.adPrBadge}>
+            <Text style={styles.adPrText}>PR</Text>
           </View>
-        ))}
+          <Image source={{ uri: ad.thumb }} style={styles.adThumb} contentFit="cover" />
+          <View style={styles.adBody}>
+            <Text style={styles.adTitle} numberOfLines={1}>{ad.title}</Text>
+            <Text style={styles.adSub} numberOfLines={1}>{ad.sub}</Text>
+          </View>
+          <View style={[styles.adCtaBtn, { backgroundColor: ad.accent }]}>
+            <Text style={styles.adCtaText}>{ad.cta}</Text>
+          </View>
+        </Pressable>
+
+        <View style={styles.sectionHeader}>
+          <View style={[styles.sectionAccent, { backgroundColor: genre.color }]} />
+          <Text style={styles.sectionTitle}>コミュニティ一覧</Text>
+        </View>
+
+        {sortedCommunities.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="people-outline" size={48} color={C.textMuted} />
+            <Text style={styles.emptyText}>このジャンルにはまだコミュニティがありません</Text>
+          </View>
+        ) : (
+          <View style={styles.communityGrid}>
+            {sortedCommunities.map((item, index) => (
+              <Pressable
+                key={String(item.id)}
+                style={styles.communityCard}
+                onPress={() => router.push(`/community/${item.id}`)}
+              >
+                <Image source={{ uri: item.thumbnail }} style={styles.communityCardImage} contentFit="cover" />
+                <View style={styles.communityCardOverlay} />
+                {item.online && (
+                  <View style={styles.onlineChip}>
+                    <View style={styles.onlineDot} />
+                    <Text style={styles.onlineText}>LIVE</Text>
+                  </View>
+                )}
+                <View style={styles.communityCardBottom}>
+                  <Text style={styles.communityCardName} numberOfLines={1}>{item.name}</Text>
+                  <View style={styles.communityCardMeta}>
+                    <Ionicons name="people" size={11} color="rgba(255,255,255,0.7)" />
+                    <Text style={styles.communityCardMembers}>{formatNum(item.members ?? 0)}</Text>
+                  </View>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        )}
         <View style={{ height: 100 }} />
       </ScrollView>
     </View>
@@ -170,13 +203,45 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
   backBtn: { width: 32, alignItems: "flex-start" },
   headerTitle: { flexDirection: "row", alignItems: "center", gap: 8 },
   headerText: { color: C.text, fontSize: 18, fontWeight: "700" },
+  scroll: { flex: 1 },
+  bannerAd: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: "hidden",
+    minHeight: 72,
+  },
+  adPrBadge: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    zIndex: 1,
+  },
+  adPrText: { color: "#fff", fontSize: 9, fontWeight: "700" },
+  adThumb: { width: 100, height: 72, backgroundColor: C.surface3 },
+  adBody: { flex: 1, padding: 12, justifyContent: "center" },
+  adTitle: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  adSub: { color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 2 },
+  adCtaBtn: {
+    marginRight: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  adCtaText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -186,30 +251,61 @@ const styles = StyleSheet.create({
   },
   sectionAccent: { width: 3, height: 18, borderRadius: 2 },
   sectionTitle: { color: C.text, fontSize: 15, fontWeight: "700" },
-  scroll: { flex: 1 },
-  card: {
-    flexDirection: "row",
-    gap: 12,
-    backgroundColor: C.surface,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    borderRadius: 12,
-    padding: 14,
-    alignItems: "flex-start",
-  },
-  cardLeft: { paddingTop: 2 },
-  indexBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+  emptyState: {
     alignItems: "center",
-    justifyContent: "center",
+    paddingVertical: 48,
+    paddingHorizontal: 24,
   },
-  indexText: { fontSize: 14, fontWeight: "700" },
-  cardBody: { flex: 1, gap: 4 },
-  cardTitle: { color: C.text, fontSize: 14, fontWeight: "700", lineHeight: 20 },
-  cardDesc: { color: C.textSec, fontSize: 12, lineHeight: 17 },
-  urlRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 },
-  urlText: { color: C.textMuted, fontSize: 11, flex: 1 },
+  emptyText: { color: C.textMuted, fontSize: 14, marginTop: 12 },
+  communityGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  communityCard: {
+    width: "47%",
+    aspectRatio: 0.75,
+    borderRadius: 12,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: C.surface,
+  },
+  communityCardImage: {
+    ...StyleSheet.absoluteFillObject as any,
+  },
+  communityCardOverlay: {
+    ...StyleSheet.absoluteFillObject as any,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  onlineChip: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255,0,0,0.8)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  onlineDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: "#fff" },
+  onlineText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  communityCardBottom: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 10,
+  },
+  communityCardName: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  communityCardMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  communityCardMembers: { color: "rgba(255,255,255,0.8)", fontSize: 11 },
   notFound: { color: C.text, textAlign: "center", marginTop: 40, fontSize: 16 },
 });

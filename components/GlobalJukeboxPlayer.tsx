@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  PanResponder,
+  Dimensions,
+} from "react-native";
 import { usePathname, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
@@ -55,23 +63,81 @@ function parseCommunityId(pathname: string | null): number | null {
   return null;
 }
 
+const CARD_W = 280;
+const CARD_H = 72;
+
+function useScreenSize() {
+  const [size, setSize] = useState(() => Dimensions.get("window"));
+  useEffect(() => {
+    const sub = Dimensions.addEventListener("change", ({ window }) => setSize(window));
+    return () => sub?.remove();
+  }, []);
+  return size;
+}
+
 export function GlobalJukeboxPlayer() {
+  const { width: SCREEN_W, height: SCREEN_H } = useScreenSize();
   const pathname = usePathname();
   const [communityId, setCommunityId] = useState<number | null>(() =>
     parseCommunityId(pathname)
   );
   const [minimized, setMinimized] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const posRef = useRef({ x: 0, y: 0 });
+  const dragBaseRef = useRef({ x: 0, y: 0 });
   const youtubePlayerRef = useRef<any | null>(null);
   const containerIdRef = useRef<string>(
     `global-jb-${Math.random().toString(36).slice(2)}`
   );
 
+  const defaultX = SCREEN_W - CARD_W - 16;
+  const defaultY = SCREEN_H - CARD_H - 80;
+  const posX = position?.x ?? defaultX;
+  const posY = position?.y ?? defaultY;
+  posRef.current = { x: posX, y: posY };
+
   useEffect(() => {
     const next = parseCommunityId(pathname);
     if (next !== null) {
       setCommunityId(next);
+      setDismissed(false);
     }
   }, [pathname]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
+      onPanResponderGrant: () => {
+        dragBaseRef.current = { ...posRef.current };
+      },
+      onPanResponderMove: (_, g) => {
+        const minX = 16;
+        const minY = 60;
+        const maxX = SCREEN_W - CARD_W - 16;
+        const maxY = SCREEN_H - CARD_H - 80;
+        const base = dragBaseRef.current;
+        setPosition({
+          x: Math.max(minX, Math.min(maxX, base.x + g.dx)),
+          y: Math.max(minY, Math.min(maxY, base.y + g.dy)),
+        });
+      },
+      onPanResponderRelease: (_, g) => {
+        const minX = 16;
+        const minY = 60;
+        const maxX = SCREEN_W - CARD_W - 16;
+        const maxY = SCREEN_H - CARD_H - 80;
+        const base = dragBaseRef.current;
+        const next = {
+          x: Math.max(minX, Math.min(maxX, base.x + g.dx)),
+          y: Math.max(minY, Math.min(maxY, base.y + g.dy)),
+        };
+        posRef.current = next;
+        setPosition(next);
+      },
+    })
+  ).current;
 
   const { data } = useQuery<JukeboxData>({
     queryKey: communityId ? [`/api/jukebox/${communityId}`] : ["jukebox:none"],
@@ -170,9 +236,10 @@ export function GlobalJukeboxPlayer() {
             videoId: state.currentVideoYoutubeId,
             playerVars: {
               autoplay: 1,
+              mute: 1,
               rel: 0,
-              controls: 0,
-              disablekb: 1,
+              controls: 1,
+              disablekb: 0,
               playsinline: 1,
             },
             events: {
@@ -205,9 +272,11 @@ export function GlobalJukeboxPlayer() {
         youtubePlayerRef.current = null;
       }
     };
-  }, [communityId, state?.currentVideoYoutubeId, state?.elapsedSecs, state?.startedAt, handleNext]);
+  // 依存は currentVideoYoutubeId のみ。elapsedSecs/startedAt を入れると3秒ポーリングのたびに
+  // プレイヤーが破棄・再作成され、再生が不安定になる
+  }, [communityId, state?.currentVideoYoutubeId, handleNext]);
 
-  if (!communityId || !state) return null;
+  if (!communityId || !state || dismissed) return null;
 
   const elapsed =
     typeof state.elapsedSecs === "number"
@@ -222,11 +291,13 @@ export function GlobalJukeboxPlayer() {
     queue.find((q) => !q.isPlayed)?.addedBy ?? "";
 
   return (
-    <View pointerEvents="box-none" style={styles.root}>
+    <View pointerEvents="box-none" style={[styles.root, { left: 0, right: 0, top: 0, bottom: 0 }]}>
       <View
+        {...panResponder.panHandlers}
         style={[
           styles.card,
           minimized ? styles.cardMinimized : styles.cardExpanded,
+          { left: posX, top: posY },
         ]}
       >
         <Pressable
@@ -280,6 +351,12 @@ export function GlobalJukeboxPlayer() {
           >
             <Ionicons name="expand" size={16} color="#fff" />
           </Pressable>
+          <Pressable
+            style={styles.closeBtn}
+            onPress={() => setDismissed(true)}
+          >
+            <Ionicons name="close" size={16} color="#fff" />
+          </Pressable>
         </Pressable>
       </View>
     </View>
@@ -296,8 +373,6 @@ const styles = StyleSheet.create({
   },
   card: {
     position: "absolute",
-    right: 0,
-    bottom: 0,
     borderRadius: 16,
     backgroundColor: "rgba(7,15,24,0.96)",
     borderWidth: 1,
@@ -373,6 +448,14 @@ const styles = StyleSheet.create({
     fontSize: 9,
   },
   iconBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 4,
+  },
+  closeBtn: {
     width: 28,
     height: 28,
     borderRadius: 14,

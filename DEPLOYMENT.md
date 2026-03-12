@@ -1,5 +1,59 @@
 # Vercel デプロイ手順
 
+## デプロイの実行方法（ここから読んでください）
+
+**Cursor のターミナルからはデプロイできません。**  
+Vercel CLI が `~/Library/Application Support/` に認証情報を書く必要があり、環境の制限で失敗します。
+
+**必ず Mac の「ターミナル」アプリ（または iTerm など）で、次を実行してください。**
+
+```bash
+cd /Users/user/Desktop/LiveStream
+npm run deploy
+```
+
+- **初回だけ**: ブラウザが開き、Vercel にログイン（またはアカウント作成）を求められます。完了するとターミナルに戻ります。
+- **2回目以降**: ログイン済みならそのままビルドが始まります。
+- ビルドは **2〜5分** かかることがあります。`Building...` のあと、完了すると本番URLが表示されます。
+
+**うまくいかないとき**
+- `vercel: command not found` → 上記の `npm run deploy` を使っていれば `npx vercel` が動くので問題ありません。
+- 認証エラー → もう一度 `npx vercel login` を実行してから `npm run deploy`。
+- **「vercel link を行い、現在のディレクトリと正しいVercelプロジェクトが連携されているか再確認してください」** → 下の「vercel link でプロジェクトを連携する」を実行してください。
+- ビルドがずっと進まない → [vercel.com](https://vercel.com) にログインし、プロジェクトの **Deployments** でログを確認してください。
+
+### vercel link でプロジェクトを連携する
+
+このフォルダ（LiveStream）を、Vercel 上の「どのプロジェクト」にデプロイするか紐づける作業です。**Mac のターミナル**で、このリポジトリのルートに移動してから実行してください。
+
+```bash
+cd /Users/user/Desktop/LiveStream
+npx vercel link
+```
+
+実行すると次のように聞かれます。
+
+1. **Set up “~/Desktop/LiveStream”?**  
+   → **Y** (Yes)
+
+2. **Which scope should your project exist in?**  
+   → 自分のアカウント（または使っているチーム）を選ぶ
+
+3. **Link to existing project?**  
+   - すでに Vercel に同名（または使いたい）プロジェクトがある → **Y** を選び、一覧からそのプロジェクトを選ぶ  
+   - まだプロジェクトがない / 新規で作りたい → **N** を選ぶ（後でプロジェクト名を聞かれる）
+
+4. **What’s your project’s name?**（新規の場合）  
+   → 好きな名前（例: `livestream` や `live-stream`）を入力
+
+これが終わると、カレントディレクトリに `.vercel` フォルダができ、中に `project.json` が保存されます。**この状態で**、もう一度デプロイします。
+
+```bash
+npm run deploy
+```
+
+---
+
 ## NOT_FOUND（404）が出る場合
 
 **原因**: 要求した**リソース（URL やパス）が存在しない**ときに返ります。URL のタイポ、リソースの移動・削除、またはパスがルーティングと一致していない可能性があります。

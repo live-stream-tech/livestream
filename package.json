@@ -17,6 +17,7 @@
     "server:prod": "NODE_ENV=production node server_dist/index.js",
     "build:prod": "npm run server:build && npm run expo:static:build",
     "serve": "npm run build:prod && npm run server:prod",
+    "deploy": "npx vercel --prod",
     "db:push": "drizzle-kit push",
     "start": "npx expo start",
     "lint": "npx expo lint",

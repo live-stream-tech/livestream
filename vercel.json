@@ -1,6 +1,6 @@
 {
   "framework": null,
-  "buildCommand": "npx expo export --platform web && node scripts/inject-sw-version.js",
+  "buildCommand": "npx expo export --platform web && node scripts/inject-sw-version.js && cp public/fav.png dist/fav.png",
   "outputDirectory": "dist",
   "functions": {
     "api/**/*.ts": {
@@ -10,7 +10,6 @@
   "rewrites": [
     { "source": "/api/auth/line-callback", "destination": "/api/auth/line-callback" },
     { "source": "/api/auth/line", "destination": "/api/auth/line" },
-    { "source": "/api/(.*)", "destination": "/api/[...path]" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/api/(.*)", "destination": "/api/[...path]" }
   ]
 }

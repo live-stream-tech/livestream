@@ -18,6 +18,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/query-client";
 import { C } from "@/constants/colors";
+import { AppLogo } from "@/components/AppLogo";
 
 const SUGGESTED_CATEGORIES = [
   "地下アイドル",
@@ -160,11 +161,11 @@ export default function CreateCommunityScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
+        <AppLogo width={120} />
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={22} color={C.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>コミュニティを作成</Text>
-        <View style={{ width: 40 }} />
+        <Text style={[styles.headerTitle, { flex: 1 }]}>コミュニティを作成</Text>
       </View>
 
       <ScrollView
@@ -345,7 +346,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 12,
     paddingHorizontal: 16,
     paddingBottom: 12,
   },

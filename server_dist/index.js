@@ -35,6 +35,8 @@ __export(schema_exports, {
   liverAvailability: () => liverAvailability,
   liverReviews: () => liverReviews,
   notifications: () => notifications,
+  phoneVerifications: () => phoneVerifications,
+  streams: () => streams,
   transactions: () => transactions,
   twoshotBookings: () => twoshotBookings,
   users: () => users,
@@ -108,6 +110,15 @@ var liveStreams = pgTable("live_streams", {
   avatar: text("avatar").notNull(),
   timeAgo: text("time_ago").notNull(),
   isLive: boolean("is_live").notNull().default(true)
+});
+var streams = pgTable("streams", {
+  id: serial("id").primaryKey(),
+  cfLiveInputId: text("cf_live_input_id").notNull(),
+  webRtcUrl: text("webrtc_url").notNull(),
+  rtmpsUrl: text("rtmps_url").notNull(),
+  rtmpsStreamKey: text("rtmps_stream_key").notNull(),
+  currentViewers: integer("current_viewers").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow()
 });
 var creators = pgTable("creators", {
   id: serial("id").primaryKey(),
@@ -221,15 +232,32 @@ var dmMessages = pgTable("dm_messages", {
 });
 var users = pgTable("users", {
   id: serial("id").primaryKey(),
+  /** LINEアカウントID（必須・一意） */
   lineId: text("line_id").notNull().unique(),
   displayName: text("display_name").notNull().default("\u30E6\u30FC\u30B6\u30FC"),
   profileImageUrl: text("profile_image_url"),
   role: text("role").notNull().default("USER"),
   bio: text("bio").notNull().default(""),
+  /** 紐付け済みの電話番号（1電話番号 = 1ユーザー）。NULL許可だが重複は禁止。 */
+  phoneNumber: text("phone_number").unique(),
+  /** 電話番号が本人確認済みになった日時 */
+  phoneVerifiedAt: timestamp("phone_verified_at"),
   /** Stripe Connect 連結アカウントID（Express/Custom）。連携済みなら設定される */
   stripeConnectId: text("stripe_connect_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
+});
+var phoneVerifications = pgTable("phone_verifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  phoneNumber: text("phone_number").notNull(),
+  /** ハッシュ化された6桁コード */
+  codeHash: text("code_hash").notNull(),
+  /** 有効期限 */
+  expiresAt: timestamp("expires_at").notNull(),
+  consumed: boolean("consumed").notNull().default(false),
+  attempts: integer("attempts").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow()
 });
 var wallets = pgTable("wallets", {
   id: serial("id").primaryKey(),
@@ -481,6 +509,8 @@ async function getMonthlyRevenueRank(yearMonth) {
 // server/routes.ts
 import jwt from "jsonwebtoken";
 var JWT_SECRET = process.env.SESSION_SECRET ?? "livestage-dev-secret";
+var CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? "";
+var CLOUDFLARE_STREAM_TOKEN = process.env.CLOUDFLARE_STREAM_TOKEN ?? "";
 function makeToken(userId) {
   return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "90d" });
 }
@@ -505,7 +535,10 @@ async function getAuthUser(req) {
     const sub = payload.sub;
     const [user] = await db.select().from(users).where(eq2(users.id, sub));
     if (!user) return null;
-    return { ...user, avatar: user.profileImageUrl };
+    return {
+      ...user,
+      avatar: user.profileImageUrl
+    };
   } catch {
     return null;
   }
@@ -730,6 +763,11 @@ async function registerRoutes(app2) {
   const FRONTEND_URL = (process.env.FRONTEND_URL ?? "").replace(/\/$/, "");
   const lineRedirect = (path2) => FRONTEND_URL ? `${FRONTEND_URL}${path2}` : path2;
   const LINE_STATE = "livestage-line-state";
+  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
+  const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
+  const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL ?? "https://livestream-nu-ten.vercel.app/api/auth/google-callback";
+  const GOOGLE_STATE = "livestage-google-state";
+  const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY ?? "";
   app2.get("/api/auth/line", (_req, res) => {
     if (!LINE_CALLBACK_URL) {
       return res.status(500).json({ error: "LINE_CALLBACK_URL is not configured" });
@@ -742,6 +780,109 @@ async function registerRoutes(app2) {
       scope: "profile openid email"
     });
     res.redirect(`https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`);
+  });
+  app2.get("/api/auth/google", (_req, res) => {
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_CALLBACK_URL) {
+      return res.status(500).json({ error: "Google OAuth is not configured" });
+    }
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: GOOGLE_CALLBACK_URL,
+      scope: "openid email profile",
+      state: GOOGLE_STATE,
+      access_type: "offline",
+      prompt: "consent"
+    });
+    res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+  });
+  app2.get("/api/auth/google-callback", async (req, res) => {
+    const code = req.query.code;
+    const state = req.query.state;
+    if (!code || state !== GOOGLE_STATE) {
+      return res.redirect(lineRedirect("/?line_error=invalid_state"));
+    }
+    try {
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: GOOGLE_CALLBACK_URL,
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET
+        }).toString()
+      });
+      const tokenData = await tokenRes.json();
+      if (!tokenData.access_token) {
+        return res.redirect(lineRedirect("/?line_error=token_failed"));
+      }
+      const profileRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` }
+      });
+      const profile = await profileRes.json();
+      if (!profile.sub) {
+        return res.redirect(lineRedirect("/?line_error=profile_failed"));
+      }
+      const googleKey = `google:${profile.sub}`;
+      const displayName = profile.name ?? profile.email ?? "Google\u30E6\u30FC\u30B6\u30FC";
+      const avatar = profile.picture ?? null;
+      let [existing] = await db.select().from(users).where(eq2(users.lineId, googleKey));
+      if (!existing) {
+        [existing] = await db.insert(users).values({
+          lineId: googleKey,
+          displayName,
+          profileImageUrl: avatar,
+          role: "USER"
+        }).returning();
+      } else {
+        [existing] = await db.update(users).set({ displayName, profileImageUrl: avatar, updatedAt: /* @__PURE__ */ new Date() }).where(eq2(users.id, existing.id)).returning();
+      }
+      const jwtToken = makeToken(existing.id);
+      res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
+    } catch (err) {
+      console.error("Google callback error:", err);
+      res.redirect(lineRedirect("/?line_error=server_error"));
+    }
+  });
+  app2.get("/api/youtube/search", async (req, res) => {
+    const q = queryStr(req, "q").trim();
+    if (!q) {
+      return res.status(400).json({ error: "\u691C\u7D22\u30AD\u30FC\u30EF\u30FC\u30C9\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    }
+    if (!YOUTUBE_API_KEY) {
+      return res.status(500).json({ error: "YouTube API \u30AD\u30FC\u304C\u8A2D\u5B9A\u3055\u308C\u3066\u3044\u307E\u305B\u3093" });
+    }
+    try {
+      const params = new URLSearchParams({
+        key: YOUTUBE_API_KEY,
+        part: "snippet",
+        type: "video",
+        q,
+        maxResults: "8"
+      });
+      const ytRes = await fetch(`https://www.googleapis.com/youtube/v3/search?${params.toString()}`);
+      if (!ytRes.ok) {
+        const text2 = await ytRes.text();
+        console.error("YouTube search error:", ytRes.status, text2);
+        return res.status(502).json({ error: "YouTube \u691C\u7D22\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
+      }
+      const json = await ytRes.json();
+      const items = json.items ?? [];
+      const results = items.map((item) => {
+        const videoId = item.id?.videoId;
+        const title = item.snippet?.title ?? "";
+        const thumbs = item.snippet?.thumbnails;
+        const thumbUrl = thumbs?.high?.url ?? thumbs?.medium?.url ?? thumbs?.default?.url ?? "";
+        if (!videoId || !thumbUrl) return null;
+        return { videoId, title, thumbnail: thumbUrl };
+      }).filter(Boolean);
+      res.json(results);
+    } catch (e) {
+      console.error("YouTube search exception:", e);
+      res.status(500).json({ error: "YouTube \u691C\u7D22\u3067\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F" });
+    }
   });
   app2.get("/api/auth/callback/line", async (req, res) => {
     const code = req.query.code;
@@ -843,8 +984,33 @@ async function registerRoutes(app2) {
       res.redirect(lineRedirect("/?line_error=server_error"));
     }
   });
-  app2.get("/api/communities", async (_req, res) => {
-    const rows = await db.select().from(communities).orderBy(desc(communities.members));
+  const GENRE_TO_CATEGORY = {
+    anime: ["\u30A2\u30CB\u30E1", "\u97F3\u697D"],
+    band: ["\u30D0\u30F3\u30C9", "\u97F3\u697D"],
+    subcul: ["\u30B5\u30D6\u30AB\u30EB", "\u30E9\u30A4\u30D5\u30B9\u30BF\u30A4\u30EB", "\u30A2\u30FC\u30C8"],
+    english: ["\u82F1\u4F1A\u8A71"],
+    fortune: ["\u5360\u3044"]
+  };
+  app2.get("/api/communities", async (req, res) => {
+    const genreId = queryStr(req, "genre");
+    let rows = await db.select().from(communities).orderBy(desc(communities.members));
+    if (genreId && GENRE_TO_CATEGORY[genreId]) {
+      const terms = GENRE_TO_CATEGORY[genreId];
+      rows = rows.filter(
+        (r) => terms.some((t) => (r.category ?? "").includes(t))
+      );
+    }
+    res.json(rows);
+  });
+  app2.get("/api/communities/me", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const memberships = await db.select({ communityId: communityMembers.communityId }).from(communityMembers).where(eq2(communityMembers.userId, user.id));
+    if (memberships.length === 0) {
+      return res.json([]);
+    }
+    const ids = memberships.map((m) => m.communityId);
+    const rows = await db.select().from(communities).where(inArray(communities.id, ids)).orderBy(desc(communities.members));
     res.json(rows);
   });
   app2.get("/api/communities/:id", async (req, res) => {
@@ -1210,10 +1376,132 @@ async function registerRoutes(app2) {
   });
   app2.get("/api/jukebox/:communityId", async (req, res) => {
     const communityId = paramNum(req, "communityId");
-    const [state] = await db.select().from(jukeboxState).where(eq2(jukeboxState.communityId, communityId));
+    const now = /* @__PURE__ */ new Date();
+    const [stateRaw] = await db.select().from(jukeboxState).where(eq2(jukeboxState.communityId, communityId));
     const queue = await db.select().from(jukeboxQueue).where(eq2(jukeboxQueue.communityId, communityId)).orderBy(asc(jukeboxQueue.position));
+    let state = stateRaw ?? null;
+    let queueModified = false;
+    if (state && state.currentVideoDurationSecs && state.currentVideoDurationSecs > 0 && state.startedAt) {
+      const elapsedSecs2 = (now.getTime() - new Date(state.startedAt).getTime()) / 1e3;
+      if (elapsedSecs2 >= state.currentVideoDurationSecs) {
+        const next = queue.find((q) => !q.isPlayed);
+        if (next) {
+          await db.update(jukeboxQueue).set({
+            isPlayed: true
+          }).where(eq2(jukeboxQueue.id, next.id));
+          queueModified = true;
+          const watchers = Math.floor(Math.random() * 80) + 20;
+          const [updated] = await db.insert(jukeboxState).values({
+            communityId,
+            currentVideoId: next.videoId,
+            currentVideoTitle: next.videoTitle,
+            currentVideoThumbnail: next.videoThumbnail,
+            currentVideoDurationSecs: next.videoDurationSecs ?? 0,
+            currentVideoYoutubeId: next.youtubeId ?? null,
+            startedAt: now,
+            isPlaying: true,
+            watchersCount: watchers
+          }).onConflictDoUpdate({
+            target: jukeboxState.communityId,
+            set: {
+              currentVideoId: next.videoId,
+              currentVideoTitle: next.videoTitle,
+              currentVideoThumbnail: next.videoThumbnail,
+              currentVideoDurationSecs: next.videoDurationSecs ?? 0,
+              currentVideoYoutubeId: next.youtubeId ?? null,
+              startedAt: now,
+              isPlaying: true,
+              watchersCount: watchers
+            }
+          }).returning();
+          state = updated;
+        } else {
+          const [updated] = await db.update(jukeboxState).set({
+            currentVideoId: null,
+            currentVideoTitle: null,
+            currentVideoThumbnail: null,
+            currentVideoDurationSecs: 0,
+            currentVideoYoutubeId: null,
+            isPlaying: false
+          }).where(eq2(jukeboxState.communityId, communityId)).returning();
+          state = updated;
+        }
+      }
+    }
+    const queueToReturn = queueModified ? await db.select().from(jukeboxQueue).where(eq2(jukeboxQueue.communityId, communityId)).orderBy(asc(jukeboxQueue.position)) : queue;
     const chat = await db.select().from(jukeboxChat).where(eq2(jukeboxChat.communityId, communityId)).orderBy(asc(jukeboxChat.createdAt));
-    res.json({ state: state ?? null, queue, chat });
+    let elapsedSecs = 0;
+    if (state?.startedAt && (state.currentVideoDurationSecs ?? 0) > 0) {
+      elapsedSecs = Math.max(
+        0,
+        Math.min(
+          state.currentVideoDurationSecs ?? 0,
+          (now.getTime() - new Date(state.startedAt).getTime()) / 1e3
+        )
+      );
+    }
+    const effectiveState = state && state.isPlaying && (state.currentVideoTitle || state.currentVideoYoutubeId) ? state : null;
+    res.json({
+      state: effectiveState ? {
+        ...effectiveState,
+        elapsedSecs
+      } : null,
+      queue: queueToReturn,
+      chat
+    });
+  });
+  app2.post("/api/stream/create", async (req, res) => {
+    if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_STREAM_TOKEN) {
+      return res.status(500).json({ error: "Cloudflare Stream is not configured" });
+    }
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const { name } = req.body ?? {};
+    try {
+      const cfRes = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/stream/live_inputs`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${CLOUDFLARE_STREAM_TOKEN}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            meta: {
+              name: name || `LiveStage Stream by ${user.displayName}`
+            }
+          })
+        }
+      );
+      const json = await cfRes.json();
+      if (!cfRes.ok || !json.success || !json.result) {
+        console.error("Cloudflare Stream create error:", json.errors);
+        return res.status(502).json({ error: "Cloudflare Stream live input \u4F5C\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
+      }
+      const result = json.result;
+      const cfId = result.uid ?? "";
+      const rtmpsUrl = result.rtmps?.url ?? "";
+      const rtmpsStreamKey = result.rtmps?.streamKey ?? "";
+      const webRtcPlaybackUrl = result.webRTCPlayback?.url ?? result.webRTC?.url ?? "";
+      if (!cfId || !rtmpsUrl || !rtmpsStreamKey || !webRtcPlaybackUrl) {
+        return res.status(502).json({ error: "Cloudflare Stream \u30EC\u30B9\u30DD\u30F3\u30B9\u304C\u4E0D\u5B8C\u5168\u3067\u3059" });
+      }
+      const [row] = await db.insert(streams).values({
+        cfLiveInputId: cfId,
+        webRtcUrl: webRtcPlaybackUrl,
+        rtmpsUrl,
+        rtmpsStreamKey,
+        currentViewers: 0
+      }).returning();
+      res.json({
+        id: row.id,
+        webRtc: { url: webRtcPlaybackUrl },
+        rtmps: { url: rtmpsUrl, streamKey: rtmpsStreamKey }
+      });
+    } catch (e) {
+      console.error("Cloudflare Stream create exception:", e);
+      res.status(500).json({ error: "Cloudflare Stream API \u901A\u4FE1\u3067\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F" });
+    }
   });
   app2.post("/api/jukebox/:communityId/add", async (req, res) => {
     const communityId = paramNum(req, "communityId");
@@ -1232,7 +1520,8 @@ async function registerRoutes(app2) {
       position: nextPos,
       isPlayed: false
     }).returning();
-    if (existing.length === 0) {
+    const hasUnplayed = existing.some((q) => !q.isPlayed);
+    if (!hasUnplayed) {
       const watchers = Math.floor(Math.random() * 80) + 20;
       await db.insert(jukeboxState).values({
         communityId,
@@ -2067,6 +2356,7 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 var app = express2();
 var log2 = console.log;
 app.get("/healthcheck", (_req, res) => res.status(200).send("OK"));
+app.get("/api/healthcheck", (_req, res) => res.status(200).send("OK"));
 function serveExpoManifest(platform, res) {
   const manifestPath = path.resolve(
     process.cwd(),

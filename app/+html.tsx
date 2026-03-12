@@ -16,14 +16,8 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="LiveStage" />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/assets/images/icon.png" />
-        <link
-          rel="icon"
-          type="image/svg+xml"
-          href={`data:image/svg+xml,${encodeURIComponent(
-            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#1B2838"/><text x="6" y="22" font-family="system-ui,Arial,sans-serif" font-size="18" font-weight="800" fill="#FFFFFF">L</text><text x="16" y="22" font-family="system-ui,Arial,sans-serif" font-size="18" font-weight="800" fill="#29B6CF">S</text></svg>'
-          )}`}
-        />
+        <link rel="icon" type="image/png" href="/fav.png" />
+        <link rel="apple-touch-icon" href="/fav.png" />
         <ScrollViewStyleReset />
         <style>{`
           html, body, #root {

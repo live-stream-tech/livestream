@@ -29,7 +29,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png",
+      "favicon": "./fav.png",
       "name": "LiveStage",
       "shortName": "LiveStage",
       "description": "ライブ配信・有料動画プラットフォーム",

@@ -16,7 +16,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
-import { TopStageBackground } from "@/components/TopStageBackground";
+import { getTabTopInset, getTabBottomInset } from "@/constants/layout";
+import { MetallicLine } from "@/components/MetallicLine";
 import type { BookingSession } from "@/constants/data";
 import { apiRequest } from "@/lib/query-client";
 
@@ -312,13 +313,11 @@ export default function LiveScreen() {
     return matchSearch;
   });
 
-  const topInset = Platform.OS === "web" ? 8 : insets.top;
-  const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
+  const topInset = getTabTopInset(insets);
+  const bottomInset = getTabBottomInset(insets);
 
   return (
     <View style={[styles.container]}>
-      <TopStageBackground height={56} />
-      {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <Pressable style={styles.backBtn} onPress={() => router.push("/livers")}>
           <Ionicons name="search-outline" size={18} color={C.text} />
@@ -329,6 +328,7 @@ export default function LiveScreen() {
           <Text style={styles.startFabSmallText}>START</Text>
         </Pressable>
       </View>
+      <MetallicLine thickness={1} style={{ marginHorizontal: 16 }} />
 
       {/* 検索バー（両タブ共通） */}
       <View style={styles.liveSearchWrap}>

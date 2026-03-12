@@ -6,6 +6,7 @@ import { Platform, StyleSheet, View } from "react-native";
 import React from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "@/constants/colors";
+import { MetallicLine } from "@/components/MetallicLine";
 
 function NativeTabLayout() {
   return (
@@ -47,10 +48,9 @@ function ClassicTabLayout() {
         tabBarStyle: {
           position: "absolute",
           backgroundColor: isIOS ? "transparent" : C.tabBg,
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: C.border,
+          borderTopWidth: 0,
           elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
+          ...(isWeb ? { height: 60 } : {}),
         },
         tabBarLabelStyle: {
           fontSize: 10,
@@ -61,7 +61,10 @@ function ClassicTabLayout() {
           isIOS ? (
             <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
           ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: C.tabBg }]} />
+            <View style={StyleSheet.absoluteFill}>
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: C.tabBg }]} />
+              <MetallicLine thickness={1} style={{ position: "absolute", top: 0, left: 0, right: 0 }} />
+            </View>
           ) : null,
       }}
     >

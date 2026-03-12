@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
+import { AppLogo } from "@/components/AppLogo";
 import { COMMUNITIES, VIDEOS } from "@/constants/data";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { useAuth } from "@/lib/auth";
@@ -547,12 +548,12 @@ export default function CommunityDetailScreen() {
         <View style={styles.coverContainer}>
           <Image source={{ uri: community.thumbnail }} style={styles.coverImage} contentFit="cover" />
           <View style={styles.coverOverlay} />
-          <Pressable
-            style={[styles.backBtn, { top: (Platform.OS === "web" ? 67 : insets.top) + 12 }]}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="chevron-back" size={22} color="#fff" />
-          </Pressable>
+          <View style={[styles.coverHeader, { top: (Platform.OS === "web" ? 67 : insets.top) + 12 }]}>
+            <Pressable style={styles.backBtn} onPress={() => router.back()}>
+              <Ionicons name="chevron-back" size={22} color="#fff" />
+            </Pressable>
+            <AppLogo width={120} />
+          </View>
         </View>
 
         <Pressable activeOpacity={0.85} style={[styles.adBanner, { backgroundColor: ad.bg }]}>
@@ -1271,9 +1272,15 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.3)",
   },
-  backBtn: {
+  coverHeader: {
     position: "absolute",
     left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  backBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,

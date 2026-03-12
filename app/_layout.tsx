@@ -38,12 +38,13 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
   const hasLineTokenInUrl = useHasLineTokenInUrl();
   const [webTokenProcessed, setWebTokenProcessed] = useState(false);
 
-  // Web: URL の line_token を処理（メインUIより先に実行）
+  // Web: URL の line_token を処理（同一タブで遷移するため window.opener はなし）
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const webToken = params.get("line_token");
     const lineError = params.get("line_error");
+
     if (lineError) {
       const url = new URL(window.location.href);
       url.searchParams.delete("line_error");
@@ -62,11 +63,9 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
         await loginWithToken(webToken);
         if (cancelled) return;
 
-        // 認証前にいたページへ戻る（保存されていれば）。なければマイページへ。
         const saved = getLoginReturn();
         const returnTo = saved ?? "/(tabs)/profile";
 
-        // コンテキストへの反映完了を少し待ってから、履歴を置き換える形で遷移する
         setTimeout(() => {
           if (cancelled) return;
           router.replace(returnTo as any);

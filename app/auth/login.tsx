@@ -4,27 +4,28 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
+import { AppLogo } from "@/components/AppLogo";
 import { getApiUrl } from "@/lib/query-client";
-import { saveLoginReturn, getLoginReturn } from "@/lib/login-return";
-import { useAuth } from "@/lib/auth";
+import { saveLoginReturn } from "@/lib/login-return";
 
 /** LINEログインのみ。メール/パスワードは廃止。 */
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const topInset = Platform.OS === "web" ? 12 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
-  const { loginWithToken } = useAuth();
-
+  // トップウィンドウで遷移（iframe内なら脱出して親を置換、タブ増加を防ぐ）
   function handleLineLogin() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      // 他の場所でまだ保存されていない場合のみ、現在のURLを戻り先として保存する
       const returnTo = window.location.pathname + window.location.search;
       saveLoginReturn(returnTo);
-      // 本番ではAPIサーバー（EXPO_PUBLIC_DOMAIN または同一オリジン）の /api/auth/line へ遷移する
       const apiBase = getApiUrl();
-      window.location.href = new URL("/api/auth/line", apiBase).toString();
+      const url = new URL("/api/auth/line", apiBase).toString();
+      try {
+        (window.top || window).location.replace(url);
+      } catch {
+        window.location.replace(url);
+      }
     } else {
-      // ネイティブでは WebView や LINE SDK で /api/auth/line を開く
       router.replace("/(tabs)");
     }
   }
@@ -34,7 +35,12 @@ export default function LoginScreen() {
       const returnTo = window.location.pathname + window.location.search;
       saveLoginReturn(returnTo);
       const apiBase = getApiUrl();
-      window.location.href = new URL("/api/auth/google", apiBase).toString();
+      const url = new URL("/api/auth/google", apiBase).toString();
+      try {
+        (window.top || window).location.replace(url);
+      } catch {
+        window.location.replace(url);
+      }
     } else {
       router.replace("/(tabs)");
     }
@@ -50,11 +56,8 @@ export default function LoginScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.logoWrap}>
-        <Text style={styles.logo}>
-          <Text style={styles.logoLive}>Live</Text>
-          <Text style={styles.logoStage}>Stage</Text>
-        </Text>
-        <Text style={styles.tagline}>ライブ配信プラットフォーム</Text>
+        <AppLogo width={200} />
+        <Text style={styles.tagline}>生ライブレポ＆生配信LIVEをストック資産に</Text>
       </View>
 
       <View style={styles.card}>
@@ -92,9 +95,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flexGrow: 1, paddingHorizontal: 24, justifyContent: "center", backgroundColor: C.bg },
   logoWrap: { alignItems: "center", marginBottom: 16 },
-  logo: { fontSize: 26, fontWeight: "800" },
-  logoLive: { color: C.text },
-  logoStage: { color: C.accent },
   tagline: { color: C.textMuted, fontSize: 13, marginTop: 4 },
 
   card: {

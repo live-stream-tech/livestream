@@ -14,7 +14,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
-import { TopStageBackground } from "@/components/TopStageBackground";
+import { getTabTopInset, getTabBottomInset } from "@/constants/layout";
+import { MetallicLine } from "@/components/MetallicLine";
+import { AppLogo } from "@/components/AppLogo";
 import { COMMUNITIES, RANKED_VIDEOS } from "@/constants/data";
 import { useQuery } from "@tanstack/react-query";
 
@@ -135,8 +137,8 @@ function PurchaseRankCard({
 
 export default function CommunityScreen() {
   const insets = useSafeAreaInsets();
-  const topInset = Platform.OS === "web" ? 8 : insets.top;
-  const bottomInset = Platform.OS === "web" ? 34 : 0;
+  const topInset = getTabTopInset(insets);
+  const bottomInset = getTabBottomInset();
   const [search, setSearch] = useState("");
   const [purchaseTab, setPurchaseTab] = useState<PurchaseTab>("週間");
 
@@ -168,8 +170,8 @@ export default function CommunityScreen() {
 
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
-      <TopStageBackground height={56} />
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
+        <AppLogo width={140} />
         <View style={styles.searchRow}>
           <View style={styles.searchWrap}>
             <Ionicons name="search-outline" size={16} color={C.textMuted} style={styles.searchIcon} />
@@ -187,6 +189,7 @@ export default function CommunityScreen() {
           </Pressable>
         </View>
       </View>
+      <MetallicLine thickness={1} style={{ marginHorizontal: 16 }} />
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
@@ -265,10 +268,14 @@ export default function CommunityScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
   searchRow: {
+    flex: 1,
     flexDirection: "row",
     gap: 10,
     alignItems: "center",

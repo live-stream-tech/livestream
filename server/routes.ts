@@ -639,8 +639,23 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // ── Communities ───────────────────────────────────────────────────
-  app.get("/api/communities", async (_req: Request, res: Response) => {
-    const rows = await db.select().from(communities).orderBy(desc(communities.members));
+  /** genreId で絞り込み: anime, band, subcul, english, fortune → category に含まれるかでフィルタ */
+  const GENRE_TO_CATEGORY: Record<string, string[]> = {
+    anime: ["アニメ", "音楽"],
+    band: ["バンド", "音楽"],
+    subcul: ["サブカル", "ライフスタイル", "アート"],
+    english: ["英会話"],
+    fortune: ["占い"],
+  };
+  app.get("/api/communities", async (req: Request, res: Response) => {
+    const genreId = queryStr(req, "genre");
+    let rows = await db.select().from(communities).orderBy(desc(communities.members));
+    if (genreId && GENRE_TO_CATEGORY[genreId]) {
+      const terms = GENRE_TO_CATEGORY[genreId];
+      rows = rows.filter((r) =>
+        terms.some((t) => (r.category ?? "").includes(t))
+      );
+    }
     res.json(rows);
   });
 
@@ -1251,6 +1266,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       .orderBy(asc(jukeboxQueue.position));
 
     let state = stateRaw ?? null;
+    let queueModified = false;
 
     // 放送室ロジック: 再生時間を過ぎていたらサーバー側で自動的に次の曲へ繰り上げる
     if (
@@ -1271,6 +1287,7 @@ export async function registerRoutes(app: Express): Promise<void> {
               isPlayed: true,
             } as Partial<typeof jukeboxQueue.$inferInsert>)
             .where(eq(jukeboxQueue.id, next.id));
+          queueModified = true;
 
           const watchers = Math.floor(Math.random() * 80) + 20;
           const [updated] = await db
@@ -1320,6 +1337,14 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     }
 
+    const queueToReturn = queueModified
+      ? await db
+          .select()
+          .from(jukeboxQueue)
+          .where(eq(jukeboxQueue.communityId, communityId))
+          .orderBy(asc(jukeboxQueue.position))
+      : queue;
+
     const chat = await db
       .select()
       .from(jukeboxChat)
@@ -1338,8 +1363,11 @@ export async function registerRoutes(app: Express): Promise<void> {
       );
     }
 
+    // youtubeId がなくても UI 用に state を返す（サムネ・タイトル表示のため）
     const effectiveState =
-      state && state.isPlaying && state.currentVideoYoutubeId ? state : null;
+      state && state.isPlaying && (state.currentVideoTitle || state.currentVideoYoutubeId)
+        ? state
+        : null;
 
     res.json({
       state: effectiveState
@@ -1348,7 +1376,7 @@ export async function registerRoutes(app: Express): Promise<void> {
             elapsedSecs,
           }
         : null,
-      queue,
+      queue: queueToReturn,
       chat,
     });
   });

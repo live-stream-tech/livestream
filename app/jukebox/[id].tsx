@@ -109,6 +109,79 @@ function NowPlaying({
   onNext: () => void;
 }) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const ytContainerId = useRef(`jukebox-yt-${Math.random().toString(36).slice(2)}`).current;
+  const ytPlayerRef = useRef<any>(null);
+
+  // Web: YouTube IFrame プレイヤー（メイン再生エリア）
+  useEffect(() => {
+    if (Platform.OS !== "web" || !state?.currentVideoYoutubeId) return;
+    const vid = state.currentVideoYoutubeId;
+    let cancelled = false;
+
+    function ensureYT(): Promise<any> {
+      return new Promise((resolve) => {
+        const w = window as any;
+        if (w.YT?.Player) {
+          resolve(w.YT);
+          return;
+        }
+        const prev = w.onYouTubeIframeAPIReady;
+        w.onYouTubeIframeAPIReady = () => {
+          if (prev) prev();
+          resolve(w.YT);
+        };
+        if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+          const s = document.createElement("script");
+          s.src = "https://www.youtube.com/iframe_api";
+          document.body.appendChild(s);
+        }
+      });
+    }
+
+    ensureYT().then((YT: any) => {
+      if (cancelled) return;
+      const startSec = state.elapsedSecs && state.elapsedSecs > 0
+        ? state.elapsedSecs
+        : Math.max(0, (Date.now() - new Date(state.startedAt).getTime()) / 1000);
+      if (ytPlayerRef.current) {
+        try {
+          ytPlayerRef.current.loadVideoById({ videoId: vid, startSeconds: startSec });
+        } catch {
+          try { ytPlayerRef.current.destroy(); } catch {}
+          ytPlayerRef.current = null;
+        }
+      }
+      if (!ytPlayerRef.current) {
+        ytPlayerRef.current = new YT.Player(ytContainerId, {
+          videoId: vid,
+          playerVars: {
+            autoplay: 1,
+            mute: 1,
+            rel: 0,
+            controls: 1,
+            playsinline: 1,
+          },
+          events: {
+            onStateChange: (e: any) => {
+              try {
+                if (e.data === (window as any).YT?.PlayerState?.ENDED) onNext();
+              } catch {}
+            },
+          },
+        });
+      }
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+      if (ytPlayerRef.current) {
+        try { ytPlayerRef.current.destroy(); } catch {}
+        ytPlayerRef.current = null;
+      }
+    };
+  // 依存は currentVideoYoutubeId のみ。elapsedSecs/startedAt を入れると3秒ポーリングのたびに
+  // プレイヤーが破棄・再作成され、再生が不安定になる
+  }, [state?.currentVideoYoutubeId, onNext, ytContainerId]);
 
   // LIVE ラベルのパルスアニメーション
   useEffect(() => {
@@ -143,18 +216,22 @@ function NowPlaying({
       ? Math.min(elapsed / state.currentVideoDurationSecs, 1)
       : 0;
 
+  const hasYoutube = !!state.currentVideoYoutubeId;
+
   return (
-  <View style={styles.nowPlaying}>
-      <>
-        {state.currentVideoThumbnail ? (
+    <View style={styles.nowPlaying}>
+      <View style={StyleSheet.absoluteFillObject}>
+        {Platform.OS === "web" && hasYoutube ? (
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#000" }]} nativeID={ytContainerId} />
+        ) : state.currentVideoThumbnail ? (
           <Image
             source={{ uri: state.currentVideoThumbnail }}
-            style={StyleSheet.absoluteFill}
+            style={StyleSheet.absoluteFillObject}
             contentFit="cover"
           />
         ) : null}
-        <View style={styles.nowPlayingOverlay} />
-      </>
+        {!hasYoutube && <View style={styles.nowPlayingOverlay} />}
+      </View>
 
       <View style={styles.nowPlayingTop}>
         <View style={styles.liveChip}>
@@ -168,11 +245,13 @@ function NowPlaying({
       </View>
 
       <View style={styles.nowPlayingBottom}>
-        <View style={styles.nowPlayingCenter}>
-          <View style={styles.playIcon}>
-            <Ionicons name="play" size={28} color="rgba(255,255,255,0.9)" />
+        {!hasYoutube && (
+          <View style={styles.nowPlayingCenter}>
+            <View style={styles.playIcon}>
+              <Ionicons name="play" size={28} color="rgba(255,255,255,0.9)" />
+            </View>
           </View>
-        </View>
+        )}
 
         <Text style={styles.nowPlayingTitle} numberOfLines={2}>
           {state.currentVideoTitle ?? ""}
