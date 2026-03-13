@@ -452,7 +452,7 @@ const html = `
       </p>
       <div style="border-left:4px solid #E53935; padding-left:20px; margin-bottom:28px;">
         <p style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(14px,3.4vw,17px); line-height:1.9; margin:0; color:#E0ECFF;">
-          個人開発だから、余計なコストがない。AIを活用して作ったから、少人数で回せる。だから有料動画は売上の90%をクリエイターに還元できる。手数料は受け取る側じゃなく、払う側が負担する。クリエイターの論理だけで設計できた、それが個人×AI開発の強みです。
+          個人開発だから、余計なコストがない。AIを活用して作ったから、少人数で回せる。だから有料動画は売上の90%をクリエイターに還元できる。手数料は決済サービスの約3.5％のみ払う側が負担する。クリエイターの論理だけで設計できた、それが個人×AI開発の強みです。
         </p>
       </div>
       <div style="display:flex; flex-wrap:wrap; gap:12px;">
@@ -697,7 +697,7 @@ const html = `
         </div>
 
         <h3 class="level-heading">Live Streaming Revenue</h3>
-        <p class="level-sub">クリエイターレベル制度により収益分配が決定されます</p>
+        <p class="level-sub">有料動画は固定90％還元、ライブ配信収益はレベルや所属によって収益分配が決定されます</p>
         <table class="level-table">
           <thead>
             <tr>
@@ -729,7 +729,7 @@ const html = `
             </tr>
           </tbody>
         </table>
-        <p class="level-note">※ 個人クリエイターは事務所所属より20%低い設定</p>
+        <p class="level-note">※タレントのマネージメントコスト、トラブル防止コストの観点より。</p>
 
       </div>
     </div>
@@ -755,7 +755,7 @@ const html = `
         <div style="flex:1 1 0; min-width:220px; padding:20px 16px;">
           <div style="color:#E0ECFF; font-size:13px; margin-bottom:6px;">手数料設計</div>
           <div style="color:#E53935; font-size:34px; font-weight:700; margin-bottom:4px;">0%</div>
-          <div style="color:#E0ECFF; font-size:13px; white-space:pre-line;">手数料は受け取る側じゃなく\n払う側が負担する</div>
+          <div style="color:#E0ECFF; font-size:13px; white-space:pre-line;">手数料は決済サービスの約3.5％のみ\n払う側が負担する</div>
         </div>
       </div>
     </div>
