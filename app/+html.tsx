@@ -19,7 +19,7 @@ export default function Root({ children }: PropsWithChildren) {
         <link rel="icon" type="image/png" href="/favi.png" />
         <link rel="apple-touch-icon" href="/favi.png" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600;800&family=DM+Serif+Display:ital@0;1&family=Noto+Sans+JP:wght@400;500;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600;800&family=DM+Serif+Display:ital@0;1&family=Noto+Sans+JP:wght@400;500;700&family=Bebas+Neue&display=swap"
           rel="stylesheet"
         />
         <ScrollViewStyleReset />
