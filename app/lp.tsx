@@ -265,6 +265,7 @@ const html = `
 }
 .level-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   margin-bottom: 10px;
 }
@@ -283,6 +284,9 @@ const html = `
 .level-table thead th:nth-child(3) {
   text-align: center;
 }
+.level-table thead th:nth-child(1) { width: 32%; }
+.level-table thead th:nth-child(2),
+.level-table thead th:nth-child(3) { width: 34%; }
 .level-table tbody tr:nth-child(odd) {
   background: rgba(15,23,38,0.96);
 }
@@ -315,12 +319,12 @@ const html = `
 }
 .pct {
   font-family: 'DM Serif Display', serif;
-  font-size: 18px;
+  font-size: 16px;
   color: #E53935;
 }
 .pct-top {
   font-family: 'DM Serif Display', serif;
-  font-size: 28px;
+  font-size: 22px;
   color: #E53935;
   font-style: italic;
 }
@@ -355,7 +359,7 @@ const html = `
   background-image: url('/image.png');
   background-size: cover;
   background-position: center;
-  opacity: 0.25;
+  opacity: 0.45;
   pointer-events: none;
 }
 .vision-inner {
@@ -452,9 +456,9 @@ const html = `
     margin: -8px auto;
     padding: 0;
   }
-  .flow-box { padding: 18px 12px 14px; }
+  .flow-box { width: calc(100% - 40px); margin: 0 auto; padding: 18px 12px 14px; }
   .level-table thead th,
-  .level-table tbody td { padding: 12px 12px; }
+  .level-table tbody td { padding: 10px 6px; font-size: 11px; }
 }
 </style>
 
