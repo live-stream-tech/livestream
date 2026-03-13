@@ -729,7 +729,7 @@ a { color: inherit; text-decoration: none; }
   height: 100%;
   object-fit: cover;
   object-position: center;
-  opacity: 0.9;
+  opacity: 1;
   mix-blend-mode: multiply;
 }
 .vision-map-fade {
@@ -738,11 +738,10 @@ a { color: inherit; text-decoration: none; }
   z-index: 1;
   pointer-events: none;
   background:
-    /* 上部：画像の上に紺色50%でしっかりかぶせる */
-    linear-gradient(180deg, rgba(27,40,56,0.5) 0%, rgba(27,40,56,0.5) 45%, rgba(27,40,56,0.0) 75%),
-    /* 下部：ブルーグレー系で背景になじませつつフェードアウト */
-    linear-gradient(180deg, rgba(20,28,41,0.0) 0%, rgba(20,28,41,0.7) 78%, rgba(20,28,41,1) 100%),
-    linear-gradient(90deg, rgba(20,28,41,0.9) 0%, transparent 18%, transparent 82%, rgba(20,28,41,0.9) 100%);
+    /* 上部：紺をうっすら乗せる（画像をちゃんと見せる） */
+    linear-gradient(180deg, rgba(27,40,56,0.25) 0%, rgba(27,40,56,0.25) 35%, rgba(27,40,56,0.0) 70%),
+    /* 下部：ブルーグレーで締めつつフェードアウト（横方向マスクなし） */
+    linear-gradient(180deg, rgba(20,28,41,0.0) 0%, rgba(20,28,41,0.55) 80%, rgba(20,28,41,0.9) 100%);
 }
 .vision-inner {
   position: relative;
