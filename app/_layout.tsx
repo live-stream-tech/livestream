@@ -173,6 +173,9 @@ function RootLayoutNav() {
       <Stack.Screen name="lp" options={{ headerShown: false }} />
       <Stack.Screen name="community/genre-ad-apply" options={{ headerShown: false }} />
       <Stack.Screen name="admin/reports" options={{ headerShown: false }} />
+      <Stack.Screen name="concert/create" options={{ headerShown: false }} />
+      <Stack.Screen name="concert/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="concert/staff-request" options={{ headerShown: false }} />
     </Stack>
   );
 }

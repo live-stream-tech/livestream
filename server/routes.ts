@@ -1328,6 +1328,15 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.json(rows);
   });
 
+  // 互換用: /staff-req パスでも同じ一覧を返す
+  app.get("/api/concerts/:id/staff-req", async (req: Request, res: Response) => {
+    return app._router.handle(
+      { ...req, url: `/api/concerts/${paramNum(req, "id")}/staff-requests`, params: req.params } as any,
+      res,
+      () => {},
+    );
+  });
+
   app.patch("/api/concerts/:id/staff/:staffId/approve", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
