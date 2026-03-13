@@ -1394,15 +1394,6 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // ── Genre Ads（ジャンルページ広告）─────────────────────────────────────
-
-  const GENRE_TO_CATEGORY: Record<string, string[]> = {
-    anime: ["アニメ", "音楽"],
-    band: ["バンド", "音楽"],
-    subcul: ["サブカル", "ライフスタイル", "アート"],
-    english: ["英会話"],
-    fortune: ["占い"],
-  };
-
   const GENRE_DAILY_RATE_PER_MEMBER = 5;
   const GENRE_MIN_AMOUNT = 10_000;
   const GENRE_MAX_MONTHS_AHEAD = 3;
