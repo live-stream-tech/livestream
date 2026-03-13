@@ -7,7 +7,7 @@ const html = `
   <!-- MASTHEAD -->
   <header style="background:#1B2838; padding:24px 48px; display:flex; align-items:center; justify-content:space-between;">
     <div style="display:flex; align-items:center; gap:16px;">
-      <img src="/assets/logo-200x70-v2.png" alt="RawStock" style="height:40px; width:auto; filter:brightness(0) invert(1);" />
+      <img src="/logo-200x70-v2.png" alt="RawStock" style="height:40px; width:auto;" />
     </div>
     <div style="color:#FFFFFF; font-size:11px; letter-spacing:0.1em; text-transform:uppercase;">
       LIVE &amp; COMMUNITY PLATFORM / JAPAN 2026

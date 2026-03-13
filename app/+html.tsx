@@ -16,8 +16,8 @@ export default function Root({ children }: PropsWithChildren) {
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="RawStock" />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="icon" type="image/png" href="/fav.png" />
-        <link rel="apple-touch-icon" href="/fav.png" />
+        <link rel="icon" type="image/png" href="/favi.png" />
+        <link rel="apple-touch-icon" href="/favi.png" />
         <link
           href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600;800&family=DM+Serif+Display:ital@0;1&family=Noto+Sans+JP:wght@400;500;700&display=swap"
           rel="stylesheet"
