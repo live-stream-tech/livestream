@@ -247,10 +247,8 @@ export default function UploadScreen() {
       const data = (await res.json()) as { id: number };
       await queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
       await queryClient.invalidateQueries({ queryKey: ["/api/videos/my"] });
-      Alert.alert("投稿しました", "", [
-        { text: "見る", onPress: () => router.replace(`/video/${data.id}`) },
-        { text: "ホームへ", onPress: () => router.replace("/(tabs)") },
-      ]);
+      // 投稿成功後はマイページへ遷移
+      router.push("/(tabs)/profile");
     } catch (err: any) {
       if (err instanceof ApiError) {
         if (err.status === 401) {
