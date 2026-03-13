@@ -49,6 +49,24 @@ export const communityVotes = pgTable("community_votes", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+/** コミュニティ広告申し込み（審査フロー: モデレーター仮承認 → 管理人最終承認） */
+export const communityAds = pgTable("community_ads", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  companyName: text("company_name").notNull(),
+  contactName: text("contact_name").notNull(),
+  email: text("email").notNull(),
+  bannerUrl: text("banner_url").notNull(),
+  startDate: text("start_date").notNull(), // YYYY-MM-DD
+  endDate: text("end_date").notNull(),
+  dailyRate: integer("daily_rate").notNull(),
+  totalAmount: integer("total_amount").notNull(),
+  status: text("status").notNull().default("pending"), // pending | moderator_approved | approved | rejected
+  approvedByModerator: integer("approved_by_moderator"),
+  approvedByOwner: integer("approved_by_owner"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const videos = pgTable("videos", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -63,6 +81,8 @@ export const videos = pgTable("videos", {
   rank: integer("rank"),
   isRanked: boolean("is_ranked").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
+  /** 通報で明らかな違反と判定された場合に非表示 */
+  hidden: boolean("hidden").notNull().default(false),
 });
 
 /** 投稿動画へのコメント */
@@ -71,6 +91,21 @@ export const videoComments = pgTable("video_comments", {
   videoId: integer("video_id").notNull(),
   userId: integer("user_id").notNull(),
   text: text("text").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  /** 通報で明らかな違反と判定された場合に非表示 */
+  hidden: boolean("hidden").notNull().default(false),
+});
+
+/** 通報（Claude API判定: clear_violation=自動非表示, gray_zone=管理者確認待ち） */
+export const reports = pgTable("reports", {
+  id: serial("id").primaryKey(),
+  reporterId: integer("reporter_id").notNull(),
+  contentType: text("content_type").notNull(), // 'video' | 'comment'
+  contentId: integer("content_id").notNull(),
+  reason: text("reason").notNull(), // ユーザー選択: spam, harassment, inappropriate, other
+  aiVerdict: text("ai_verdict").notNull(), // 'clear_violation' | 'gray_zone' | 'no_violation'
+  aiReason: text("ai_reason"),
+  status: text("status").notNull().default("pending"), // 'pending' | 'hidden' | 'reviewed'
   createdAt: timestamp("created_at").defaultNow(),
 });
 

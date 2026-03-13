@@ -29,10 +29,13 @@ import {
   announcements,
   phoneVerifications,
   streams,
+  communityAds,
+  reports,
 } from "./schema";
 import { eq, asc, desc, count, sql, and, gte, lte, isNull, inArray } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey, createConnectExpressAccount, createConnectAccountLink, getConnectAccount, createBannerPaymentIntent, getPaymentIntentStatus } from "./stripeClient";
 import { getMonthlyRevenueRank } from "./aggregateRevenue";
+import { judgeReportContent } from "./claudeReport";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
@@ -982,12 +985,211 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
+  // ── Community Ads（広告申し込み・審査）────────────────────────────────
+  const MIN_AD_AMOUNT = 10000;
+  const DAILY_RATE_PER_MEMBER = 10;
+  const MAX_MONTHS_AHEAD = 3;
+
+  app.post("/api/community-ads", async (req: Request, res: Response) => {
+    const { communityId: bodyCommunityId, companyName, contactName, email, bannerUrl, startDate, endDate } = req.body as {
+      communityId?: number;
+      companyName?: string;
+      contactName?: string;
+      email?: string;
+      bannerUrl?: string;
+      startDate?: string;
+      endDate?: string;
+    };
+    const cid = Number(bodyCommunityId) || 0;
+    const [community] = await db.select().from(communities).where(eq(communities.id, cid));
+    if (!community) return res.status(404).json({ error: "コミュニティが見つかりません" });
+
+    const company = (companyName ?? "").trim();
+    const contact = (contactName ?? "").trim();
+    const em = (email ?? "").trim();
+    const banner = (bannerUrl ?? "").trim();
+    const start = (startDate ?? "").trim();
+    const end = (endDate ?? "").trim();
+    if (!company || !contact || !em || !banner || !start || !end) {
+      return res.status(400).json({ error: "会社名・担当者名・メール・バナーURL・掲載期間を入力してください" });
+    }
+
+    const dailyRate = community.members * DAILY_RATE_PER_MEMBER;
+    const startD = new Date(start);
+    const endD = new Date(end);
+    if (isNaN(startD.getTime()) || isNaN(endD.getTime()) || endD < startD) {
+      return res.status(400).json({ error: "掲載期間の日付が不正です" });
+    }
+    const days = Math.ceil((endD.getTime() - startD.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    const totalAmount = days * dailyRate;
+    if (totalAmount < MIN_AD_AMOUNT) {
+      return res.status(400).json({ error: `最低出稿金額は${MIN_AD_AMOUNT.toLocaleString()}円以上です。日数またはメンバー数をご確認ください。` });
+    }
+    const maxEnd = new Date();
+    maxEnd.setMonth(maxEnd.getMonth() + MAX_MONTHS_AHEAD);
+    if (endD > maxEnd) {
+      return res.status(400).json({ error: `掲載終了日は${MAX_MONTHS_AHEAD}ヶ月以内で指定してください` });
+    }
+
+    const [row] = await db
+      .insert(communityAds)
+      .values({
+        communityId: cid,
+        companyName: company,
+        contactName: contact,
+        email: em,
+        bannerUrl: banner,
+        startDate: start,
+        endDate: end,
+        dailyRate,
+        totalAmount,
+        status: "pending",
+      } as typeof communityAds.$inferInsert)
+      .returning();
+    res.status(201).json(row);
+  });
+
+  app.get("/api/community-ads/review", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+
+    const ownedRows = await db.select({ id: communities.id }).from(communities).where(eq(communities.adminId, user.id));
+    const modRows = await db
+      .select({ communityId: communityModerators.communityId })
+      .from(communityModerators)
+      .where(eq(communityModerators.userId, user.id));
+    const communityIds = new Set<number>();
+    ownedRows.forEach((r) => communityIds.add(r.id));
+    modRows.forEach((r) => communityIds.add(r.communityId));
+
+    if (communityIds.size === 0) {
+      return res.json([]);
+    }
+    const ids = Array.from(communityIds);
+    const ads = await db
+      .select()
+      .from(communityAds)
+      .where(and(inArray(communityAds.communityId, ids), inArray(communityAds.status, ["pending", "moderator_approved"])))
+      .orderBy(desc(communityAds.createdAt));
+    const commList = await db.select({ id: communities.id, name: communities.name, adminId: communities.adminId }).from(communities).where(inArray(communities.id, ids));
+    const commMap = new Map(commList.map((c) => [c.id, c]));
+    const result = ads.map((ad) => ({
+      ...ad,
+      communityName: commMap.get(ad.communityId)?.name ?? "",
+      isOwner: commMap.get(ad.communityId)?.adminId === user.id,
+    }));
+    res.json(result);
+  });
+
+  app.patch("/api/community-ads/:id/moderator-approve", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const id = paramNum(req, "id");
+    const [ad] = await db.select().from(communityAds).where(eq(communityAds.id, id));
+    if (!ad) return res.status(404).json({ error: "申し込みが見つかりません" });
+    if (ad.status !== "pending") return res.status(400).json({ error: "この申し込みは既に処理済みです" });
+    const [mod] = await db
+      .select()
+      .from(communityModerators)
+      .where(and(eq(communityModerators.communityId, ad.communityId), eq(communityModerators.userId, user.id)));
+    if (!mod) return res.status(403).json({ error: "このコミュニティのモデレーターのみ承認できます" });
+    await db.update(communityAds).set({ status: "moderator_approved", approvedByModerator: user.id }).where(eq(communityAds.id, id));
+    res.json({ ok: true });
+  });
+
+  app.patch("/api/community-ads/:id/approve", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const id = paramNum(req, "id");
+    const [ad] = await db.select().from(communityAds).where(eq(communityAds.id, id));
+    if (!ad) return res.status(404).json({ error: "申し込みが見つかりません" });
+    if (ad.status !== "moderator_approved") return res.status(400).json({ error: "モデレーター承認後に管理人が承認できます" });
+    const [community] = await db.select().from(communities).where(eq(communities.id, ad.communityId));
+    if (!community || community.adminId !== user.id) return res.status(403).json({ error: "管理人のみ最終承認できます" });
+    await db.update(communityAds).set({ status: "approved", approvedByOwner: user.id }).where(eq(communityAds.id, id));
+    res.json({ ok: true });
+  });
+
+  app.patch("/api/community-ads/:id/reject", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const id = paramNum(req, "id");
+    const [ad] = await db.select().from(communityAds).where(eq(communityAds.id, id));
+    if (!ad) return res.status(404).json({ error: "申し込みが見つかりません" });
+    if (ad.status === "approved" || ad.status === "rejected") return res.status(400).json({ error: "既に処理済みです" });
+    const [community] = await db.select().from(communities).where(eq(communities.id, ad.communityId));
+    const [mod] = await db
+      .select()
+      .from(communityModerators)
+      .where(and(eq(communityModerators.communityId, ad.communityId), eq(communityModerators.userId, user.id)));
+    const isOwner = community?.adminId === user.id;
+    const isMod = !!mod;
+    if (!isOwner && !isMod) return res.status(403).json({ error: "管理人またはモデレーターのみ却下できます" });
+    await db.update(communityAds).set({ status: "rejected" }).where(eq(communityAds.id, id));
+    res.json({ ok: true });
+  });
+
+  // ── Reports（通報・Claude API判定）────────────────────────────────────
+  const REPORT_REASONS = ["spam", "harassment", "inappropriate", "other"] as const;
+
+  app.post("/api/reports", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+
+    const { contentType, contentId, reason } = req.body as {
+      contentType?: string;
+      contentId?: number;
+      reason?: string;
+    };
+    const cid = Number(contentId) || 0;
+    const type = contentType === "comment" ? "comment" : contentType === "video" ? "video" : null;
+    if (!type || !cid || !reason || !REPORT_REASONS.includes(reason as any)) {
+      return res.status(400).json({ error: "contentType(video/comment), contentId, reason(spam/harassment/inappropriate/other)を指定してください" });
+    }
+
+    let contentText: string;
+    if (type === "video") {
+      const [video] = await db.select().from(videos).where(eq(videos.id, cid));
+      if (!video) return res.status(404).json({ error: "対象が見つかりません" });
+      contentText = video.title ?? "";
+    } else {
+      const [comment] = await db.select().from(videoComments).where(eq(videoComments.id, cid));
+      if (!comment) return res.status(404).json({ error: "対象が見つかりません" });
+      contentText = comment.text ?? "";
+    }
+
+    const { verdict, reason: aiReason } = await judgeReportContent(contentText, reason);
+
+    const [report] = await db
+      .insert(reports)
+      .values({
+        reporterId: user.id,
+        contentType: type,
+        contentId: cid,
+        reason,
+        aiVerdict: verdict,
+        aiReason: aiReason ?? "",
+        status: verdict === "clear_violation" ? "hidden" : verdict === "gray_zone" ? "pending" : "reviewed",
+      } as typeof reports.$inferInsert)
+      .returning();
+
+    if (verdict === "clear_violation") {
+      if (type === "video") {
+        await db.update(videos).set({ hidden: true }).where(eq(videos.id, cid));
+      } else {
+        await db.update(videoComments).set({ hidden: true }).where(eq(videoComments.id, cid));
+      }
+    }
+
+    res.status(201).json(report);
+  });
+
   // ── Videos ───────────────────────────────────────────────────────
   app.get("/api/videos", async (_req: Request, res: Response) => {
     const rows = await db
       .select()
       .from(videos)
-      .where(eq(videos.isRanked, false))
+      .where(and(eq(videos.isRanked, false), eq(videos.hidden, false)))
       .orderBy(desc(videos.createdAt));
     res.json(rows);
   });
@@ -995,7 +1197,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.get("/api/videos/my", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
-    const rows = await db.select().from(videos).where(eq(videos.creator, user.displayName)).orderBy(desc(videos.createdAt));
+    const rows = await db.select().from(videos).where(and(eq(videos.creator, user.displayName), eq(videos.hidden, false))).orderBy(desc(videos.createdAt));
     res.json(rows);
   });
 
@@ -1003,7 +1205,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const rows = await db
       .select()
       .from(videos)
-      .where(eq(videos.isRanked, true))
+      .where(and(eq(videos.isRanked, true), eq(videos.hidden, false)))
       .orderBy(asc(videos.rank));
     res.json(rows);
   });
@@ -1011,11 +1213,11 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.get("/api/videos/:id", async (req: Request, res: Response) => {
     const id = paramNum(req, "id");
     const [row] = await db.select().from(videos).where(eq(videos.id, id));
-    if (!row) return res.status(404).json({ message: "Not found" });
+    if (!row || row.hidden) return res.status(404).json({ message: "Not found" });
     res.json(row);
   });
 
-  /** 動画コメント一覧 */
+  /** 動画コメント一覧（非表示コメントは除外） */
   app.get("/api/videos/:id/comments", async (req: Request, res: Response) => {
     const videoId = paramNum(req, "id");
     const rows = await db
@@ -1030,7 +1232,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       })
       .from(videoComments)
       .leftJoin(users, eq(users.id, videoComments.userId))
-      .where(eq(videoComments.videoId, videoId))
+      .where(and(eq(videoComments.videoId, videoId), eq(videoComments.hidden, false)))
       .orderBy(asc(videoComments.createdAt));
     res.json(rows);
   });

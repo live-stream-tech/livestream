@@ -8,6 +8,8 @@ import {
   Platform,
   TextInput,
   Alert,
+  Modal,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -36,8 +38,18 @@ export default function VideoDetailScreen() {
   const [commentText, setCommentText] = useState("");
   const [editTitle, setEditTitle] = useState("");
   const [editMode, setEditMode] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{ type: "video" | "comment"; id: number } | null>(null);
+  const [reportReason, setReportReason] = useState<string>("");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
   const qc = useQueryClient();
   const { user, requireAuth } = useAuth();
+
+  const REPORT_REASONS: { value: string; label: string }[] = [
+    { value: "spam", label: "スパム" },
+    { value: "harassment", label: "ハラスメント" },
+    { value: "inappropriate", label: "不適切なコンテンツ" },
+    { value: "other", label: "その他" },
+  ];
 
   const isDemo = demo === "1" || demo === "true";
 
@@ -121,6 +133,34 @@ export default function VideoDetailScreen() {
     }
   }
 
+  function openReportModal(type: "video" | "comment", contentId: number) {
+    if (!requireAuth("通報")) return;
+    if (isDemo) return;
+    setReportTarget({ type, id: contentId });
+    setReportReason("");
+  }
+
+  async function submitReport() {
+    if (!reportTarget || !reportReason) return;
+    setReportSubmitting(true);
+    try {
+      await apiRequest("POST", "/api/reports", {
+        contentType: reportTarget.type,
+        contentId: reportTarget.id,
+        reason: reportReason,
+      });
+      setReportTarget(null);
+      Alert.alert("送信しました", "通報を受け付けました。判定結果に応じて対応いたします。");
+      await qc.invalidateQueries({ queryKey: [`/api/videos/${id}`] });
+      await qc.invalidateQueries({ queryKey: [`/api/videos/${id}/comments`] });
+      await qc.invalidateQueries({ queryKey: ["/api/videos"] });
+    } catch (e: any) {
+      Alert.alert("エラー", e?.message ?? "通報の送信に失敗しました");
+    } finally {
+      setReportSubmitting(false);
+    }
+  }
+
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -190,6 +230,12 @@ export default function VideoDetailScreen() {
                 </Pressable>
               </View>
             )}
+            {!editMode && apiVideo && (
+              <Pressable style={styles.postActionBtn} onPress={() => openReportModal("video", Number(id))}>
+                <Ionicons name="flag-outline" size={14} color={C.textSec} />
+                <Text style={styles.postActionText}>通報</Text>
+              </Pressable>
+            )}
             {editMode && (
               <View style={styles.postActionsRow}>
                 <Pressable style={styles.postActionBtn} onPress={() => setEditMode(false)}>
@@ -220,6 +266,11 @@ export default function VideoDetailScreen() {
                     {c.text}
                   </Text>
                 </View>
+                {!isDemo && (
+                  <Pressable style={styles.commentReportBtn} onPress={() => openReportModal("comment", c.id)} hitSlop={8}>
+                    <Ionicons name="flag-outline" size={14} color={C.textMuted} />
+                  </Pressable>
+                )}
               </View>
             ))}
             <View style={styles.commentInputRow}>
@@ -304,6 +355,39 @@ export default function VideoDetailScreen() {
 
         <View style={{ height: 100 + bottomInset }} />
       </ScrollView>
+
+      {/* 通報モーダル */}
+      <Modal visible={!!reportTarget} transparent animationType="fade">
+        <Pressable style={styles.reportModalOverlay} onPress={() => !reportSubmitting && setReportTarget(null)}>
+          <Pressable style={styles.reportModalBox} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.reportModalTitle}>通報</Text>
+            <Text style={styles.reportModalSub}>
+              {reportTarget?.type === "video" ? "この投稿" : "このコメント"}を通報する理由を選んでください。
+            </Text>
+            {REPORT_REASONS.map((r) => (
+              <Pressable
+                key={r.value}
+                style={[styles.reportReasonBtn, reportReason === r.value && styles.reportReasonBtnActive]}
+                onPress={() => setReportReason(r.value)}
+              >
+                <Text style={[styles.reportReasonText, reportReason === r.value && styles.reportReasonTextActive]}>{r.label}</Text>
+              </Pressable>
+            ))}
+            <View style={styles.reportModalActions}>
+              <Pressable style={styles.reportCancelBtn} onPress={() => setReportTarget(null)} disabled={reportSubmitting}>
+                <Text style={styles.reportCancelText}>キャンセル</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.reportSubmitBtn, (!reportReason || reportSubmitting) && styles.reportSubmitBtnDisabled]}
+                disabled={!reportReason || reportSubmitting}
+                onPress={submitReport}
+              >
+                {reportSubmitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.reportSubmitText}>送信</Text>}
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -430,6 +514,91 @@ const styles = StyleSheet.create({
   commentText: {
     color: C.textSec,
     fontSize: 11,
+  },
+  commentReportBtn: {
+    padding: 4,
+  },
+  reportModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  reportModalBox: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  reportModalTitle: {
+    color: C.text,
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  reportModalSub: {
+    color: C.textSec,
+    fontSize: 13,
+    marginBottom: 16,
+  },
+  reportReasonBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: C.surface2,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  reportReasonBtnActive: {
+    borderColor: C.accent,
+    backgroundColor: C.accent + "22",
+  },
+  reportReasonText: {
+    color: C.textSec,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  reportReasonTextActive: {
+    color: C.accent,
+  },
+  reportModalActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 20,
+  },
+  reportCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+  },
+  reportCancelText: {
+    color: C.textSec,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  reportSubmitBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: C.accent,
+    alignItems: "center",
+  },
+  reportSubmitBtnDisabled: {
+    backgroundColor: C.surface3,
+    opacity: 0.8,
+  },
+  reportSubmitText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "800",
   },
   commentInputRow: {
     flexDirection: "row",
