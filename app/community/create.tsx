@@ -99,10 +99,8 @@ export default function CreateCommunityScreen() {
   }
 
   const canSubmit =
-    !!bannerUri &&
-    !!iconUri &&
     name.trim().length > 0 &&
-    description.trim().length >= 100 &&
+    description.trim().length >= 10 &&
     selectedCategories.length > 0;
 
   async function handleCreate() {
@@ -228,7 +226,7 @@ export default function CreateCommunityScreen() {
           <Text style={styles.label}>
             コミュニティの説明 <Text style={styles.required}>*</Text>
           </Text>
-          <Text style={styles.hint}>100文字以上で入力してください</Text>
+          <Text style={styles.hint}>10文字以上で入力してください</Text>
           <TextInput
             style={[styles.input, styles.textarea]}
             placeholder="どんなメンバーが集まる場所か、活動内容やルールなどを具体的に記載してください。"
@@ -242,7 +240,7 @@ export default function CreateCommunityScreen() {
           <Text
             style={[
               styles.charCount,
-              description.trim().length < 100 && description.length > 0 && { color: C.live },
+              description.trim().length < 10 && description.length > 0 && { color: C.live },
             ]}
           >
             {description.length}/800（現在 {description.trim().length} 文字）
@@ -329,7 +327,7 @@ export default function CreateCommunityScreen() {
           </Pressable>
           {!canSubmit && (
             <Text style={styles.submitHint}>
-              バナー画像・アイコン画像・カテゴリ・100文字以上の説明・コミュニティ名がすべて必要です
+              名前・カテゴリ・説明（10文字以上）を入力してください
             </Text>
           )}
         </View>
