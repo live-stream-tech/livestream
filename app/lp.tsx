@@ -339,7 +339,7 @@ const html = `
 
 /* ============ VISION ============ */
 .vision-wrap {
-  background: #1B2838;
+  background: #E9F3FF;
   padding: 80px 48px;
   position: relative;
   overflow: hidden;
@@ -353,9 +353,21 @@ const html = `
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(41,182,207,0.4), transparent);
 }
+.vision-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('/image.png');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.25;
+  pointer-events: none;
+}
 .vision-inner {
   max-width: 720px;
   margin: 0 auto;
+  position: relative;
+  z-index: 1;
 }
 .v-label {
   display: flex;
@@ -379,7 +391,7 @@ const html = `
   font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(22px, 4.4vw, 30px);
   font-weight: 800;
-  color: #fff;
+  color: #111827;
   line-height: 1.3;
   margin-bottom: 32px;
 }
@@ -387,7 +399,7 @@ const html = `
   font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 17px;
   line-height: 1.95;
-  color: #E0ECFF;
+  color: #111827;
   margin-bottom: 0;
 }
 .v-divider {
@@ -399,7 +411,7 @@ const html = `
 .v-close {
   font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(17px, 2vw, 20px);
-  color: #7FE7FF;
+  color: #2563EB;
   line-height: 1.9;
 }
 
@@ -452,7 +464,7 @@ const html = `
 </style>
 
 <div style="font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#05070b; color:#E0ECFF;">
-  <div style="background-image:linear-gradient(to bottom, rgba(5,7,11,0) 0%, rgba(5,7,11,0.7) 70%, rgba(5,7,11,1) 100%), url('/image.png'); background-size:cover; background-position:center top; background-repeat:no-repeat;">
+  <div style="background-image:linear-gradient(to bottom, rgba(5,7,11,0) 0%, rgba(5,7,11,0.7) 70%, rgba(5,7,11,1) 100%), url('/haikeihaikei.png'); background-size:cover; background-position:center top; background-repeat:no-repeat;">
     <!-- MASTHEAD -->
     <header style="background:rgba(27,40,56,0.9); padding:20px clamp(16px,5vw,48px); display:flex; align-items:center; justify-content:space-between;">
       <div style="display:flex; align-items:center; gap:16px;">
