@@ -66,7 +66,8 @@ const ENNEAGRAM_TYPES = [
 const STORAGE_KEY = "enneagram_scores";
 const DEFAULT_SCORES = [6, 5, 7, 4, 8, 5, 6, 4, 7];
 
-const PWA_DISMISSED_KEY = "pwa_add_to_home_dismissed";
+// v2: 旧フラグ（pwa_add_to_home_dismissed）は無視して再度表示できるようにする
+const PWA_DISMISSED_KEY = "pwa_add_to_home_dismissed_v2";
 
 /** PWA「ホーム画面に追加」FAB＋ポップアップ。Web かつ 未インストール かつ 未閉じの場合のみ表示 */
 function usePwaInstallBanner() {
@@ -89,18 +90,34 @@ function usePwaInstallBanner() {
   useEffect(() => {
     if (!isWeb || typeof window === "undefined") return;
 
-    const standalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (navigator as any).standalone === true;
-    if (standalone) {
+    let isStandalone = false;
+    try {
+      if (typeof window.matchMedia === "function") {
+        isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+      }
+      // iOS Safari PWA
+      if (!isStandalone && typeof navigator !== "undefined" && (navigator as any).standalone === true) {
+        isStandalone = true;
+      }
+    } catch {
+      // 判定に失敗した場合はスタンドアロン扱いにはしない
+      isStandalone = false;
+    }
+
+    if (isStandalone) {
       setShowBanner(false);
       return;
     }
 
-    const dismissed = window.localStorage.getItem(PWA_DISMISSED_KEY);
-    if (dismissed === "1") {
-      setShowBanner(false);
-      return;
+    // v2では一旦「閉じた」フラグをかなり緩く扱う（存在しても表示を完全には止めない）
+    try {
+      const dismissed = window.localStorage.getItem(PWA_DISMISSED_KEY);
+      if (dismissed === "1") {
+        // 旧来どおり完全に非表示にするのではなく、今回だけは再度表示させる
+        // ユーザーがもう一度閉じれば新しいフラグが保存される
+      }
+    } catch {
+      // localStorage が使えなくても表示は続行する
     }
 
     const onBeforeInstall = (e: Event) => {
@@ -115,7 +132,11 @@ function usePwaInstallBanner() {
 
   const onDismiss = () => {
     if (isWeb && typeof window !== "undefined") {
-      window.localStorage.setItem(PWA_DISMISSED_KEY, "1");
+      try {
+        window.localStorage.setItem(PWA_DISMISSED_KEY, "1");
+      } catch {
+        // localStorage が使えない環境では単にフラグなしで閉じる
+      }
     }
     setShowPopup(false);
     setShowBanner(false);
