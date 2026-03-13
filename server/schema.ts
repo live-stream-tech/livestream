@@ -21,6 +21,8 @@ export const communities = pgTable("communities", {
   category: text("category").notNull(),
   /** 管理人（users.id）。広告収益10%の受け取り対象 */
   adminId: integer("admin_id"),
+  /** 作成者＝初代管理人（users.id） */
+  ownerId: integer("owner_id"),
 });
 
 /** コミュニティのモデレーター（複数可）。広告収益10%の分配対象 */
@@ -36,6 +38,15 @@ export const communityMembers = pgTable("community_members", {
   communityId: integer("community_id").notNull(),
   userId: integer("user_id").notNull(),
   joinedAt: timestamp("joined_at").defaultNow(),
+});
+
+/** 不信任投票等のコミュニティ投票 */
+export const communityVotes = pgTable("community_votes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  communityId: integer("community_id").notNull(),
+  type: text("type").notNull(), // 'no_confidence' 等
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const videos = pgTable("videos", {

@@ -920,6 +920,9 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   app.post("/api/communities", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+
     const { name, description, bannerUrl, iconUrl, categories } = req.body as {
       name?: string;
       description?: string;
@@ -930,8 +933,8 @@ export async function registerRoutes(app: Express): Promise<void> {
 
     const trimmedName = (name ?? "").trim();
     const trimmedDescription = (description ?? "").trim();
-    const banner = (bannerUrl ?? "").trim();
-    const icon = (iconUrl ?? "").trim();
+    const banner = (bannerUrl ?? "").trim() || "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=450&fit=crop";
+    const icon = (iconUrl ?? "").trim() || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=160&h=160&fit=crop";
 
     const categoryList =
       Array.isArray(categories)
@@ -943,12 +946,12 @@ export async function registerRoutes(app: Express): Promise<void> {
             .filter(Boolean)
         : [];
 
-    if (!trimmedName || !trimmedDescription || !banner || !icon || categoryList.length === 0) {
-      return res.status(400).json({ error: "必須項目をすべて入力してください" });
+    if (!trimmedName || !trimmedDescription || categoryList.length === 0) {
+      return res.status(400).json({ error: "名前・説明・カテゴリを入力してください" });
     }
 
-    if (trimmedDescription.length < 100) {
-      return res.status(400).json({ error: "説明文は100文字以上で入力してください" });
+    if (trimmedDescription.length < 10) {
+      return res.status(400).json({ error: "説明文は10文字以上で入力してください" });
     }
 
     try {
@@ -961,10 +964,11 @@ export async function registerRoutes(app: Express): Promise<void> {
           thumbnail: banner,
           online: false,
           category: primaryCategory,
+          adminId: user.id,
+          ownerId: user.id,
         } as typeof communities.$inferInsert)
         .returning();
 
-      // フロントで扱いやすいよう、リクエスト情報もそのまま返す
       res.status(201).json({
         ...row,
         description: trimmedDescription,

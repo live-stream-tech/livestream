@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -43,6 +44,8 @@ export default function CreateCommunityScreen() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [categoryInput, setCategoryInput] = useState("");
   const [creating, setCreating] = useState(false);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [consentAgreed, setConsentAgreed] = useState(false);
 
   async function pickImage(kind: "banner" | "icon") {
     if (Platform.OS === "web") {
@@ -103,8 +106,15 @@ export default function CreateCommunityScreen() {
     description.trim().length >= 10 &&
     selectedCategories.length > 0;
 
-  async function handleCreate() {
+  function openConsentModal() {
     if (!canSubmit || creating) return;
+    setConsentAgreed(false);
+    setShowConsentModal(true);
+  }
+
+  async function handleCreate() {
+    if (!canSubmit || creating || !consentAgreed) return;
+    setShowConsentModal(false);
     setCreating(true);
 
     try {
@@ -173,9 +183,7 @@ export default function CreateCommunityScreen() {
       >
         {/* バナー画像 */}
         <View style={styles.section}>
-          <Text style={styles.label}>
-            トップバナー画像 <Text style={styles.required}>*</Text>
-          </Text>
+          <Text style={styles.label}>トップバナー画像（任意）</Text>
           <Pressable style={styles.bannerPicker} onPress={() => pickImage("banner")}>
             {bannerUri ? (
               <Image source={{ uri: bannerUri }} style={styles.bannerPreview} contentFit="cover" />
@@ -190,9 +198,7 @@ export default function CreateCommunityScreen() {
 
         {/* アイコン画像 */}
         <View style={styles.section}>
-          <Text style={styles.label}>
-            アイコン画像 <Text style={styles.required}>*</Text>
-          </Text>
+          <Text style={styles.label}>アイコン画像（任意）</Text>
           <Pressable style={styles.iconPicker} onPress={() => pickImage("icon")}>
             {iconUri ? (
               <Image source={{ uri: iconUri }} style={styles.iconPreview} contentFit="cover" />
@@ -309,12 +315,51 @@ export default function CreateCommunityScreen() {
           )}
         </View>
 
+        {/* 同意確認モーダル */}
+        <Modal visible={showConsentModal} transparent animationType="fade">
+          <Pressable style={styles.consentModalOverlay} onPress={() => setShowConsentModal(false)}>
+            <Pressable style={styles.consentModalBox} onPress={(e) => e.stopPropagation()}>
+              <Text style={styles.consentModalTitle}>コミュニティ作成にあたって</Text>
+              <Text style={styles.consentModalIntro}>以下の内容に同意のうえ、作成してください。</Text>
+              <View style={styles.consentBullets}>
+                <Text style={styles.consentBullet}>・バナー広告収益の50%はRawStock運営費として徴収されます</Text>
+                <Text style={styles.consentBullet}>・収益の10%はコミュニティイベント資金としてストックされます</Text>
+                <Text style={styles.consentBullet}>・残り40%は管理人・モデレーターで分配（比率は管理人が設定）</Text>
+                <Text style={styles.consentBullet}>・管理人はメンバーの50%が不信任票を投じると交代になります</Text>
+                <Text style={styles.consentBullet}>・交代時はモデレーターの中から次の管理人を投票で決めます（モデレーター不在の場合は全メンバーから立候補）</Text>
+                <Text style={styles.consentBullet}>・モデレーターは管理人が指名します</Text>
+              </View>
+              <Pressable
+                style={styles.consentCheckRow}
+                onPress={() => setConsentAgreed((a) => !a)}
+              >
+                <View style={[styles.consentCheckbox, consentAgreed && styles.consentCheckboxChecked]}>
+                  {consentAgreed && <Ionicons name="checkmark" size={16} color="#fff" />}
+                </View>
+                <Text style={styles.consentCheckLabel}>上記に同意する</Text>
+              </Pressable>
+              <View style={styles.consentModalActions}>
+                <Pressable style={styles.consentCancelBtn} onPress={() => setShowConsentModal(false)}>
+                  <Text style={styles.consentCancelText}>キャンセル</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.consentConfirmBtn, !consentAgreed && styles.consentConfirmBtnDisabled]}
+                  disabled={!consentAgreed}
+                  onPress={handleCreate}
+                >
+                  <Text style={styles.consentConfirmText}>同意して作成する</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
         {/* 作成ボタン */}
         <View style={[styles.submitSection, { paddingBottom: bottomInset + 24 }]}>
           <Pressable
             style={[styles.submitBtn, (!canSubmit || creating) && styles.submitBtnDisabled]}
             disabled={!canSubmit || creating}
-            onPress={handleCreate}
+            onPress={openConsentModal}
           >
             {creating ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -547,5 +592,87 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: "center",
   },
+
+  consentModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  consentModalBox: {
+    width: "100%",
+    maxWidth: 400,
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  consentModalTitle: {
+    color: C.text,
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  consentModalIntro: {
+    color: C.textSec,
+    fontSize: 13,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  consentBullets: { gap: 10, marginBottom: 20 },
+  consentBullet: {
+    color: C.textSec,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  consentCheckRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 20,
+  },
+  consentCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: C.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  consentCheckboxChecked: {
+    backgroundColor: C.accent,
+    borderColor: C.accent,
+  },
+  consentCheckLabel: {
+    color: C.text,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  consentModalActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  consentCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+  },
+  consentCancelText: { color: C.textSec, fontSize: 14, fontWeight: "700" },
+  consentConfirmBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: C.accent,
+    alignItems: "center",
+  },
+  consentConfirmBtnDisabled: { backgroundColor: C.surface3, opacity: 0.8 },
+  consentConfirmText: { color: "#fff", fontSize: 14, fontWeight: "800" },
 });
 
