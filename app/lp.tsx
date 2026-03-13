@@ -31,7 +31,7 @@ const html = `
       </p>
       <div style="border-left:4px solid #E53935; padding-left:20px; margin-bottom:28px;">
         <p style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:17px; line-height:1.9; margin:0; color:#1B2838;">
-          YouTubeは55%、TikTokは30%。大手プラットフォームはクリエイターの売上の半分近くを持っていく。RawStockは違う。有料動画は売上の90%があなたの手元に残る。手数料は受け取る側じゃなく、払う側が負担する。個人開発だから、大手の論理じゃなくクリエイターの論理で作れた。
+          個人開発だから、余計なコストがない。AIを活用して作ったから、少人数で回せる。だから有料動画は売上の90%をクリエイターに還元できる。手数料は受け取る側じゃなく、払う側が負担する。クリエイターの論理だけで設計できた、それが個人×AI開発の強みです。
         </p>
       </div>
       <div style="display:flex; flex-wrap:wrap; gap:12px;">
@@ -237,12 +237,18 @@ export default function LpScreen() {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        height: "100vh",
         background: "#FFFFFF",
         color: "#1B2838",
+        overflow: "hidden",
       }}
     >
       <div
+        style={{
+          height: "100%",
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
+        }}
         dangerouslySetInnerHTML={{ __html: html }}
       />
       {/* ボタンの挙動だけはReact側で紐づける */}
