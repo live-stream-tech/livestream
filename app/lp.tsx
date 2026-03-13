@@ -444,10 +444,10 @@ const html = `
         <span style="flex:1; height:1px; background:#29B6CF; opacity:0.4;"></span>
       </div>
       <h1 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(32px,6vw,54px); line-height:1.25; margin:0 0 16px; color:#1B2838; font-weight:800;">
-        AIに作れないものを、<br />売れる場所。
+        AIに作れない、<br />現場の記憶が売れる。
       </h1>
       <p style="font-size:clamp(14px,3.2vw,18px); color:#29B6CF; margin:0 0 24px;">
-        還元率90%。これが個人開発にしかできないこと。
+        個人開発×AIで、還元率90%。
       </p>
       <div style="border-left:4px solid #E53935; padding-left:20px; margin-bottom:28px;">
         <p style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(14px,3.4vw,17px); line-height:1.9; margin:0; color:#1B2838;">
