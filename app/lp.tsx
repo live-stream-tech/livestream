@@ -367,17 +367,17 @@ const html = `
   font-family: 'Bebas Neue', sans-serif;
   font-size: 11px;
   letter-spacing: .4em;
-  color: #29B6CF;
+  color: #5EDCFF;
   text-transform: uppercase;
 }
 .v-label-line {
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, rgba(41,182,207,0.4), transparent);
+  background: linear-gradient(90deg, rgba(41,182,207,0.6), transparent);
 }
 .v-heading {
   font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: clamp(30px, 4vw, 46px);
+  font-size: clamp(22px, 4.4vw, 30px);
   font-weight: 800;
   color: #fff;
   line-height: 1.3;
@@ -387,7 +387,7 @@ const html = `
   font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 17px;
   line-height: 1.95;
-  color: rgba(255,255,255,0.82);
+  color: #E0ECFF;
   margin-bottom: 0;
 }
 .v-divider {
@@ -399,7 +399,7 @@ const html = `
 .v-close {
   font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(17px, 2vw, 20px);
-  color: #29B6CF;
+  color: #7FE7FF;
   line-height: 1.9;
 }
 
