@@ -35,8 +35,8 @@ const html = `
         </p>
       </div>
       <div style="display:flex; flex-wrap:wrap; gap:12px;">
-        <button id="lp-start-free" style="border:none; cursor:pointer; padding:12px 28px; background:#1B2838; color:#FFFFFF; font-size:14px; font-weight:600; letter-spacing:0.06em;">
-          無料で始める
+        <button id="lp-start-free" style="border:none; cursor:default; padding:12px 28px; background:#1B2838; color:#FFFFFF; font-size:14px; font-weight:600; letter-spacing:0.06em; opacity:0.6;">
+          近日公開
         </button>
         <button id="lp-contact" style="border:1px solid #1B2838; cursor:pointer; padding:12px 28px; background:transparent; color:#1B2838; font-size:14px; font-weight:500; letter-spacing:0.06em;">
           資料請求・お問い合わせ
@@ -260,11 +260,6 @@ export default function LpScreen() {
             var start = document.getElementById('lp-start-free');
             var contactTop = document.getElementById('lp-contact');
             var contactBottom = document.getElementById('lp-contact-bottom');
-            if (start) {
-              start.addEventListener('click', function() {
-                window.location.href = '/auth/register';
-              });
-            }
             function goContact() {
               window.location.href = 'mailto:rawstock.infomation@gmail.com';
             }
