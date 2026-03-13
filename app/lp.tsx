@@ -95,17 +95,12 @@ const html = `
 
 .c-heading {
   font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: clamp(30px, 5vw, 52px);
+  font-size: clamp(22px, 4.4vw, 30px);
   font-weight: 800;
   color: #fff;
-  line-height: 1.25;
+  line-height: 1.3;
   margin-bottom: 32px;
   letter-spacing: .02em;
-}
-.c-heading em {
-  font-style: italic;
-  color: #29B6CF;
-  font-family: 'DM Serif Display', serif;
 }
 
 .c-body {
@@ -636,7 +631,7 @@ const html = `
           <span class="c-label-line"></span>
         </div>
 
-        <h2 class="c-heading">生の瞬間には、<br><em>2種類</em>ある。</h2>
+        <h2 class="c-heading">生の瞬間には、<br>２種類ある。</h2>
 
         <p class="c-body">ひとつは現場レポート。ライブハウス、劇場、フェス。その場にいた人だけが撮れる映像を、有料コンテンツとして販売する。もうひとつはリアルタイム生配信。コメント、投げ銭、ファンとのリアルな交流。その熱量ごとアーカイブとして積み上げていく。どちらも流れて消えるんじゃなく、積み上がる資産になる。</p>
 
@@ -804,7 +799,7 @@ const html = `
   <!-- REVENUE -->
   <section>
     <div class="lp-inner">
-      <h2 class="lp-heading-section" style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin:0 0 24px; color:#1B2838;">
+      <h2 class="lp-heading-section" style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin:0 0 24px; color:#FFD600;">
         稼ぎ方は一つじゃない。
       </h2>
       <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:24px;">
@@ -842,11 +837,11 @@ const html = `
         </tbody>
       </table>
 
-      <div style="background:#f4f8fb; border:1px solid #e0e8f0; padding:18px 16px; border-radius:4px; margin-bottom:18px;">
-        <div style="font-family:'DM Serif Display', 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:30px; color:#29B6CF; margin-bottom:10px;">
+      <div style="background:linear-gradient(135deg, #10263E, #061018); border:1px solid rgba(41,182,207,0.45); padding:18px 16px; border-radius:12px; margin-bottom:18px; box-shadow:0 18px 38px rgba(0,0,0,0.45);">
+        <div style="font-family:'DM Serif Display', 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:30px; color:#FFFFFF; margin-bottom:10px; text-shadow:0 0 10px rgba(0,245,255,0.8);">
           メンバー数 × 7円 / 日（最低10,000円〜）
         </div>
-        <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:13px; color:#546A82;">
+        <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:13px; color:#FFFFFF;">
           <div>RawStock 20%</div>
           <div>／ イベント積立 10%</div>
           <div>／ 管理人・モデレーター 70%</div>
