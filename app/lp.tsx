@@ -178,13 +178,16 @@ a { color: inherit; text-decoration: none; }
   color: var(--text-muted);
 }
 .hero-h1 {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(42px, 7vw, 80px);
   font-weight: 800;
   line-height: 1.15;
-  color: var(--text);
+  color: #F5FBFF;
   margin-bottom: 20px;
   letter-spacing: .01em;
+  text-shadow:
+    0 0 12px rgba(0,245,255,0.9),
+    0 0 28px rgba(0,0,0,0.95);
 }
 .hero-h1 em {
   font-style: normal;
@@ -249,11 +252,12 @@ a { color: inherit; text-decoration: none; }
   border-bottom: 1px solid var(--border-dim);
 }
 .for-you-h2 {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(26px, 4vw, 40px);
   font-weight: 800;
   color: var(--text);
   margin-bottom: 40px;
+  text-shadow: 0 0 10px rgba(0,0,0,0.7);
 }
 .for-you-list { list-style: none; }
 .for-you-item {
@@ -349,12 +353,13 @@ a { color: inherit; text-decoration: none; }
   padding: 0 48px;
 }
 .concept-h2 {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(28px, 4.5vw, 48px);
   font-weight: 800;
   color: var(--text);
   line-height: 1.25;
   margin-bottom: 28px;
+  text-shadow: 0 0 12px rgba(0,0,0,0.85);
 }
 .concept-h2 em {
   font-style: italic;
@@ -545,11 +550,12 @@ a { color: inherit; text-decoration: none; }
   border-bottom: 1px solid var(--border-dim);
 }
 .numbers-h2 {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(24px, 3vw, 36px);
   font-weight: 800;
   color: var(--text);
   margin-bottom: 40px;
+  text-shadow: 0 0 10px rgba(0,0,0,0.8);
 }
 .numbers-grid {
   display: grid;
@@ -591,11 +597,14 @@ a { color: inherit; text-decoration: none; }
   border-top: 1px solid var(--border-dim);
 }
 .revenue-h2 {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(26px, 4vw, 42px);
   font-weight: 800;
   color: var(--yellow);
   margin-bottom: 40px;
+  text-shadow:
+    0 0 14px rgba(255,214,0,0.8),
+    0 0 26px rgba(0,0,0,0.9);
 }
 .revenue-table {
   width: 100%;
@@ -662,7 +671,7 @@ a { color: inherit; text-decoration: none; }
   border-top: 1px solid var(--border-dim);
 }
 .ecosystem-h2 {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(24px, 3.5vw, 40px);
   font-weight: 800;
   color: var(--text);
@@ -685,7 +694,7 @@ a { color: inherit; text-decoration: none; }
   border-top: 1px solid var(--border-dim);
 }
 .community-h2 {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(24px, 3.5vw, 40px);
   font-weight: 800;
   color: var(--text);
@@ -740,7 +749,7 @@ a { color: inherit; text-decoration: none; }
   padding: 0 48px;
 }
 .vision-h2 {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(26px, 4.5vw, 48px);
   font-weight: 800;
   color: var(--text);
@@ -778,7 +787,7 @@ a { color: inherit; text-decoration: none; }
   border-top: 1px solid var(--border-dim);
 }
 .honest-h2 {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(24px, 3.5vw, 40px);
   font-weight: 800;
   color: rgba(255,255,255,0.75);
@@ -801,7 +810,7 @@ a { color: inherit; text-decoration: none; }
   border-top: 1px solid var(--border-dim);
 }
 .contact-h2 {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(28px, 4vw, 46px);
   font-weight: 800;
   color: var(--text);
