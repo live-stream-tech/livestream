@@ -85,17 +85,115 @@ const html = `
       <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 24px; color:#1B2838;">
         生の瞬間には、2種類ある。
       </h2>
-      <div style="border-top:1px solid #29B6CF; border-bottom:1px solid #29B6CF; padding:14px 0; margin-bottom:20px;">
-        <p style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:22px; color:#29B6CF; margin:0;">
-          AIには絶対に作れない、一度きりの記録。
+      <p style="font-size:15px; line-height:1.9; color:#546A82; margin:0 0 20px;">
+        ひとつは現場レポート。ライブハウス、劇場、フェス。その場にいた人だけが撮れる映像を、有料コンテンツとして販売する。もうひとつはリアルタイム生配信。コメント、投げ銭、ファンとのリアルな交流。その熱量ごとアーカイブとして積み上げていく。どちらも流れて消えるんじゃなく、積み上がる資産になる。
+      </p>
+
+      <!-- エコシステム図 -->
+      <div style="margin-top:8px; background:#f4f8fb; border-radius:12px; padding:16px; overflow-x:auto;">
+        <div style="min-width:560px;">
+          <svg viewBox="0 0 560 150" width="100%" height="150" xmlns="http://www.w3.org/2000/svg">
+            <!-- ステップボックス -->
+            <rect x="10" y="40" width="90" height="60" rx="8" ry="8" fill="#FFFFFF" stroke="#29B6CF" />
+            <rect x="120" y="40" width="90" height="60" rx="8" ry="8" fill="#FFFFFF" stroke="#29B6CF" />
+            <rect x="230" y="40" width="110" height="60" rx="8" ry="8" fill="#FFFFFF" stroke="#29B6CF" />
+            <rect x="360" y="40" width="110" height="60" rx="8" ry="8" fill="#FFFFFF" stroke="#29B6CF" />
+            <rect x="490" y="40" width="60" height="60" rx="8" ry="8" fill="#FFFFFF" stroke="#29B6CF" />
+
+            <!-- テキスト -->
+            <text x="55" y="55" text-anchor="middle" font-size="16">📱</text>
+            <text x="55" y="78" text-anchor="middle" font-size="11" fill="#1B2838">現場で</text>
+            <text x="55" y="92" text-anchor="middle" font-size="11" fill="#1B2838">スマホ撮影</text>
+
+            <text x="165" y="55" text-anchor="middle" font-size="16">✂️</text>
+            <text x="165" y="78" text-anchor="middle" font-size="11" fill="#1B2838">編集者に</text>
+            <text x="165" y="92" text-anchor="middle" font-size="11" fill="#1B2838">依頼</text>
+
+            <text x="285" y="55" text-anchor="middle" font-size="16">💰</text>
+            <text x="285" y="78" text-anchor="middle" font-size="11" fill="#1B2838">有料コンテンツ</text>
+            <text x="285" y="92" text-anchor="middle" font-size="11" fill="#1B2838">として販売</text>
+
+            <text x="415" y="55" text-anchor="middle" font-size="16">👥</text>
+            <text x="415" y="78" text-anchor="middle" font-size="11" fill="#1B2838">ファン・</text>
+            <text x="415" y="92" text-anchor="middle" font-size="11" fill="#1B2838">コミュニティ</text>
+
+            <text x="520" y="55" text-anchor="middle" font-size="16">📣</text>
+            <text x="520" y="78" text-anchor="middle" font-size="11" fill="#1B2838">次の</text>
+            <text x="520" y="92" text-anchor="middle" font-size="11" fill="#1B2838">ライブ告知</text>
+
+            <!-- 矢印 -->
+            <defs>
+              <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L10,3 L0,6 z" fill="#29B6CF" />
+              </marker>
+            </defs>
+            <line x1="100" y1="70" x2="120" y2="70" stroke="#29B6CF" stroke-width="2" marker-end="url(#arrow)" />
+            <line x1="210" y1="70" x2="230" y2="70" stroke="#29B6CF" stroke-width="2" marker-end="url(#arrow)" />
+            <line x1="340" y1="70" x2="360" y2="70" stroke="#29B6CF" stroke-width="2" marker-end="url(#arrow)" />
+            <line x1="470" y1="70" x2="490" y2="70" stroke="#29B6CF" stroke-width="2" marker-end="url(#arrow)" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- ライブ配信収益分配テーブル -->
+      <div style="margin-top:24px;">
+        <h3 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:18px; margin:0 0 4px; color:#1B2838;">
+          ライブ配信収益分配
+        </h3>
+        <p style="font-size:13px; color:#546A82; margin:0 0 12px;">
+          クリエイターレベル制度により決定
+        </p>
+        <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:8px;">
+          <thead>
+            <tr>
+              <th style="padding:8px 6px; background:#1B2838; color:#FFFFFF; text-align:left;">レベル</th>
+              <th style="padding:8px 6px; background:#1B2838; color:#FFFFFF; text-align:center;">事務所所属</th>
+              <th style="padding:8px 6px; background:#1B2838; color:#FFFFFF; text-align:center;">個人</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="background:rgba(41,182,207,0.08);">
+              <td style="padding:8px 6px; border-bottom:1px solid #e0e8f0;">Level 4</td>
+              <td style="padding:8px 6px; border-bottom:1px solid #e0e8f0; text-align:center;">
+                <span style="color:#E53935; font-size:16px; font-weight:700;">95%</span>
+              </td>
+              <td style="padding:8px 6px; border-bottom:1px solid #e0e8f0; text-align:center;">
+                <span style="color:#E53935; font-size:16px; font-weight:700;">75%</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:8px 6px; border-bottom:1px solid #e0e8f0;">Level 3</td>
+              <td style="padding:8px 6px; border-bottom:1px solid #e0e8f0; text-align:center;">
+                <span style="color:#E53935; font-size:15px; font-weight:700;">90%</span>
+              </td>
+              <td style="padding:8px 6px; border-bottom:1px solid #e0e8f0; text-align:center;">
+                <span style="color:#E53935; font-size:15px; font-weight:700;">70%</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:8px 6px; border-bottom:1px solid #e0e8f0;">Level 2</td>
+              <td style="padding:8px 6px; border-bottom:1px solid #e0e8f0; text-align:center;">
+                <span style="color:#E53935; font-size:15px; font-weight:700;">80%</span>
+              </td>
+              <td style="padding:8px 6px; border-bottom:1px solid #e0e8f0; text-align:center;">
+                <span style="color:#E53935; font-size:15px; font-weight:700;">60%</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:8px 6px; border-bottom:1px solid #e0e8f0;">Level 1</td>
+              <td style="padding:8px 6px; border-bottom:1px solid #e0e8f0; text-align:center;">
+                <span style="color:#E53935; font-size:15px; font-weight:700;">70%</span>
+              </td>
+              <td style="padding:8px 6px; border-bottom:1px solid #e0e8f0; text-align:center;">
+                <span style="color:#E53935; font-size:15px; font-weight:700;">50%</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="font-size:11px; color:#888888; margin:0;">
+          ※個人クリエイターは事務所所属より20%低い設定
         </p>
       </div>
-      <p style="font-size:15px; line-height:1.9; color:#546A82; margin:0 0 10px;">
-        ひとつは現場レポート。ライブハウス、劇場、フェス。その場にいた人だけが撮れる映像を、有料コンテンツとして販売する。AIには絶対に作れない、一度きりの記録。
-      </p>
-      <p style="font-size:15px; line-height:1.9; color:#546A82; margin:0;">
-        もうひとつはリアルタイム生配信。コメント、投げ銭、ファンとのリアルな交流。その熱量ごとアーカイブとして積み上げていく。どちらも流れて消えるんじゃなく、積み上がる資産になる。それがRawStockの設計思想です。
-      </p>
     </div>
   </section>
 
