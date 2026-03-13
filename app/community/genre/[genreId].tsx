@@ -158,6 +158,16 @@ export default function GenreScreen() {
         <View style={styles.sectionHeader}>
           <View style={[styles.sectionAccent, { backgroundColor: genre.color }]} />
           <Text style={styles.sectionTitle}>コミュニティ一覧</Text>
+          </View>
+
+          <View style={styles.actionsRow}>
+            <Pressable
+              style={styles.adApplyBtn}
+              onPress={() => router.push({ pathname: "/community/genre-ad-apply", params: { genreId } })}
+            >
+              <Ionicons name="megaphone-outline" size={14} color="#fff" />
+              <Text style={styles.adApplyText}>ジャンル広告を申し込む</Text>
+            </Pressable>
         </View>
 
         {sortedCommunities.length === 0 ? (
@@ -251,6 +261,22 @@ const styles = StyleSheet.create({
   },
   sectionAccent: { width: 3, height: 18, borderRadius: 2 },
   sectionTitle: { color: C.text, fontSize: 15, fontWeight: "700" },
+  actionsRow: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  adApplyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: C.accent,
+  },
+  adApplyText: { color: "#fff", fontSize: 12, fontWeight: "600" },
   emptyState: {
     alignItems: "center",
     paddingVertical: 48,

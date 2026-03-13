@@ -31,6 +31,8 @@ import {
   streams,
   communityAds,
   reports,
+  genreAds,
+  genreOwners,
 } from "./schema";
 import { eq, asc, desc, count, sql, and, gte, lte, isNull, inArray } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey, createConnectExpressAccount, createConnectAccountLink, getConnectAccount, createBannerPaymentIntent, getPaymentIntentStatus } from "./stripeClient";
@@ -1183,6 +1185,174 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
 
     res.status(201).json(report);
+  });
+
+  // ── Genre Ads（ジャンルページ広告）─────────────────────────────────────
+
+  const GENRE_TO_CATEGORY: Record<string, string[]> = {
+    anime: ["アニメ", "音楽"],
+    band: ["バンド", "音楽"],
+    subcul: ["サブカル", "ライフスタイル", "アート"],
+    english: ["英会話"],
+    fortune: ["占い"],
+  };
+
+  const GENRE_DAILY_RATE_PER_MEMBER = 5;
+  const GENRE_MIN_AMOUNT = 10_000;
+  const GENRE_MAX_MONTHS_AHEAD = 3;
+
+  app.post("/api/genre-ads", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+
+    const { genreId, companyName, contactName, email, bannerUrl, startDate, endDate } = req.body as {
+      genreId?: string;
+      companyName?: string;
+      contactName?: string;
+      email?: string;
+      bannerUrl?: string;
+      startDate?: string;
+      endDate?: string;
+    };
+
+    const gid = (genreId ?? "").trim();
+    if (!gid || !GENRE_TO_CATEGORY[gid]) {
+      return res.status(400).json({ error: "genreId が不正です" });
+    }
+    if (!companyName || !contactName || !email || !bannerUrl || !startDate || !endDate) {
+      return res.status(400).json({ error: "必須項目が不足しています" });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return res.status(400).json({ error: "日付の形式が不正です（YYYY-MM-DD）" });
+    }
+    if (end < start) {
+      return res.status(400).json({ error: "終了日は開始日以降にしてください" });
+    }
+    const now = new Date();
+    const maxEnd = new Date(now);
+    maxEnd.setMonth(maxEnd.getMonth() + GENRE_MAX_MONTHS_AHEAD);
+    if (end > maxEnd) {
+      return res.status(400).json({ error: `掲載終了日は${GENRE_MAX_MONTHS_AHEAD}ヶ月以内で指定してください` });
+    }
+
+    const cats = GENRE_TO_CATEGORY[gid];
+    const communityRows = await db
+      .select({ members: communities.members })
+      .from(communities)
+      .where(
+        or(
+          ...cats.map((c) =>
+            sql`${communities.category} ILIKE ${"%" + c + "%"}`
+          )
+        )
+      );
+    const totalMembers = communityRows.reduce((sum, r) => sum + (r.members ?? 0), 0);
+    const dailyRate = totalMembers * GENRE_DAILY_RATE_PER_MEMBER;
+
+    const days = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+    const totalAmount = dailyRate * days;
+
+    if (totalAmount < GENRE_MIN_AMOUNT) {
+      return res.status(400).json({ error: `最低出稿金額は${GENRE_MIN_AMOUNT.toLocaleString()}円以上です` });
+    }
+
+    const [row] = await db
+      .insert(genreAds)
+      .values({
+        genreId: gid,
+        companyName,
+        contactName,
+        email,
+        bannerUrl,
+        startDate,
+        endDate,
+        dailyRate,
+        totalAmount,
+      } as typeof genreAds.$inferInsert)
+      .returning();
+
+    res.status(201).json(row);
+  });
+
+  /** ジャンル管理人向け: 自分が担当するジャンルの審査待ち一覧 */
+  app.get("/api/genre-ads/review", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+
+    const ownerRows = await db.select().from(genreOwners).where(eq(genreOwners.ownerUserId, user.id));
+    if (ownerRows.length === 0) return res.json([]);
+
+    const genreIds = ownerRows.map((o) => o.genreId);
+    const rows = await db
+      .select()
+      .from(genreAds)
+      .where(and(inArray(genreAds.genreId, genreIds), eq(genreAds.status, "pending")))
+      .orderBy(desc(genreAds.createdAt));
+
+    res.json(rows);
+  });
+
+  app.patch("/api/genre-ads/:id/approve", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const id = paramNum(req, "id");
+
+    const [ad] = await db.select().from(genreAds).where(eq(genreAds.id, id));
+    if (!ad) return res.status(404).json({ error: "申し込みが見つかりません" });
+
+    const [owner] = await db.select().from(genreOwners).where(and(eq(genreOwners.genreId, ad.genreId), eq(genreOwners.ownerUserId, user.id)));
+    if (!owner) return res.status(403).json({ error: "このジャンルの管理人ではありません" });
+
+    await db.update(genreAds).set({ status: "approved" }).where(eq(genreAds.id, id));
+    res.json({ ok: true });
+  });
+
+  app.patch("/api/genre-ads/:id/reject", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const id = paramNum(req, "id");
+
+    const [ad] = await db.select().from(genreAds).where(eq(genreAds.id, id));
+    if (!ad) return res.status(404).json({ error: "申し込みが見つかりません" });
+
+    const [owner] = await db.select().from(genreOwners).where(and(eq(genreOwners.genreId, ad.genreId), eq(genreOwners.ownerUserId, user.id)));
+    if (!owner) return res.status(403).json({ error: "このジャンルの管理人ではありません" });
+
+    await db.update(genreAds).set({ status: "rejected" }).where(eq(genreAds.id, id));
+    res.json({ ok: true });
+  });
+
+  /** 月次バッチ: 各ジャンルの最大メンバー数コミュニティ管理人を genre_owners に反映 */
+  app.post("/api/cron/update-genre-owners", async (_req: Request, res: Response) => {
+    for (const [gid, cats] of Object.entries(GENRE_TO_CATEGORY)) {
+      const rows = await db
+        .select({ id: communities.id, members: communities.members, adminId: communities.adminId })
+        .from(communities)
+        .where(
+          or(
+            ...cats.map((c) =>
+              sql`${communities.category} ILIKE ${"%" + c + "%"}`
+            )
+          )
+        )
+        .orderBy(desc(communities.members))
+        .limit(1);
+
+      const top = rows[0];
+      if (!top || !top.adminId) continue;
+
+      const existing = await db.select().from(genreOwners).where(eq(genreOwners.genreId, gid)).limit(1);
+      if (existing.length > 0) {
+        await db.update(genreOwners).set({ ownerUserId: top.adminId, updatedAt: sql`now()` }).where(eq(genreOwners.genreId, gid));
+      } else {
+        await db.insert(genreOwners).values({ genreId: gid, ownerUserId: top.adminId } as typeof genreOwners.$inferInsert);
+      }
+    }
+
+    res.json({ ok: true });
   });
 
   /** 管理者向け: 通報一覧（gray_zone / no_violation / pending / hidden 含む） */

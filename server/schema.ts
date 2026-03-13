@@ -67,6 +67,30 @@ export const communityAds = pgTable("community_ads", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+/** ジャンルページ広告申し込み（ジャンル単位のバナー枠） */
+export const genreAds = pgTable("genre_ads", {
+  id: serial("id").primaryKey(),
+  genreId: text("genre_id").notNull(),
+  companyName: text("company_name").notNull(),
+  contactName: text("contact_name").notNull(),
+  email: text("email").notNull(),
+  bannerUrl: text("banner_url").notNull(),
+  startDate: text("start_date").notNull(), // YYYY-MM-DD
+  endDate: text("end_date").notNull(),
+  dailyRate: integer("daily_rate").notNull(),
+  totalAmount: integer("total_amount").notNull(),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+/** ジャンル管理人（毎月1日に最大メンバー数コミュニティの管理人を自動アサイン） */
+export const genreOwners = pgTable("genre_owners", {
+  id: serial("id").primaryKey(),
+  genreId: text("genre_id").notNull().unique(),
+  ownerUserId: integer("owner_user_id").notNull(), // users.id
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const videos = pgTable("videos", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),

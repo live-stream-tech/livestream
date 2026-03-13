@@ -171,6 +171,7 @@ function RootLayoutNav() {
       <Stack.Screen name="privacy" options={{ headerShown: false }} />
       <Stack.Screen name="tokusho" options={{ headerShown: false }} />
       <Stack.Screen name="lp" options={{ headerShown: false }} />
+      <Stack.Screen name="community/genre-ad-apply" options={{ headerShown: false }} />
       <Stack.Screen name="admin/reports" options={{ headerShown: false }} />
     </Stack>
   );

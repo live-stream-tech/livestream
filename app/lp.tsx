@@ -5,7 +5,7 @@ import { router } from "expo-router";
 const html = `
 <div style="font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#FFFFFF; color:#1B2838;">
   <!-- MASTHEAD -->
-  <header style="background:#1B2838; padding:24px 48px; display:flex; align-items:center; justify-content:space-between;">
+  <header style="background:#1B2838; padding:20px clamp(16px,5vw,48px); display:flex; align-items:center; justify-content:space-between;">
     <div style="display:flex; align-items:center; gap:16px;">
       <img src="/logo-200x70-v2.png" alt="RawStock" style="height:40px; width:auto;" />
     </div>
@@ -23,14 +23,14 @@ const html = `
         </span>
         <span style="flex:1; height:1px; background:#29B6CF; opacity:0.4;"></span>
       </div>
-      <h1 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:54px; line-height:1.25; margin:0 0 16px; color:#1B2838; font-weight:800;">
+      <h1 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(32px,6vw,54px); line-height:1.25; margin:0 0 16px; color:#1B2838; font-weight:800;">
         AIに作れないものを、<br />売れる場所。
       </h1>
-      <p style="font-size:18px; color:#29B6CF; margin:0 0 24px;">
+      <p style="font-size:clamp(14px,3.2vw,18px); color:#29B6CF; margin:0 0 24px;">
         還元率90%。これが個人開発にしかできないこと。
       </p>
       <div style="border-left:4px solid #E53935; padding-left:20px; margin-bottom:28px;">
-        <p style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:17px; line-height:1.9; margin:0; color:#1B2838;">
+        <p style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(14px,3.4vw,17px); line-height:1.9; margin:0; color:#1B2838;">
           個人開発だから、余計なコストがない。AIを活用して作ったから、少人数で回せる。だから有料動画は売上の90%をクリエイターに還元できる。手数料は受け取る側じゃなく、払う側が負担する。クリエイターの論理だけで設計できた、それが個人×AI開発の強みです。
         </p>
       </div>
@@ -47,31 +47,31 @@ const html = `
 
   <!-- FOR YOU -->
   <section style="background:#f4f8fb;">
-    <div style="max-width:720px; margin:0 auto; padding:64px 48px;">
+    <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
       <div style="font-size:11px; letter-spacing:0.25em; text-transform:uppercase; color:#29B6CF; margin-bottom:8px;">
         For You
       </div>
-      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:36px; margin:0 0 24px; color:#1B2838;">
+      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(24px,4.4vw,36px); margin:0 0 24px; color:#1B2838;">
         こんな人のために作りました。
       </h2>
       <div style="border-top:1px solid #e0e8f0;">
-        <div style="padding:14px 0; border-bottom:1px solid #e0e8f0;">
+        <div style="padding:12px 0; border-bottom:1px solid #e0e8f0;">
           <div style="font-weight:700; margin-bottom:4px;">インディーズバンド・アーティスト</div>
           <div style="color:#546A82; font-size:14px;">現場の熱量を動画にして売る</div>
         </div>
-        <div style="padding:14px 0; border-bottom:1px solid #e0e8f0;">
+        <div style="padding:12px 0; border-bottom:1px solid #e0e8f0;">
           <div style="font-weight:700; margin-bottom:4px;">ライバー</div>
           <div style="color:#546A82; font-size:14px;">生配信で最大95%還元</div>
         </div>
-        <div style="padding:14px 0; border-bottom:1px solid #e0e8f0;">
+        <div style="padding:12px 0; border-bottom:1px solid #e0e8f0;">
           <div style="font-weight:700; margin-bottom:4px;">メンタルコーチ・講師</div>
-          <div style="color:#546A82; font-size:14px;">有料コンテンツを高還元で販売</div>
+          <div style="color:#546A82; font-size:14px;">有料コンテンツ販売・個別セッション（ツーショット）・有料ライブ配信で稼ぐ。</div>
         </div>
-        <div style="padding:14px 0; border-bottom:1px solid #e0e8f0;">
+        <div style="padding:12px 0; border-bottom:1px solid #e0e8f0;">
           <div style="font-weight:700; margin-bottom:4px;">動画編集者</div>
           <div style="color:#546A82; font-size:14px;">編集依頼を受けて稼ぐ</div>
         </div>
-        <div style="padding:14px 0; border-bottom:1px solid #e0e8f0;">
+        <div style="padding:12px 0; border-bottom:1px solid #e0e8f0;">
           <div style="font-weight:700; margin-bottom:4px;">コミュニティ管理人</div>
           <div style="color:#546A82; font-size:14px;">広告収益の70%がコミュニティへ</div>
         </div>
@@ -81,8 +81,8 @@ const html = `
 
   <!-- CONCEPT -->
   <section>
-    <div style="max-width:720px; margin:0 auto; padding:64px 48px;">
-      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:30px; margin:0 0 24px; color:#1B2838;">
+    <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
+      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 24px; color:#1B2838;">
         生の瞬間には、2種類ある。
       </h2>
       <div style="border-top:1px solid #29B6CF; border-bottom:1px solid #29B6CF; padding:14px 0; margin-bottom:20px;">
@@ -102,7 +102,7 @@ const html = `
   <!-- NUMBERS -->
   <section style="background:#1B2838;">
     <div style="max-width:960px; margin:0 auto; padding:64px 48px;">
-      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:30px; margin:0 0 32px; color:#FFFFFF;">
+      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 32px; color:#FFFFFF;">
         数字で見るRawStock。
       </h2>
       <div style="display:flex; flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.2);">
@@ -127,8 +127,8 @@ const html = `
 
   <!-- REVENUE -->
   <section>
-    <div style="max-width:720px; margin:0 auto; padding:64px 48px;">
-      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:30px; margin:0 0 24px; color:#1B2838;">
+    <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
+      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 24px; color:#1B2838;">
         稼ぎ方は一つじゃない。
       </h2>
       <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:24px;">
@@ -166,7 +166,7 @@ const html = `
         </tbody>
       </table>
 
-      <div style="background:#f4f8fb; border:1px solid #e0e8f0; padding:18px 16px; border-radius:4px;">
+      <div style="background:#f4f8fb; border:1px solid #e0e8f0; padding:18px 16px; border-radius:4px; margin-bottom:18px;">
         <div style="font-family:'DM Serif Display', 'Shippori Mincho', serif; font-size:30px; color:#29B6CF; margin-bottom:10px;">
           メンバー数 × 7円 / 日（最低10,000円〜）
         </div>
@@ -176,13 +176,18 @@ const html = `
           <div>／ 管理人・モデレーター 70%</div>
         </div>
       </div>
+      <div style="font-size:14px; line-height:1.9; color:#546A82;">
+        <p style="margin:0 0 4px;">ジャンルページにも広告枠があります。</p>
+        <p style="margin:0 0 4px;">ジャンル広告費 = ジャンル全体メンバー数合計 × 5円／日</p>
+        <p style="margin:0;">ジャンル管理人：毎月1日に、そのジャンルで最もメンバーが多いコミュニティの管理人が自動的に就任</p>
+      </div>
     </div>
   </section>
 
   <!-- COMMUNITY -->
   <section style="background:#f4f8fb;">
-    <div style="max-width:720px; margin:0 auto; padding:64px 48px;">
-      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:30px; margin:0 0 20px; color:#1B2838;">
+    <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
+      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 20px; color:#1B2838;">
         コミュニティが、自走する。
       </h2>
       <p style="font-size:15px; line-height:1.9; color:#546A82; margin:0;">
@@ -193,8 +198,8 @@ const html = `
 
   <!-- HONEST -->
   <section>
-    <div style="max-width:720px; margin:0 auto; padding:64px 48px;">
-      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:30px; margin:0 0 20px; color:#1B2838;">
+    <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
+      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 20px; color:#1B2838;">
         個人開発です。正直に言います。
       </h2>
       <p style="font-size:15px; line-height:1.9; color:#546A82; margin:0;">
@@ -205,8 +210,8 @@ const html = `
 
   <!-- CONTACT -->
   <section style="background:#1B2838;">
-    <div style="max-width:720px; margin:0 auto; padding:64px 48px;">
-      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:30px; margin:0 0 16px; color:#FFFFFF;">
+    <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
+      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 16px; color:#FFFFFF;">
         まず、話を聞かせてください。
       </h2>
       <p style="font-size:14px; line-height:1.9; color:#E0ECFF; margin:0 0 10px;">
