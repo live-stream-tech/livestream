@@ -1186,6 +1186,16 @@ a { color: inherit; text-decoration: none; }
 
 export default function LpScreen() {
   if (Platform.OS !== "web") return null;
-  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+  return (
+    <div
+      style={{
+        height: "100vh",
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
+      }}
+    >
+      <div dangerouslySetInnerHTML={{ __html: html }} />
+    </div>
+  );
 }
 
