@@ -775,7 +775,7 @@ const html = `
         <tbody>
           <tr>
             <td style="padding:10px 8px; border-bottom:1px solid #e0e8f0;">有料動画販売</td>
-            <td style="padding:10px 8px; border-bottom:1px solid #e0e8f0;">売上90%還元。編集者・撮影者・出演者への分配設定も自由。</td>
+            <td style="padding:10px 8px; border-bottom:1px solid #e0e8f0;">売上90%還元。編集者・撮影者・出演者への分配もアプリ上で自由設定、自動分配。</td>
           </tr>
           <tr>
             <td style="padding:10px 8px; border-bottom:1px solid #e0e8f0;">ライブ配信</td>
