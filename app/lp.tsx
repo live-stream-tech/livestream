@@ -294,6 +294,25 @@ const html = `
     </div>
   </section>
 
+  <!-- VISION -->
+  <section style="background:#1B2838;">
+    <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
+      <div style="font-size:10px; letter-spacing:0.3em; text-transform:uppercase; color:#29B6CF; margin-bottom:8px;">
+        Vision
+      </div>
+      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(24px,4.8vw,38px); margin:0 0 16px; color:#FFFFFF;">
+        次のステージへ。
+      </h2>
+      <p style="font-size:14px; line-height:1.9; color:#FFFFFF; margin:0 0 12px;">
+        日本のインディーズシーンを、世界中のファンに届ける。ベルリンのバンドが、ソウルのライバーが、ニューヨークのファンが、RawStockに集まる未来を作っています。言語の壁はAIが超える。音楽の熱量はそのまま伝わる。
+      </p>
+      <div style="height:1px; background:#29B6CF; opacity:0.5; margin:12px 0 10px;"></div>
+      <p style="font-size:13px; line-height:1.9; color:#E0ECFF; margin:0;">
+        今はまだ小さい。でも、仕組みは最初から世界中のインディーズとファンが出会えるように作っています。
+      </p>
+    </div>
+  </section>
+
   <!-- HONEST -->
   <section>
     <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
