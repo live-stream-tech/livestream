@@ -15,7 +15,7 @@ import {
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, ApiError } from "@/lib/query-client";
@@ -37,6 +37,8 @@ export default function UploadScreen() {
   const { user, requireAuth } = useAuth();
 
   const { data: communities = [] } = useQuery<Community[]>({ queryKey: ["/api/communities"] });
+  const { concertId: rawConcertId } = useLocalSearchParams<{ concertId?: string }>();
+  const concertId = rawConcertId ? parseInt(rawConcertId as string, 10) || null : null;
 
   const [text, setText] = useState("");
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -243,6 +245,7 @@ export default function UploadScreen() {
         price: fee === "paid" ? price : null,
         thumbnail: thumbUrl,
         avatar: avatarUrl,
+        concertId,
       });
       const data = (await res.json()) as { id: number };
       await queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
@@ -321,7 +324,7 @@ export default function UploadScreen() {
           />
         </View>
 
-        {/* コミュニティ・有料/無料（コンパクト） */}
+        {/* コミュニティ・公演紐付け・有料/無料（コンパクト） */}
         <View style={styles.optionsSection}>
           <Text style={styles.optionsLabel}>コミュニティ</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityRow}>
@@ -337,6 +340,13 @@ export default function UploadScreen() {
               </Pressable>
             ))}
           </ScrollView>
+
+          {concertId && (
+            <View style={[styles.communityChip, { marginTop: 8 }]}>
+              <Ionicons name="musical-notes-outline" size={14} color={C.textMuted} />
+              <Text style={styles.communityChipText}>紐付け公演ID: {concertId}</Text>
+            </View>
+          )}
 
           <Text style={styles.optionsLabel}>料金</Text>
           <View style={styles.feeRow}>
@@ -453,6 +463,20 @@ const styles = StyleSheet.create({
   optionsSection: { marginTop: 20, gap: 10 },
   optionsLabel: { color: C.textMuted, fontSize: 12, fontWeight: "600" },
   communityRow: { flexDirection: "row", gap: 8, marginBottom: 4 },
+  communityChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: C.surface2,
+  },
+  communityChipText: {
+    fontSize: 12,
+    color: C.textMuted,
+    marginLeft: 4,
+  },
   communityPill: {
     paddingHorizontal: 14,
     paddingVertical: 8,

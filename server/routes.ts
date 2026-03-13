@@ -33,6 +33,8 @@ import {
   reports,
   genreAds,
   genreOwners,
+  concerts,
+  concertStaff,
 } from "./schema";
 import { eq, asc, desc, count, sql, and, gte, lte, isNull, inArray } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey, createConnectExpressAccount, createConnectAccountLink, getConnectAccount, createBannerPaymentIntent, getPaymentIntentStatus } from "./stripeClient";
@@ -1187,6 +1189,201 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.status(201).json(report);
   });
 
+  // ── Concerts（公演）──────────────────────────────────────────────────
+
+  app.post("/api/concerts", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const {
+      title,
+      venueName,
+      venueAddress,
+      concertDate,
+      ticketUrl,
+      shootingAllowed,
+      shootingNotes,
+      artistShare,
+      photographerShare,
+      editorShare,
+      venueShare,
+      status,
+    } = req.body as {
+      title?: string;
+      venueName?: string;
+      venueAddress?: string;
+      concertDate?: string;
+      ticketUrl?: string;
+      shootingAllowed?: boolean;
+      shootingNotes?: string;
+      artistShare?: number;
+      photographerShare?: number;
+      editorShare?: number;
+      venueShare?: number;
+      status?: "draft" | "published";
+    };
+
+    if (!title || !venueName || !venueAddress || !concertDate) {
+      return res.status(400).json({ error: "必須項目が不足しています" });
+    }
+
+    const shares = [
+      Number(artistShare ?? 0),
+      Number(photographerShare ?? 0),
+      Number(editorShare ?? 0),
+      Number(venueShare ?? 0),
+    ];
+    if (shares.some((s) => s < 0)) {
+      return res.status(400).json({ error: "分配比率は0以上で指定してください" });
+    }
+    const sum = shares.reduce((a, b) => a + b, 0);
+    if (sum !== 100) {
+      return res.status(400).json({ error: "分配比率の合計は100%にしてください" });
+    }
+
+    const [row] = await db
+      .insert(concerts)
+      .values({
+        artistUserId: user.id,
+        title,
+        venueName,
+        venueAddress,
+        concertDate,
+        ticketUrl: ticketUrl ?? null,
+        shootingAllowed: shootingAllowed ?? false,
+        shootingNotes: shootingNotes ?? null,
+        artistShare: shares[0],
+        photographerShare: shares[1],
+        editorShare: shares[2],
+        venueShare: shares[3],
+        status: status ?? "draft",
+      } as typeof concerts.$inferInsert)
+      .returning();
+
+    res.status(201).json(row);
+  });
+
+  app.get("/api/concerts", async (_req: Request, res: Response) => {
+    const rows = await db
+      .select()
+      .from(concerts)
+      .where(eq(concerts.status, "published"))
+      .orderBy(desc(concerts.concertDate), desc(concerts.createdAt));
+    res.json(rows);
+  });
+
+  app.get("/api/concerts/:id", async (req: Request, res: Response) => {
+    const id = paramNum(req, "id");
+    const [row] = await db.select().from(concerts).where(eq(concerts.id, id));
+    if (!row) return res.status(404).json({ error: "公演が見つかりません" });
+    res.json(row);
+  });
+
+  app.post("/api/concerts/:id/staff-request", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const concertId = paramNum(req, "id");
+    const [concert] = await db.select().from(concerts).where(eq(concerts.id, concertId));
+    if (!concert) return res.status(404).json({ error: "公演が見つかりません" });
+
+    // 既に申請済みかチェック
+    const existing = await db
+      .select()
+      .from(concertStaff)
+      .where(and(eq(concertStaff.concertId, concertId), eq(concertStaff.staffUserId, user.id)));
+    if (existing.length > 0) {
+      return res.status(400).json({ error: "すでに申請済みです" });
+    }
+
+    const [row] = await db
+      .insert(concertStaff)
+      .values({
+        concertId,
+        artistUserId: concert.artistUserId,
+        staffUserId: user.id,
+        status: "pending",
+      } as typeof concertStaff.$inferInsert)
+      .returning();
+
+    res.status(201).json(row);
+  });
+
+  app.get("/api/concerts/:id/staff-requests", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const concertId = paramNum(req, "id");
+    const [concert] = await db.select().from(concerts).where(eq(concerts.id, concertId));
+    if (!concert) return res.status(404).json({ error: "公演が見つかりません" });
+    if (concert.artistUserId !== user.id) {
+      return res.status(403).json({ error: "アーティストのみ申請一覧を閲覧できます" });
+    }
+
+    const rows = await db
+      .select()
+      .from(concertStaff)
+      .where(eq(concertStaff.concertId, concertId))
+      .orderBy(desc(concertStaff.createdAt));
+    res.json(rows);
+  });
+
+  app.patch("/api/concerts/:id/staff/:staffId/approve", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const concertId = paramNum(req, "id");
+    const staffId = paramNum(req, "staffId");
+
+    const [concert] = await db.select().from(concerts).where(eq(concerts.id, concertId));
+    if (!concert) return res.status(404).json({ error: "公演が見つかりません" });
+    if (concert.artistUserId !== user.id) {
+      return res.status(403).json({ error: "アーティストのみ承認できます" });
+    }
+
+    const [staff] = await db
+      .select()
+      .from(concertStaff)
+      .where(and(eq(concertStaff.id, staffId), eq(concertStaff.concertId, concertId)));
+    if (!staff) return res.status(404).json({ error: "申請が見つかりません" });
+
+    const [updated] = await db
+      .update(concertStaff)
+      .set({ status: "approved" } as Partial<typeof concertStaff.$inferInsert>)
+      .where(eq(concertStaff.id, staffId))
+      .returning();
+
+    res.json(updated);
+  });
+
+  app.patch("/api/concerts/:id/staff/:staffId/reject", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const concertId = paramNum(req, "id");
+    const staffId = paramNum(req, "staffId");
+
+    const [concert] = await db.select().from(concerts).where(eq(concerts.id, concertId));
+    if (!concert) return res.status(404).json({ error: "公演が見つかりません" });
+    if (concert.artistUserId !== user.id) {
+      return res.status(403).json({ error: "アーティストのみ却下できます" });
+    }
+
+    const [staff] = await db
+      .select()
+      .from(concertStaff)
+      .where(and(eq(concertStaff.id, staffId), eq(concertStaff.concertId, concertId)));
+    if (!staff) return res.status(404).json({ error: "申請が見つかりません" });
+
+    const [updated] = await db
+      .update(concertStaff)
+      .set({ status: "rejected" } as Partial<typeof concertStaff.$inferInsert>)
+      .where(eq(concertStaff.id, staffId))
+      .returning();
+
+    res.json(updated);
+  });
+
   // ── Genre Ads（ジャンルページ広告）─────────────────────────────────────
 
   const GENRE_TO_CATEGORY: Record<string, string[]> = {
@@ -1502,12 +1699,13 @@ export async function registerRoutes(app: Express): Promise<void> {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
 
-    const { title, community, duration, price, thumbnail } = req.body as {
+    const { title, community, duration, price, thumbnail, concertId } = req.body as {
       title?: string;
       community?: string;
       duration?: string;
       price?: number | null;
       thumbnail?: string;
+      concertId?: number | null;
     };
 
     if (!title || !community || !duration || !thumbnail) {
@@ -1530,6 +1728,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           user.avatar ??
           "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop",
         isRanked: false,
+        concertId: concertId ?? null,
       } as typeof videos.$inferInsert)
       .returning();
     res.status(201).json(row);

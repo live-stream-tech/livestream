@@ -91,6 +91,35 @@ export const genreOwners = pgTable("genre_owners", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+/** 公演情報（アーティスト主催のライブ・イベント） */
+export const concerts = pgTable("concerts", {
+  id: serial("id").primaryKey(),
+  artistUserId: integer("artist_user_id").notNull(), // users.id
+  title: text("title").notNull(),
+  venueName: text("venue_name").notNull(),
+  venueAddress: text("venue_address").notNull(),
+  concertDate: text("concert_date").notNull(), // ISO文字列 or YYYY-MM-DD HH:mm
+  ticketUrl: text("ticket_url"),
+  shootingAllowed: boolean("shooting_allowed").notNull().default(false),
+  shootingNotes: text("shooting_notes"),
+  artistShare: integer("artist_share").notNull().default(0),
+  photographerShare: integer("photographer_share").notNull().default(0),
+  editorShare: integer("editor_share").notNull().default(0),
+  venueShare: integer("venue_share").notNull().default(0),
+  status: text("status").notNull().default("draft"), // draft | published
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+/** 公演の公認スタッフ（撮影者・編集者など） */
+export const concertStaff = pgTable("concert_staff", {
+  id: serial("id").primaryKey(),
+  concertId: integer("concert_id").notNull(),
+  artistUserId: integer("artist_user_id").notNull(), // concerts.artist_user_id
+  staffUserId: integer("staff_user_id").notNull(), // users.id
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const videos = pgTable("videos", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -107,6 +136,7 @@ export const videos = pgTable("videos", {
   createdAt: timestamp("created_at").defaultNow(),
   /** 通報で明らかな違反と判定された場合に非表示 */
   hidden: boolean("hidden").notNull().default(false),
+  concertId: integer("concert_id"),
 });
 
 /** 投稿動画へのコメント */
