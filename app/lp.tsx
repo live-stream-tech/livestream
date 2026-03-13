@@ -877,7 +877,7 @@ a { color: inherit; text-decoration: none; }
 <!-- ===== 2. HERO ===== -->
 <section class="hero">
   <div class="hero-bg">
-    <img src="/assets/hero-bg.jpg" alt="">
+    <img src="/haikeihaikei.png" alt="">
     <div class="hero-bg-overlay"></div>
   </div>
   <div class="hero-inner">
