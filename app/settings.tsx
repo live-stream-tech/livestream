@@ -173,7 +173,13 @@ export default function SettingsScreen() {
           <SettingRow
             icon="shield-outline"
             label="プライバシーポリシー"
-            onPress={() => Alert.alert("準備中", "この機能は近日公開予定です")}
+            onPress={() => router.push("/privacy")}
+          />
+          <View style={styles.rowDivider} />
+          <SettingRow
+            icon="document-text-outline"
+            label="特定商取引法に基づく表記"
+            onPress={() => router.push("/tokusho")}
           />
         </View>
 
