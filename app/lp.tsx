@@ -713,7 +713,7 @@ a { color: inherit; text-decoration: none; }
    ============================================================ */
 .vision {
   position: relative;
-  background: linear-gradient(180deg, #d4d7dd 0%, #f5f6f9 50%, #c7cad0 100%);
+  background: linear-gradient(180deg, #141c29 0%, #1B2838 55%, #202b3a 100%);
   padding: 96px 0;
   overflow: hidden;
   border-top: 1px solid var(--border-dim);
@@ -738,8 +738,11 @@ a { color: inherit; text-decoration: none; }
   z-index: 1;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(212,215,221,0.0) 0%, rgba(212,215,221,0.65) 80%, rgba(212,215,221,1) 100%),
-    linear-gradient(90deg, rgba(212,215,221,0.8) 0%, transparent 18%, transparent 82%, rgba(212,215,221,0.8) 100%);
+    /* 上部：画像の上に紺色50%でしっかりかぶせる */
+    linear-gradient(180deg, rgba(27,40,56,0.5) 0%, rgba(27,40,56,0.5) 45%, rgba(27,40,56,0.0) 75%),
+    /* 下部：ブルーグレー系で背景になじませつつフェードアウト */
+    linear-gradient(180deg, rgba(20,28,41,0.0) 0%, rgba(20,28,41,0.7) 78%, rgba(20,28,41,1) 100%),
+    linear-gradient(90deg, rgba(20,28,41,0.9) 0%, transparent 18%, transparent 82%, rgba(20,28,41,0.9) 100%);
 }
 .vision-inner {
   position: relative;
