@@ -14,6 +14,9 @@ export type User = {
   avatar: string | null;
   profileImageUrl?: string | null;
   role?: string;
+  spotifyUrl?: string | null;
+  appleMusicUrl?: string | null;
+  bandcampUrl?: string | null;
 };
 
 type AuthCtx = {
@@ -60,6 +63,9 @@ function normalizeMe(me: Record<string, unknown>): User {
     avatar: (me.avatar ?? me.profileImageUrl ?? null) as string | null,
     profileImageUrl: (me.profileImageUrl ?? me.avatar) as string | null | undefined,
     role: me.role as string | undefined,
+    spotifyUrl: (me.spotifyUrl ?? null) as string | null,
+    appleMusicUrl: (me.appleMusicUrl ?? null) as string | null,
+    bandcampUrl: (me.bandcampUrl ?? null) as string | null,
   };
 }
 
@@ -102,12 +108,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace("/auth/login");
   }, []);
 
-  const updateProfile = useCallback(async (data: Partial<Pick<User, "name" | "bio" | "avatar">>) => {
+  const updateProfile = useCallback(async (data: Partial<Pick<User, "name" | "bio" | "avatar" | "spotifyUrl" | "appleMusicUrl" | "bandcampUrl">>) => {
     const t = await AsyncStorage.getItem(TOKEN_KEY);
     const payload: Record<string, string | null> = {};
     if (data.name !== undefined) payload.name = data.name;
     if (data.bio !== undefined) payload.bio = data.bio;
     if (data.avatar !== undefined) payload.avatar = data.avatar;
+    if (data.spotifyUrl !== undefined) payload.spotifyUrl = data.spotifyUrl;
+    if (data.appleMusicUrl !== undefined) payload.appleMusicUrl = data.appleMusicUrl;
+    if (data.bandcampUrl !== undefined) payload.bandcampUrl = data.bandcampUrl;
     const updated = await apiFetch("/api/auth/profile", {
       method: "PUT",
       headers: { Authorization: `Bearer ${t}` },

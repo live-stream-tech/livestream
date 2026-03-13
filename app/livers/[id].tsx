@@ -15,6 +15,7 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import { Linking } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/query-client";
 import { C } from "@/constants/colors";
@@ -33,6 +34,9 @@ type Liver = {
   attendanceRate: number;
   bio: string;
   category: string;
+  spotifyUrl?: string | null;
+  appleMusicUrl?: string | null;
+  bandcampUrl?: string | null;
 };
 
 type Review = {
@@ -199,6 +203,9 @@ export default function LiverDetailScreen() {
     attendanceRate: 4.8,
     bio: `${creatorBase.community}で活動する人気ライバーです。（ダミーデータ）`,
     category: "dummy",
+    spotifyUrl: null,
+    appleMusicUrl: null,
+    bandcampUrl: null,
   };
 
   const displayLiver = liver ?? fallbackLiver;
@@ -276,6 +283,40 @@ export default function LiverDetailScreen() {
             </View>
           </View>
         </View>
+
+        {/* 音楽リンク */}
+        {(displayLiver.spotifyUrl || displayLiver.appleMusicUrl || displayLiver.bandcampUrl) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>音楽を聴く・買う</Text>
+            {displayLiver.spotifyUrl && (
+              <Pressable
+                style={styles.musicBtn}
+                onPress={() => Linking.openURL(displayLiver.spotifyUrl as string)}
+              >
+                <Ionicons name="musical-notes-outline" size={16} color="#1DB954" />
+                <Text style={styles.musicBtnText}>Spotify で聴く</Text>
+              </Pressable>
+            )}
+            {displayLiver.appleMusicUrl && (
+              <Pressable
+                style={styles.musicBtn}
+                onPress={() => Linking.openURL(displayLiver.appleMusicUrl as string)}
+              >
+                <Ionicons name="musical-note-outline" size={16} color="#FA2D48" />
+                <Text style={styles.musicBtnText}>Apple Music で聴く</Text>
+              </Pressable>
+            )}
+            {displayLiver.bandcampUrl && (
+              <Pressable
+                style={styles.musicBtn}
+                onPress={() => Linking.openURL(displayLiver.bandcampUrl as string)}
+              >
+                <Ionicons name="logo-soundcloud" size={16} color="#29B6CF" />
+                <Text style={styles.musicBtnText}>Bandcamp で聴く / 買う</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
 
         {/* コンパクトなタイムライン + 参加コミュニティ */}
         {(() => {
@@ -780,6 +821,13 @@ const styles = StyleSheet.create({
   tabTextActive: { color: "#fff" },
   section: { marginHorizontal: 16 },
   sectionTitle: { fontSize: 14, fontWeight: "700", color: C.text, marginBottom: 12 },
+  musicBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+  },
+  musicBtnText: { fontSize: 13, color: C.textSec, fontWeight: "600" },
   scoreCard: {
     backgroundColor: C.surface, borderRadius: 12, padding: 16,
     borderWidth: 1, borderColor: C.border, marginBottom: 8,

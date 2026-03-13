@@ -143,6 +143,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       role: user.role,
       bio: user.bio,
       stripeConnectId: user.stripeConnectId ?? null,
+      spotifyUrl: (user as any).spotifyUrl ?? null,
+      appleMusicUrl: (user as any).appleMusicUrl ?? null,
+      bandcampUrl: (user as any).bandcampUrl ?? null,
     });
   });
 
@@ -337,13 +340,30 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.put("/api/auth/profile", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
-    const { name, displayName, bio, avatar, profileImageUrl } = req.body;
+    const { name, displayName, bio, avatar, profileImageUrl, spotifyUrl, appleMusicUrl, bandcampUrl } = req.body as {
+      name?: string;
+      displayName?: string;
+      bio?: string;
+      avatar?: string | null;
+      profileImageUrl?: string | null;
+      spotifyUrl?: string | null;
+      appleMusicUrl?: string | null;
+      bandcampUrl?: string | null;
+    };
     const newName = name ?? displayName ?? user.displayName;
     const newBio = bio ?? user.bio;
     const newAvatar = avatar ?? profileImageUrl ?? user.profileImageUrl;
     const [updated] = await db
       .update(users)
-      .set({ displayName: newName, bio: newBio, profileImageUrl: newAvatar !== undefined ? newAvatar : undefined, updatedAt: new Date() } as Partial<typeof users.$inferInsert>)
+      .set({
+        displayName: newName,
+        bio: newBio,
+        profileImageUrl: newAvatar !== undefined ? newAvatar : undefined,
+        spotifyUrl: spotifyUrl ?? (user as any).spotifyUrl ?? null,
+        appleMusicUrl: appleMusicUrl ?? (user as any).appleMusicUrl ?? null,
+        bandcampUrl: bandcampUrl ?? (user as any).bandcampUrl ?? null,
+        updatedAt: new Date(),
+      } as Partial<typeof users.$inferInsert>)
       .where(eq(users.id, user.id))
       .returning();
     res.json({
@@ -354,6 +374,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       avatar: updated.profileImageUrl,
       role: updated.role,
       bio: updated.bio,
+      spotifyUrl: updated.spotifyUrl ?? null,
+      appleMusicUrl: updated.appleMusicUrl ?? null,
+      bandcampUrl: updated.bandcampUrl ?? null,
     });
   });
 

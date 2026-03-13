@@ -314,6 +314,13 @@ export const users = pgTable("users", {
   profileImageUrl: text("profile_image_url"),
   role: text("role").notNull().default("USER"),
   bio: text("bio").notNull().default(""),
+  // NOTE: 以下のカラムはNeon側で事前に追加してください:
+  // ALTER TABLE users ADD COLUMN IF NOT EXISTS spotify_url TEXT;
+  // ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_music_url TEXT;
+  // ALTER TABLE users ADD COLUMN IF NOT EXISTS bandcamp_url TEXT;
+  spotifyUrl: text("spotify_url"),
+  appleMusicUrl: text("apple_music_url"),
+  bandcampUrl: text("bandcamp_url"),
   /** 紐付け済みの電話番号（1電話番号 = 1ユーザー）。NULL許可だが重複は禁止。 */
   phoneNumber: text("phone_number").unique(),
   /** 電話番号が本人確認済みになった日時 */
