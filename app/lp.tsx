@@ -700,7 +700,7 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ============================================================
-   9. VISION — 世界地図背景
+   9. VISION — public/image.png 世界地図
    ============================================================ */
 .vision {
   position: relative;
@@ -709,30 +709,28 @@ a { color: inherit; text-decoration: none; }
   overflow: hidden;
   border-top: 1px solid var(--border-dim);
 }
-/* 世界地図SVG背景 */
-.vision-map {
+.vision-map-img {
   position: absolute;
   inset: 0;
   z-index: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   pointer-events: none;
 }
-.vision-map svg {
-  width: 110%;
-  height: 110%;
-  opacity: 0.07;
+.vision-map-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0.9;
+  mix-blend-mode: multiply;
 }
-/* 上下グラデーションで馴染ませる */
-.vision-map::before {
-  content: '';
+.vision-map-fade {
   position: absolute;
   inset: 0;
+  z-index: 1;
+  pointer-events: none;
   background:
     linear-gradient(180deg, var(--bg-mid) 0%, transparent 20%, transparent 80%, var(--bg-mid) 100%),
     linear-gradient(90deg, var(--bg-mid) 0%, transparent 10%, transparent 90%, var(--bg-mid) 100%);
-  z-index: 1;
 }
 .vision-inner {
   position: relative;
@@ -743,7 +741,7 @@ a { color: inherit; text-decoration: none; }
 }
 .vision-h2 {
   font-family: 'Shippori Mincho', serif;
-  font-size: clamp(28px, 4.5vw, 48px);
+  font-size: clamp(26px, 4.5vw, 48px);
   font-weight: 800;
   color: var(--text);
   line-height: 1.3;
@@ -1140,9 +1138,8 @@ a { color: inherit; text-decoration: none; }
 
 <!-- ===== 9. VISION ===== -->
 <section class="vision">
-  <div class="vision-map">
-    <!-- 世界地図のSVGなどをここに配置可能（省略可） -->
-  </div>
+  <div class="vision-map-img"><img src="/image.png" alt=""></div>
+  <div class="vision-map-fade"></div>
   <div class="vision-inner">
     <div class="section-label"><span>Vision</span></div>
     <h2 class="vision-h2">次のステージへ。</h2>
