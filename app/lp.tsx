@@ -713,7 +713,7 @@ a { color: inherit; text-decoration: none; }
    ============================================================ */
 .vision {
   position: relative;
-  background: var(--bg-mid);
+  background: linear-gradient(180deg, #d4d7dd 0%, #f5f6f9 50%, #c7cad0 100%);
   padding: 96px 0;
   overflow: hidden;
   border-top: 1px solid var(--border-dim);
@@ -738,8 +738,8 @@ a { color: inherit; text-decoration: none; }
   z-index: 1;
   pointer-events: none;
   background:
-    linear-gradient(180deg, var(--bg-mid) 0%, transparent 20%, transparent 80%, var(--bg-mid) 100%),
-    linear-gradient(90deg, var(--bg-mid) 0%, transparent 10%, transparent 90%, var(--bg-mid) 100%);
+    linear-gradient(180deg, rgba(212,215,221,0.0) 0%, rgba(212,215,221,0.65) 80%, rgba(212,215,221,1) 100%),
+    linear-gradient(90deg, rgba(212,215,221,0.8) 0%, transparent 18%, transparent 82%, rgba(212,215,221,0.8) 100%);
 }
 .vision-inner {
   position: relative;
