@@ -181,6 +181,16 @@ export default function SettingsScreen() {
             label="特定商取引法に基づく表記"
             onPress={() => router.push("/tokusho")}
           />
+          {user?.role === "ADMIN" && (
+            <>
+              <View style={styles.rowDivider} />
+              <SettingRow
+                icon="warning-outline"
+                label="通報管理"
+                onPress={() => router.push("/admin/reports")}
+              />
+            </>
+          )}
         </View>
 
         <SectionHeader title="" />

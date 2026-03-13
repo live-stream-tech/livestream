@@ -1185,6 +1185,54 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.status(201).json(report);
   });
 
+  /** 管理者向け: 通報一覧（gray_zone / no_violation / pending / hidden 含む） */
+  app.get("/api/admin/reports", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    if (user.role !== "ADMIN") return res.status(403).json({ error: "管理者のみアクセス可能です" });
+
+    const rows = await db
+      .select()
+      .from(reports)
+      .orderBy(desc(reports.createdAt));
+
+    res.json(rows);
+  });
+
+  /** 管理者向け: 通報されたコンテンツを非表示にする（動画 or コメント） */
+  app.patch("/api/admin/reports/:id/hide", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    if (user.role !== "ADMIN") return res.status(403).json({ error: "管理者のみ操作可能です" });
+
+    const id = paramNum(req, "id");
+    const [report] = await db.select().from(reports).where(eq(reports.id, id));
+    if (!report) return res.status(404).json({ error: "通報が見つかりません" });
+
+    if (report.contentType === "video") {
+      await db.update(videos).set({ hidden: true }).where(eq(videos.id, report.contentId));
+    } else if (report.contentType === "comment") {
+      await db.update(videoComments).set({ hidden: true }).where(eq(videoComments.id, report.contentId));
+    }
+
+    await db.update(reports).set({ status: "hidden" }).where(eq(reports.id, id));
+    res.json({ ok: true });
+  });
+
+  /** 管理者向け: 問題なしとしてクローズ（ステータスを reviewed に） */
+  app.patch("/api/admin/reports/:id/dismiss", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    if (user.role !== "ADMIN") return res.status(403).json({ error: "管理者のみ操作可能です" });
+
+    const id = paramNum(req, "id");
+    const [report] = await db.select().from(reports).where(eq(reports.id, id));
+    if (!report) return res.status(404).json({ error: "通報が見つかりません" });
+
+    await db.update(reports).set({ status: "reviewed" }).where(eq(reports.id, id));
+    res.json({ ok: true });
+  });
+
   // ── Upload signed URL (Cloudflare R2) ────────────────────────────
   app.post("/api/upload-url", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
