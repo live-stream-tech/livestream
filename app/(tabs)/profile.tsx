@@ -68,10 +68,10 @@ const DEFAULT_SCORES = [6, 5, 7, 4, 8, 5, 6, 4, 7];
 
 const PWA_DISMISSED_KEY = "pwa_add_to_home_dismissed";
 
-/** PWA「ホーム画面に追加」バナー表示可否。Web かつ 未インストール かつ 未閉じの場合のみ true */
+/** PWA「ホーム画面に追加」FAB＋ポップアップ。Web かつ 未インストール かつ 未閉じの場合のみ表示 */
 function usePwaInstallBanner() {
   const [showBanner, setShowBanner] = useState(false);
-  const [showIosModal, setShowIosModal] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<{ prompt(): Promise<void> } | null>(null);
 
   const isWeb = Platform.OS === "web";
@@ -79,6 +79,12 @@ function usePwaInstallBanner() {
     isWeb &&
     typeof navigator !== "undefined" &&
     /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isIosChrome =
+    isWeb &&
+    typeof navigator !== "undefined" &&
+    /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+    /CriOS/.test(navigator.userAgent);
+  const isIosSafari = isIos && !isIosChrome;
 
   useEffect(() => {
     if (!isWeb || typeof window === "undefined") return;
@@ -111,16 +117,23 @@ function usePwaInstallBanner() {
     if (isWeb && typeof window !== "undefined") {
       window.localStorage.setItem(PWA_DISMISSED_KEY, "1");
     }
+    setShowPopup(false);
     setShowBanner(false);
   };
 
+  const onFabPress = () => setShowPopup(true);
+
   const onAddPress = () => {
-    if (isIos) {
-      setShowIosModal(true);
+    if (isIosSafari) {
+      setShowPopup(false);
+      return;
+    }
+    if (isIosChrome) {
       return;
     }
     if (deferredPrompt) {
       deferredPrompt.prompt();
+      setShowPopup(false);
       setShowBanner(false);
       if (isWeb && typeof window !== "undefined") {
         window.localStorage.setItem(PWA_DISMISSED_KEY, "1");
@@ -128,7 +141,16 @@ function usePwaInstallBanner() {
     }
   };
 
-  return { showBanner, showIosModal, setShowIosModal, onAddPress, onDismiss, isIos, hasDeferredPrompt: !!deferredPrompt };
+  return {
+    showBanner,
+    showPopup,
+    onAddPress,
+    onDismiss,
+    onFabPress,
+    isIosSafari,
+    isIosChrome,
+    hasDeferredPrompt: !!deferredPrompt,
+  };
 }
 
 function getPolygonPoints(
@@ -492,26 +514,6 @@ export default function ProfileScreen() {
       </View>
       <MetallicLine thickness={1} style={{ marginHorizontal: 16 }} />
 
-      {/* PWA ホーム画面に追加バナー（Web かつ 未インストール かつ 未閉じの場合のみ） */}
-      {Platform.OS === "web" && pwaBanner.showBanner && (
-        <View style={styles.pwaBanner}>
-          <View style={styles.pwaBannerContent}>
-            <Text style={styles.pwaBannerText} numberOfLines={2}>
-              ホーム画面に追加してアプリとして使う
-            </Text>
-            <Pressable
-              style={[styles.pwaBannerBtn, (!pwaBanner.hasDeferredPrompt && !pwaBanner.isIos) && styles.pwaBannerBtnDisabled]}
-              onPress={pwaBanner.onAddPress}
-            >
-              <Text style={styles.pwaBannerBtnText}>追加</Text>
-            </Pressable>
-          </View>
-          <Pressable style={styles.pwaBannerClose} onPress={pwaBanner.onDismiss} hitSlop={8}>
-            <Ionicons name="close" size={20} color={C.textMuted} />
-          </Pressable>
-        </View>
-      )}
-
       <View style={styles.searchContainer}>
         <Ionicons name="search" size={16} color={C.textMuted} />
         <TextInput
@@ -831,6 +833,55 @@ export default function ProfileScreen() {
         <Text style={styles.startFabText}>START</Text>
       </Pressable>
 
+      {/* PWA ホーム画面に追加 FAB（右下固定）＋ポップアップ */}
+      {Platform.OS === "web" && pwaBanner.showBanner && (
+        <>
+          <Pressable
+            style={[styles.pwaFab, { bottom: bottomInset + 24 }]}
+            onPress={pwaBanner.onFabPress}
+          >
+            <Ionicons name="phone-portrait-outline" size={22} color="#fff" />
+          </Pressable>
+          <Modal visible={pwaBanner.showPopup} transparent animationType="fade">
+            <Pressable style={styles.pwaPopupOverlay} onPress={pwaBanner.onDismiss}>
+              <Pressable style={styles.pwaPopupBox} onPress={(e) => e.stopPropagation()}>
+                <View style={styles.pwaPopupHeader}>
+                  <Text style={styles.pwaPopupTitle}>ホーム画面に追加</Text>
+                  <Pressable style={styles.pwaPopupClose} onPress={pwaBanner.onDismiss} hitSlop={8}>
+                    <Ionicons name="close" size={22} color={C.textMuted} />
+                  </Pressable>
+                </View>
+                {pwaBanner.isIosChrome ? (
+                  <Text style={styles.pwaPopupBody}>
+                    Safariで開いてください。Safariで開くとホーム画面に追加できます。
+                  </Text>
+                ) : pwaBanner.isIosSafari ? (
+                  <>
+                    <Text style={styles.pwaPopupBody}>
+                      Safariの画面下部にある「共有」ボタン（□に上矢印）をタップし、一覧から「ホーム画面に追加」を選んでください。
+                    </Text>
+                    <Pressable style={styles.pwaPopupBtn} onPress={pwaBanner.onAddPress}>
+                      <Text style={styles.pwaPopupBtnText}>OK</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.pwaPopupBody}>ホーム画面に追加してアプリとして使う</Text>
+                    <Pressable
+                      style={[styles.pwaPopupBtn, !pwaBanner.hasDeferredPrompt && styles.pwaPopupBtnDisabled]}
+                      disabled={!pwaBanner.hasDeferredPrompt}
+                      onPress={pwaBanner.onAddPress}
+                    >
+                      <Text style={styles.pwaPopupBtnText}>追加</Text>
+                    </Pressable>
+                  </>
+                )}
+              </Pressable>
+            </Pressable>
+          </Modal>
+        </>
+      )}
+
       {/* Profile Edit Modal */}
       <Modal visible={showProfileModal} transparent animationType="slide">
         <View style={styles.modalBg}>
@@ -944,22 +995,6 @@ export default function ProfileScreen() {
                 )}
               </Pressable>
             </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* iOS: ホーム画面に追加の手順モーダル */}
-      <Modal visible={pwaBanner.showIosModal} transparent animationType="fade">
-        <View style={styles.modalBg}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => pwaBanner.setShowIosModal(false)} />
-          <View style={styles.pwaIosModalBox}>
-            <Text style={styles.pwaIosModalTitle}>ホーム画面に追加</Text>
-            <Text style={styles.pwaIosModalBody}>
-              Safariの画面下部にある「共有」ボタン（□に上矢印）をタップし、一覧から「ホーム画面に追加」を選んでください。
-            </Text>
-            <Pressable style={styles.pwaIosModalBtn} onPress={() => pwaBanner.setShowIosModal(false)}>
-              <Text style={styles.pwaIosModalBtnText}>OK</Text>
-            </Pressable>
           </View>
         </View>
       </Modal>
@@ -1534,50 +1569,59 @@ const styles = StyleSheet.create({
   lineIcon: { width: 22, height: 22 },
   lineLoginText: { color: "#fff", fontSize: 16, fontWeight: "800" },
 
-  pwaBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginHorizontal: 16,
-    marginBottom: 12,
-    backgroundColor: C.surface,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingLeft: 14,
-    paddingRight: 8,
-    borderWidth: 1,
-    borderColor: C.accent + "44",
-  },
-  pwaBannerContent: { flex: 1, gap: 10 },
-  pwaBannerText: { color: C.text, fontSize: 13, fontWeight: "600" },
-  pwaBannerBtn: {
-    alignSelf: "flex-start",
+  pwaFab: {
+    position: "absolute",
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: C.accent,
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 6,
   },
-  pwaBannerBtnDisabled: { opacity: 0.6 },
-  pwaBannerBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
-  pwaBannerClose: { padding: 6 },
-
-  pwaIosModalBox: {
-    marginHorizontal: 24,
+  pwaPopupOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  pwaPopupBox: {
+    width: "100%",
+    maxWidth: 340,
     backgroundColor: C.surface,
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: C.border,
   },
-  pwaIosModalTitle: { color: C.text, fontSize: 17, fontWeight: "800", marginBottom: 12, textAlign: "center" },
-  pwaIosModalBody: { color: C.textSec, fontSize: 14, lineHeight: 22, marginBottom: 20, textAlign: "center" },
-  pwaIosModalBtn: {
+  pwaPopupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  pwaPopupTitle: { color: C.text, fontSize: 16, fontWeight: "800" },
+  pwaPopupClose: { padding: 4 },
+  pwaPopupBody: {
+    color: C.textSec,
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  pwaPopupBtn: {
     backgroundColor: C.accent,
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 12,
     alignItems: "center",
   },
-  pwaIosModalBtnText: { color: "#fff", fontSize: 15, fontWeight: "700" },
+  pwaPopupBtnDisabled: { opacity: 0.6 },
+  pwaPopupBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 
   // Header actions (edit + logout)
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
