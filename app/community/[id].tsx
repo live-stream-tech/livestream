@@ -10,7 +10,6 @@ import {
   Animated,
   Modal,
   Alert,
-  Linking,
   ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
@@ -21,7 +20,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
 import { AppLogo } from "@/components/AppLogo";
 import { COMMUNITIES, VIDEOS } from "@/constants/data";
-import { apiRequest, getApiUrl } from "@/lib/query-client";
+import { apiRequest } from "@/lib/query-client";
 import { useAuth } from "@/lib/auth";
 
 type AdData = { title: string; sub: string; cta: string; bg: string; accent: string; thumb: string };
@@ -403,7 +402,6 @@ export default function CommunityDetailScreen() {
   const [requestBudget, setRequestBudget] = useState("");
   const [requestDeadline, setRequestDeadline] = useState("");
   const [sendingRequest, setSendingRequest] = useState(false);
-  const [bannerCheckoutLoading, setBannerCheckoutLoading] = useState(false);
 
   const { data: staffData } = useQuery<StaffData>({
     queryKey: [`/api/communities/${communityId}/staff`],
@@ -477,40 +475,6 @@ export default function CommunityDetailScreen() {
     );
   };
 
-  const handleBannerCheckout = async () => {
-    if (!requireAuth("広告バナーを出稿する")) return;
-    if (!token) return;
-    setBannerCheckoutLoading(true);
-    try {
-      const baseUrl = getApiUrl();
-      const res = await fetch(new URL("/api/banner/checkout-session", baseUrl).toString(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "決済の準備に失敗しました");
-      }
-      const data = await res.json();
-      const url = data.checkoutUrl;
-      if (url) {
-        if (Platform.OS === "web") {
-          window.location.href = url;
-        } else {
-          await Linking.openURL(url);
-        }
-      } else {
-        throw new Error("決済URLを取得できませんでした");
-      }
-    } catch (e: any) {
-      console.error(e);
-      Alert.alert("エラー", e.message ?? "決済の開始に失敗しました。時間をおいて再度お試しください。");
-    } finally {
-      setBannerCheckoutLoading(false);
-    }
-  };
-
   const handleSendRequest = async () => {
     if (!requestEditor) return;
     const title = requestTitle.trim();
@@ -571,18 +535,14 @@ export default function CommunityDetailScreen() {
         </Pressable>
 
         <Pressable
-          style={[styles.bannerCheckoutBtn, bannerCheckoutLoading && styles.bannerCheckoutBtnDisabled]}
-          onPress={handleBannerCheckout}
-          disabled={bannerCheckoutLoading}
+          style={styles.bannerCheckoutBtn}
+          onPress={() => {
+            if (!requireAuth("広告申し込み")) return;
+            router.push(`/community/ad-apply?communityId=${communityId}`);
+          }}
         >
-          {bannerCheckoutLoading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="megaphone" size={18} color="#fff" />
-              <Text style={styles.bannerCheckoutBtnText}>広告バナーを出稿する（3日間 ¥15,000）</Text>
-            </>
-          )}
+          <Ionicons name="megaphone" size={18} color="#fff" />
+          <Text style={styles.bannerCheckoutBtnText}>広告申し込み</Text>
         </Pressable>
 
         <View style={styles.profileSection}>

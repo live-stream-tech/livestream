@@ -625,6 +625,11 @@ export default function ProfileScreen() {
           <Text style={styles.revenueBtnText}>REVENUE MANAGEMENT</Text>
         </Pressable>
 
+        <Pressable style={styles.adReviewBtn} onPress={() => router.push("/community/ad-review")}>
+          <Ionicons name="megaphone-outline" size={16} color="#fff" />
+          <Text style={styles.adReviewBtnText}>広告審査（管理人・モデレーター）</Text>
+        </Pressable>
+
         {/* Creator / Twoshot registration */}
         <View style={styles.roleCard}>
           <Text style={styles.roleTitle}>クリエイター登録</Text>
@@ -1283,6 +1288,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   revenueBtnText: { color: "#fff", fontSize: 14, fontWeight: "800", letterSpacing: 0.5 },
+  adReviewBtn: {
+    marginHorizontal: 16,
+    backgroundColor: C.orange,
+    borderRadius: 12,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 20,
+  },
+  adReviewBtnText: { color: "#fff", fontSize: 14, fontWeight: "800", letterSpacing: 0.5 },
   searchResults: {
     marginHorizontal: 16,
     marginBottom: 16,

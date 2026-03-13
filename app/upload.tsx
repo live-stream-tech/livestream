@@ -57,16 +57,61 @@ export default function UploadScreen() {
     setMediaItems((prev) => prev.filter((m) => m.id !== id));
   }
 
+  async function uploadFileToR2Web(file: File) {
+    const res = await fetch(new URL("/api/upload-url", window.location.origin).toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName: file.name,
+        contentType: file.type || "application/octet-stream",
+      }),
+    });
+    if (!res.ok) {
+      throw new Error("署名付きURLの取得に失敗しました");
+    }
+    const { uploadUrl, url } = await res.json();
+    await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    });
+    return url as string;
+  }
+
+  async function uploadFileToR2Native(uri: string, name: string, mime: string) {
+    const resp = await apiRequest("POST", "/api/upload-url", {
+      fileName: name,
+      contentType: mime,
+    });
+    const { uploadUrl, url } = await resp.json();
+    const blob = await (await fetch(uri)).blob();
+    await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": mime },
+      body: blob,
+    });
+    return url as string;
+  }
+
   async function pickPhoto() {
     setAddMenuVisible(false);
     if (Platform.OS === "web") {
       const input = document.createElement("input");
       input.type = "file";
       input.accept = "image/*";
-      input.onchange = (e: any) => {
-        const file = e.target.files?.[0];
-        if (file) {
-          addMedia(`img-${Date.now()}`, URL.createObjectURL(file), "image");
+      input.onchange = async (e: any) => {
+        const file = e.target.files?.[0] as File | undefined;
+        if (!file) return;
+        try {
+          setUploading(true);
+          const url = await uploadFileToR2Web(file);
+          addMedia(`img-${Date.now()}`, url, "image");
+          console.log("Uploaded image to:", url);
+        } catch (err) {
+          console.error(err);
+          Alert.alert("エラー", "画像のアップロードに失敗しました");
+        } finally {
+          setUploading(false);
         }
       };
       input.click();
@@ -83,7 +128,20 @@ export default function UploadScreen() {
       quality: 0.9,
     });
     if (!result.canceled && result.assets[0]) {
-      addMedia(`img-${Date.now()}`, result.assets[0].uri, "image");
+      const asset = result.assets[0];
+      try {
+        setUploading(true);
+        const mime = asset.mimeType ?? "image/jpeg";
+        const name = asset.fileName ?? "image.jpg";
+        const url = await uploadFileToR2Native(asset.uri, name, mime);
+        addMedia(`img-${Date.now()}`, url, "image");
+        console.log("Uploaded image to:", url);
+      } catch (err) {
+        console.error(err);
+        Alert.alert("エラー", "画像のアップロードに失敗しました");
+      } finally {
+        setUploading(false);
+      }
     }
   }
 
@@ -93,10 +151,19 @@ export default function UploadScreen() {
       const input = document.createElement("input");
       input.type = "file";
       input.accept = "video/*";
-      input.onchange = (e: any) => {
-        const file = e.target.files?.[0];
-        if (file) {
-          addMedia(`vid-${Date.now()}`, URL.createObjectURL(file), "video");
+      input.onchange = async (e: any) => {
+        const file = e.target.files?.[0] as File | undefined;
+        if (!file) return;
+        try {
+          setUploading(true);
+          const url = await uploadFileToR2Web(file);
+          addMedia(`vid-${Date.now()}`, url, "video");
+          console.log("Uploaded video to:", url);
+        } catch (err) {
+          console.error(err);
+          Alert.alert("エラー", "動画のアップロードに失敗しました");
+        } finally {
+          setUploading(false);
         }
       };
       input.click();
@@ -112,7 +179,20 @@ export default function UploadScreen() {
       allowsEditing: false,
     });
     if (!result.canceled && result.assets[0]) {
-      addMedia(`vid-${Date.now()}`, result.assets[0].uri, "video");
+      const asset = result.assets[0];
+      try {
+        setUploading(true);
+        const mime = asset.mimeType ?? "video/mp4";
+        const name = asset.fileName ?? "video.mp4";
+        const url = await uploadFileToR2Native(asset.uri, name, mime);
+        addMedia(`vid-${Date.now()}`, url, "video");
+        console.log("Uploaded video to:", url);
+      } catch (err) {
+        console.error(err);
+        Alert.alert("エラー", "動画のアップロードに失敗しました");
+      } finally {
+        setUploading(false);
+      }
     }
   }
 

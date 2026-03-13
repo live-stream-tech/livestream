@@ -418,7 +418,7 @@ export default function HomeScreen() {
               <Text style={styles.proText}>PRO</Text>
             </View>
             <View>
-              <Text style={styles.premiumTitle}>LiveStage Premium</Text>
+              <Text style={styles.premiumTitle}>RawStock Premium</Text>
               <Text style={styles.premiumSub}>30日間の無料トライアル実施中。すべての機能を解放。</Text>
             </View>
           </View>

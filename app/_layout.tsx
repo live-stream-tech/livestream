@@ -148,6 +148,8 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="community/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="community/ad-apply" options={{ headerShown: false }} />
+      <Stack.Screen name="community/ad-review" options={{ headerShown: false }} />
       <Stack.Screen name="video/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="upload" options={{ headerShown: false }} />
       <Stack.Screen name="notifications" options={{ headerShown: false }} />

@@ -36,6 +36,7 @@ import { eq, asc, desc, count, sql, and, gte, lte, isNull, inArray } from "drizz
 import { getUncachableStripeClient, getStripePublishableKey, createConnectExpressAccount, createConnectAccountLink, getConnectAccount, createBannerPaymentIntent, getPaymentIntentStatus } from "./stripeClient";
 import { getMonthlyRevenueRank } from "./aggregateRevenue";
 import { judgeReportContent } from "./claudeReport";
+import { createSignedUploadUrl } from "./r2";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
@@ -1184,6 +1185,32 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.status(201).json(report);
   });
 
+  // ── Upload signed URL (Cloudflare R2) ────────────────────────────
+  app.post("/api/upload-url", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const { fileName, contentType } = req.body as {
+      fileName?: string;
+      contentType?: string;
+    };
+
+    if (!fileName || !contentType) {
+      return res.status(400).json({ error: "fileName と contentType は必須です" });
+    }
+
+    const safeName = String(fileName).replace(/[^a-zA-Z0-9_.-]/g, "_");
+    const key = `rawstock_${Date.now()}_${safeName}`;
+
+    try {
+      const { uploadUrl, publicUrl } = await createSignedUploadUrl(key, contentType);
+      res.json({ uploadUrl, key, url: publicUrl });
+    } catch (e) {
+      console.error("Create signed upload URL error:", e);
+      res.status(500).json({ error: "署名付きURLの発行に失敗しました" });
+    }
+  });
+
   // ── Videos ───────────────────────────────────────────────────────
   app.get("/api/videos", async (_req: Request, res: Response) => {
     const rows = await db
@@ -1609,7 +1636,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           },
           body: JSON.stringify({
             meta: {
-              name: name || `LiveStage Stream by ${user.displayName}`,
+              name: name || `RawStock Stream by ${user.displayName}`,
             },
           }),
         }

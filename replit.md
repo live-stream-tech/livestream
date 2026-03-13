@@ -1,7 +1,7 @@
-# LiveStage - ライブ配信・動画プラットフォーム
+# RawStock - ライブ配信・動画プラットフォーム
 
 ## 概要
-LiveStageはライブ配信・有料動画プラットフォームのWebアプリ（Expo React Native Web / PWA）。コミュニティ機能、ランキング、配信者統計を備える。Webブラウザのみで動作（Expo Go不使用）。
+RawStockはライブ配信・有料動画プラットフォームのWebアプリ（Expo React Native Web / PWA）。コミュニティ機能、ランキング、配信者統計を備える。Webブラウザのみで動作（Expo Go不使用）。
 
 ## アーキテクチャ
 - **フロントエンド**: Expo Router（ファイルベースルーティング）、Webブラウザ専用（ポート8081）

@@ -219,7 +219,7 @@ export default function TwoshotBookingScreen() {
             <Text style={styles.sectionTitle}>特定商取引法に基づく表示</Text>
             <View style={styles.tokushoCard}>
               {[
-                ["事業者名", "LiveStage運営事務局"],
+                ["事業者名", "RawStock運営事務局"],
                 ["サービス名", "ツーショット撮影予約（ライブ内）"],
                 ["販売価格", `¥${TWOSHOT_PRICE.toLocaleString()}（税込）`],
                 ["支払時期", "予約時（クレジットカード事前決済）"],
@@ -309,7 +309,7 @@ export default function TwoshotBookingScreen() {
             </View>
 
             <Text style={styles.stripeNote}>
-              決済はStripeの安全なページで行われます。カード情報はLiveStageには送信されません。
+              決済はStripeの安全なページで行われます。カード情報はRawStockには送信されません。
             </Text>
           </View>
         )}
