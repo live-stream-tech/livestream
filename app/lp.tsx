@@ -423,8 +423,8 @@ const html = `
 }
 </style>
 
-<div style="font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#FFFFFF; color:#1B2838;">
-  <div style="background-image:linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.9) 55%, rgba(255,255,255,0) 100%), url('/haikeihaikei.png'); background-size:cover; background-position:center top; background-repeat:no-repeat;">
+<div style="font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#05070b; color:#E0ECFF;">
+  <div style="background-image:linear-gradient(to bottom, rgba(5,7,11,0) 0%, rgba(5,7,11,0.7) 70%, rgba(5,7,11,1) 100%), url('/haikeihaikei.png'); background-size:cover; background-position:center top; background-repeat:no-repeat;">
     <!-- MASTHEAD -->
     <header style="background:rgba(27,40,56,0.9); padding:20px clamp(16px,5vw,48px); display:flex; align-items:center; justify-content:space-between;">
       <div style="display:flex; align-items:center; gap:16px;">
@@ -444,14 +444,14 @@ const html = `
         </span>
         <span style="flex:1; height:1px; background:#29B6CF; opacity:0.4;"></span>
       </div>
-      <h1 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight:800; line-height:1.25; margin:0 0 16px; color:#1B2838;">
+      <h1 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight:800; line-height:1.25; margin:0 0 16px; color:#F5FBFF; text-shadow:0 0 6px rgba(41,182,207,0.9), 0 0 18px rgba(41,182,207,0.7);">
         個人開発×AIで、還元率90%。
       </h1>
-      <p style="font-size:clamp(14px,3.2vw,18px); color:#29B6CF; margin:0 0 24px;">
+      <p style="font-size:clamp(14px,3.2vw,18px); color:#B9ECFF; margin:0 0 24px; text-shadow:0 0 4px rgba(41,182,207,0.7);">
         AIに作れない現場の記憶が売れる。
       </p>
       <div style="border-left:4px solid #E53935; padding-left:20px; margin-bottom:28px;">
-        <p style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(14px,3.4vw,17px); line-height:1.9; margin:0; color:#1B2838;">
+        <p style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(14px,3.4vw,17px); line-height:1.9; margin:0; color:#E0ECFF;">
           個人開発だから、余計なコストがない。AIを活用して作ったから、少人数で回せる。だから有料動画は売上の90%をクリエイターに還元できる。手数料は受け取る側じゃなく、払う側が負担する。クリエイターの論理だけで設計できた、それが個人×AI開発の強みです。
         </p>
       </div>
