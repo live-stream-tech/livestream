@@ -452,7 +452,7 @@ const html = `
 </style>
 
 <div style="font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#05070b; color:#E0ECFF;">
-  <div style="background-image:linear-gradient(to bottom, rgba(5,7,11,0) 0%, rgba(5,7,11,0.7) 70%, rgba(5,7,11,1) 100%), url('/haikeihaikei.png'); background-size:cover; background-position:center top; background-repeat:no-repeat;">
+  <div style="background-image:linear-gradient(to bottom, rgba(5,7,11,0) 0%, rgba(5,7,11,0.7) 70%, rgba(5,7,11,1) 100%), url('/image.png'); background-size:cover; background-position:center top; background-repeat:no-repeat;">
     <!-- MASTHEAD -->
     <header style="background:rgba(27,40,56,0.9); padding:20px clamp(16px,5vw,48px); display:flex; align-items:center; justify-content:space-between;">
       <div style="display:flex; align-items:center; gap:16px;">
