@@ -134,17 +134,17 @@ a { color: inherit; text-decoration: none; }
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.35;
-  filter: saturate(0.8);
+  opacity: 0.7;
+  filter: saturate(0.9);
 }
 .hero-bg-overlay {
   position: absolute;
   inset: 0;
   background: linear-gradient(
-    160deg,
-    rgba(7,9,15,0.6) 0%,
-    rgba(13,20,32,0.4) 50%,
-    rgba(7,9,15,0.8) 100%
+    180deg,
+    rgba(7,9,15,0.0) 0%,
+    rgba(7,9,15,0.35) 55%,
+    rgba(7,9,15,0.85) 100%
   );
 }
 .hero-inner {
@@ -884,7 +884,7 @@ a { color: inherit; text-decoration: none; }
 <!-- ===== 2. HERO ===== -->
 <section class="hero">
   <div class="hero-bg">
-    <img src="/haikeihaikei.png" alt="">
+    <img src="/assets/haikeihaikei.png" alt="">
     <div class="hero-bg-overlay"></div>
   </div>
   <div class="hero-inner">
