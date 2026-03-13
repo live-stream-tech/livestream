@@ -262,12 +262,25 @@ a { color: inherit; text-decoration: none; }
 .for-you-list { list-style: none; }
 .for-you-item {
   display: flex;
-  align-items: baseline;
-  gap: 24px;
+  align-items: flex-start;
+  gap: 16px;
   padding: 20px 0;
   border-bottom: 1px solid var(--border-dim);
 }
 .for-you-item:last-child { border-bottom: none; }
+.for-you-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid rgba(255,255,255,0.6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--accent);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
 .for-you-name {
   font-size: 15px;
   font-weight: 700;
@@ -424,14 +437,14 @@ a { color: inherit; text-decoration: none; }
   justify-content: center;
 }
 .flow-name {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text);
-  line-height: 1.45;
+  line-height: 1.55;
   letter-spacing: .03em;
 }
 .flow-desc {
-  font-size: 9px;
+  font-size: 11px;
   color: rgba(41,182,207,0.8);
   margin-top: 5px;
   line-height: 1.5;
@@ -600,11 +613,12 @@ a { color: inherit; text-decoration: none; }
   font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(26px, 4vw, 42px);
   font-weight: 800;
-  color: var(--yellow);
+  color: #FFF95E;
   margin-bottom: 40px;
   text-shadow:
-    0 0 14px rgba(255,214,0,0.8),
-    0 0 26px rgba(0,0,0,0.9);
+    0 0 18px rgba(255,249,94,0.95),
+    0 0 32px rgba(255,249,94,0.7),
+    0 0 36px rgba(0,0,0,0.95);
 }
 .revenue-table {
   width: 100%;
@@ -911,22 +925,27 @@ a { color: inherit; text-decoration: none; }
     <h2 class="for-you-h2">こんな人のために作りました。</h2>
     <ul class="for-you-list">
       <li class="for-you-item">
+        <span class="for-you-check">✓</span>
         <span class="for-you-name">インディーズバンド・アーティスト</span>
         <span class="for-you-desc">現場の熱量を動画にして売る</span>
       </li>
       <li class="for-you-item">
+        <span class="for-you-check">✓</span>
         <span class="for-you-name">ライバー</span>
         <span class="for-you-desc">生配信で最大95%還元</span>
       </li>
       <li class="for-you-item">
+        <span class="for-you-check">✓</span>
         <span class="for-you-name">メンタルコーチ・講師</span>
         <span class="for-you-desc">有料コンテンツ販売・個別セッション（ツーショット）・有料ライブ配信で稼ぐ。</span>
       </li>
       <li class="for-you-item">
+        <span class="for-you-check">✓</span>
         <span class="for-you-name">動画編集者</span>
         <span class="for-you-desc">編集依頼を受けて稼ぐ</span>
       </li>
       <li class="for-you-item">
+        <span class="for-you-check">✓</span>
         <span class="for-you-name">コミュニティ管理人</span>
         <span class="for-you-desc">広告収益の70%がコミュニティへ</span>
       </li>
@@ -966,7 +985,7 @@ a { color: inherit; text-decoration: none; }
         <div class="flow-box">
           <span class="flow-num">01</span>
           <div class="flow-icon">📱</div>
-          <div class="flow-name">現場で<br>スマホ撮影</div>
+          <div class="flow-name">現場でスマホ撮影</div>
           <div class="flow-desc">ファンが現場へ</div>
         </div>
       </div>
@@ -975,7 +994,7 @@ a { color: inherit; text-decoration: none; }
         <div class="flow-box">
           <span class="flow-num">02</span>
           <div class="flow-icon">✂️</div>
-          <div class="flow-name">編集者に<br>依頼</div>
+          <div class="flow-name">編集者に依頼</div>
           <div class="flow-desc">報酬は自由設定</div>
         </div>
       </div>
@@ -984,7 +1003,7 @@ a { color: inherit; text-decoration: none; }
         <div class="flow-box">
           <span class="flow-num">03</span>
           <div class="flow-icon">💰</div>
-          <div class="flow-name">有料コンテンツ<br>として販売</div>
+          <div class="flow-name">有料コンテンツとして販売</div>
           <div class="flow-desc">売上90%還元</div>
         </div>
       </div>
@@ -993,7 +1012,7 @@ a { color: inherit; text-decoration: none; }
         <div class="flow-box">
           <span class="flow-num">04</span>
           <div class="flow-icon">👥</div>
-          <div class="flow-name">コミュニティ<br>へ届く</div>
+          <div class="flow-name">コミュニティへ届く</div>
           <div class="flow-desc">世界に広がる</div>
         </div>
       </div>
@@ -1002,7 +1021,7 @@ a { color: inherit; text-decoration: none; }
         <div class="flow-box">
           <span class="flow-num">05</span>
           <div class="flow-icon">📣</div>
-          <div class="flow-name">次のライブ<br>告知・集客</div>
+          <div class="flow-name">次のライブ告知・集客</div>
           <div class="flow-desc">資産が循環する</div>
         </div>
       </div>
