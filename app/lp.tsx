@@ -456,10 +456,10 @@ const html = `
         </p>
       </div>
       <div style="display:flex; flex-wrap:wrap; gap:12px;">
-        <button id="lp-start-free" style="border:none; cursor:default; padding:12px 28px; background:#1B2838; color:#FFFFFF; font-size:14px; font-weight:600; letter-spacing:0.06em; opacity:0.6;">
+        <button id="lp-start-free" style="border:1px solid #FFFFFF; cursor:default; padding:12px 28px; background:transparent; color:#FFFFFF; font-size:14px; font-weight:600; letter-spacing:0.06em; opacity:0.8;">
           近日公開
         </button>
-        <button id="lp-contact" style="border:1px solid #1B2838; cursor:pointer; padding:12px 28px; background:transparent; color:#1B2838; font-size:14px; font-weight:500; letter-spacing:0.06em;">
+        <button id="lp-contact" style="border:1px solid #FFFFFF; cursor:pointer; padding:12px 28px; background:transparent; color:#FFFFFF; font-size:14px; font-weight:500; letter-spacing:0.06em;">
           資料請求・お問い合わせ
         </button>
       </div>
@@ -468,34 +468,34 @@ const html = `
   </div>
 
   <!-- FOR YOU -->
-  <section style="background:#f4f8fb;">
+  <section style="background:#1B2838;">
     <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
       <div style="font-size:11px; letter-spacing:0.25em; text-transform:uppercase; color:#29B6CF; margin-bottom:8px;">
         For You
       </div>
-      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(24px,4.4vw,36px); margin:0 0 24px; color:#1B2838;">
+      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(24px,4.4vw,36px); margin:0 0 24px; color:#FFFFFF;">
         こんな人のために作りました。
       </h2>
-      <div style="border-top:1px solid #e0e8f0;">
-        <div style="padding:12px 0; border-bottom:1px solid #e0e8f0;">
-          <div style="font-weight:700; margin-bottom:4px;">インディーズバンド・アーティスト</div>
-          <div style="color:#546A82; font-size:14px;">現場の熱量を動画にして売る</div>
+      <div style="border-top:1px solid rgba(224,232,240,0.25);">
+        <div style="padding:12px 0; border-bottom:1px solid rgba(224,232,240,0.25);">
+          <div style="font-weight:700; margin-bottom:4px; color:#FFFFFF;">インディーズバンド・アーティスト</div>
+          <div style="color:#E0ECFF; font-size:14px;">現場の熱量を動画にして売る</div>
         </div>
-        <div style="padding:12px 0; border-bottom:1px solid #e0e8f0;">
-          <div style="font-weight:700; margin-bottom:4px;">ライバー</div>
-          <div style="color:#546A82; font-size:14px;">生配信で最大95%還元</div>
+        <div style="padding:12px 0; border-bottom:1px solid rgba(224,232,240,0.25);">
+          <div style="font-weight:700; margin-bottom:4px; color:#FFFFFF;">ライバー</div>
+          <div style="color:#E0ECFF; font-size:14px;">生配信で最大95%還元</div>
         </div>
-        <div style="padding:12px 0; border-bottom:1px solid #e0e8f0;">
-          <div style="font-weight:700; margin-bottom:4px;">メンタルコーチ・講師</div>
-          <div style="color:#546A82; font-size:14px;">有料コンテンツ販売・個別セッション（ツーショット）・有料ライブ配信で稼ぐ。</div>
+        <div style="padding:12px 0; border-bottom:1px solid rgba(224,232,240,0.25);">
+          <div style="font-weight:700; margin-bottom:4px; color:#FFFFFF;">メンタルコーチ・講師</div>
+          <div style="color:#E0ECFF; font-size:14px;">有料コンテンツ販売・個別セッション（ツーショット）・有料ライブ配信で稼ぐ。</div>
         </div>
-        <div style="padding:12px 0; border-bottom:1px solid #e0e8f0;">
-          <div style="font-weight:700; margin-bottom:4px;">動画編集者</div>
-          <div style="color:#546A82; font-size:14px;">編集依頼を受けて稼ぐ</div>
+        <div style="padding:12px 0; border-bottom:1px solid rgba(224,232,240,0.25);">
+          <div style="font-weight:700; margin-bottom:4px; color:#FFFFFF;">動画編集者</div>
+          <div style="color:#E0ECFF; font-size:14px;">編集依頼を受けて稼ぐ</div>
         </div>
-        <div style="padding:12px 0; border-bottom:1px solid #e0e8f0;">
-          <div style="font-weight:700; margin-bottom:4px;">コミュニティ管理人</div>
-          <div style="color:#546A82; font-size:14px;">広告収益の70%がコミュニティへ</div>
+        <div style="padding:12px 0; border-bottom:1px solid rgba(224,232,240,0.25);">
+          <div style="font-weight:700; margin-bottom:4px; color:#FFFFFF;">コミュニティ管理人</div>
+          <div style="color:#E0ECFF; font-size:14px;">広告収益の70%がコミュニティへ</div>
         </div>
       </div>
     </div>
