@@ -424,18 +424,19 @@ const html = `
 </style>
 
 <div style="font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#FFFFFF; color:#1B2838;">
-  <!-- MASTHEAD -->
-  <header style="background:#1B2838; padding:20px clamp(16px,5vw,48px); display:flex; align-items:center; justify-content:space-between;">
-    <div style="display:flex; align-items:center; gap:16px;">
-      <img src="/logo-200x70-v2.png" alt="RawStock" style="height:40px; width:auto;" />
-    </div>
-    <div style="color:#FFFFFF; font-size:11px; letter-spacing:0.1em; text-transform:uppercase;">
-      LIVE &amp; COMMUNITY PLATFORM / JAPAN 2026
-    </div>
-  </header>
+  <div style="background-image:linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.9) 55%, rgba(255,255,255,0) 100%), url('/haikeihaikei.png'); background-size:cover; background-position:center top; background-repeat:no-repeat;">
+    <!-- MASTHEAD -->
+    <header style="background:rgba(27,40,56,0.9); padding:20px clamp(16px,5vw,48px); display:flex; align-items:center; justify-content:space-between;">
+      <div style="display:flex; align-items:center; gap:16px;">
+        <img src="/logo-200x70-v2.png" alt="RawStock" style="height:40px; width:auto;" />
+      </div>
+      <div style="color:#FFFFFF; font-size:11px; letter-spacing:0.1em; text-transform:uppercase;">
+        LIVE &amp; COMMUNITY PLATFORM / JAPAN 2026
+      </div>
+    </header>
 
-  <!-- COVER STORY -->
-  <main style="max-width:720px; margin:0 auto; padding:80px 48px 40px;">
+    <!-- COVER STORY -->
+    <main style="max-width:720px; margin:0 auto; padding:80px 48px 40px;">
     <section style="margin-bottom:72px;">
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
         <span style="font-size:10px; letter-spacing:0.3em; text-transform:uppercase; color:#29B6CF;">
@@ -463,7 +464,8 @@ const html = `
         </button>
       </div>
     </section>
-  </main>
+    </main>
+  </div>
 
   <!-- FOR YOU -->
   <section style="background:#f4f8fb;">
