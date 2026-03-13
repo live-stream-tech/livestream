@@ -403,6 +403,34 @@ const html = `
   line-height: 1.9;
 }
 
+/* ============ LAYOUT & TYPOGRAPHY ============ */
+.lp-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 64px clamp(16px, 5vw, 48px);
+}
+
+.lp-heading-main {
+  font-size: clamp(40px, 7vw, 80px);
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.lp-heading-section {
+  font-size: clamp(24px, 4.4vw, 36px);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.lp-number-xl {
+  font-size: clamp(32px, 6vw, 56px);
+  font-weight: 800;
+  color: #00F5FF;
+  text-shadow:
+    0 0 10px rgba(0,245,255,0.8),
+    0 0 26px rgba(255,0,255,0.55);
+}
+
 /* ============ RESPONSIVE ============ */
 @media (max-width: 600px) {
   .concept-inner { padding: 52px 24px; }
@@ -436,7 +464,7 @@ const html = `
     </header>
 
     <!-- COVER STORY -->
-    <main style="max-width:720px; margin:0 auto; padding:80px 48px 40px;">
+    <main class="lp-inner" style="padding-top:80px; padding-bottom:40px;">
     <section style="margin-bottom:72px;">
       <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
         <span style="font-size:10px; letter-spacing:0.3em; text-transform:uppercase; color:#29B6CF;">
@@ -444,7 +472,7 @@ const html = `
         </span>
         <span style="flex:1; height:1px; background:#29B6CF; opacity:0.4;"></span>
       </div>
-      <h1 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight:800; line-height:1.25; margin:0 0 16px; color:#F5FBFF; text-shadow:0 0 6px rgba(41,182,207,0.9), 0 0 18px rgba(41,182,207,0.7);">
+      <h1 class="lp-heading-main" style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight:800; margin:0 0 16px; color:#F5FBFF; text-shadow:0 0 6px rgba(41,182,207,0.9), 0 0 18px rgba(41,182,207,0.7);">
         個人開発×AIで、還元率90%。
       </h1>
       <p style="font-size:clamp(14px,3.2vw,18px); color:#B9ECFF; margin:0 0 24px; text-shadow:0 0 4px rgba(41,182,207,0.7);">
@@ -469,11 +497,11 @@ const html = `
 
   <!-- FOR YOU -->
   <section style="background:#1B2838;">
-    <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
+    <div class="lp-inner">
       <div style="font-size:11px; letter-spacing:0.25em; text-transform:uppercase; color:#29B6CF; margin-bottom:8px;">
         For You
       </div>
-      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(24px,4.4vw,36px); margin:0 0 24px; color:#FFFFFF;">
+      <h2 class="lp-heading-section" style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin:0 0 24px; color:#FFFFFF;">
         こんな人のために作りました。
       </h2>
       <div style="border-top:1px solid rgba(224,232,240,0.25);">
@@ -737,24 +765,24 @@ const html = `
 
   <!-- NUMBERS -->
   <section style="background:#1B2838;">
-    <div style="max-width:960px; margin:0 auto; padding:64px 48px;">
-      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 32px; color:#FFFFFF;">
+    <div class="lp-inner" style="max-width:1120px;">
+      <h2 class="lp-heading-section" style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin:0 0 32px; color:#FFFFFF;">
         数字で見るRawStock。
       </h2>
       <div style="display:flex; flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.2);">
         <div style="flex:1 1 0; min-width:220px; padding:20px 16px; border-right:1px solid rgba(255,255,255,0.2);">
           <div style="color:#E0ECFF; font-size:13px; margin-bottom:6px;">有料動画</div>
-          <div style="color:#E53935; font-size:34px; font-weight:700; margin-bottom:4px;">90%</div>
+          <div class="lp-number-xl" style="margin-bottom:4px;">90%</div>
           <div style="color:#E0ECFF; font-size:13px;">売上の90%があなたへ</div>
         </div>
         <div style="flex:1 1 0; min-width:220px; padding:20px 16px; border-right:1px solid rgba(255,255,255,0.2);">
           <div style="color:#E0ECFF; font-size:13px; margin-bottom:6px;">ライブ配信</div>
-          <div style="color:#E53935; font-size:34px; font-weight:700; margin-bottom:4px;">95%</div>
+          <div class="lp-number-xl" style="margin-bottom:4px;">95%</div>
           <div style="color:#E0ECFF; font-size:13px;">最大95%還元</div>
         </div>
         <div style="flex:1 1 0; min-width:220px; padding:20px 16px;">
           <div style="color:#E0ECFF; font-size:13px; margin-bottom:6px;">手数料設計</div>
-          <div style="color:#E53935; font-size:34px; font-weight:700; margin-bottom:4px;">0%</div>
+          <div class="lp-number-xl" style="margin-bottom:4px;">0%</div>
           <div style="color:#E0ECFF; font-size:13px; white-space:pre-line;">手数料は決済サービスの約3.5％のみ\n払う側が負担する</div>
         </div>
       </div>
@@ -763,8 +791,8 @@ const html = `
 
   <!-- REVENUE -->
   <section>
-    <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
-      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 24px; color:#1B2838;">
+    <div class="lp-inner">
+      <h2 class="lp-heading-section" style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin:0 0 24px; color:#1B2838;">
         稼ぎ方は一つじゃない。
       </h2>
       <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:24px;">
@@ -822,8 +850,8 @@ const html = `
 
   <!-- COMMUNITY -->
   <section style="background:#f4f8fb;">
-    <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
-      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 20px; color:#1B2838;">
+    <div class="lp-inner">
+      <h2 class="lp-heading-section" style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin:0 0 20px; color:#1B2838;">
         コミュニティが、自走する。
       </h2>
       <p style="font-size:15px; line-height:1.9; color:#546A82; margin:0;">
@@ -863,8 +891,8 @@ const html = `
 
   <!-- HONEST -->
   <section>
-    <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
-      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 20px; color:#1B2838;">
+    <div class="lp-inner">
+      <h2 class="lp-heading-section" style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin:0 0 20px; color:#1B2838;">
         個人開発です。正直に言います。
       </h2>
       <p style="font-size:15px; line-height:1.9; color:#546A82; margin:0;">
@@ -875,8 +903,8 @@ const html = `
 
   <!-- CONTACT -->
   <section style="background:#1B2838;">
-    <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
-      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 16px; color:#FFFFFF;">
+    <div class="lp-inner">
+      <h2 class="lp-heading-section" style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin:0 0 16px; color:#FFFFFF;">
         まず、話を聞かせてください。
       </h2>
       <p style="font-size:14px; line-height:1.9; color:#E0ECFF; margin:0 0 10px;">
