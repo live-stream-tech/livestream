@@ -114,6 +114,7 @@ function isPublicPath(pathname: string): boolean {
   if (pathname === "/terms") return true;
   if (pathname === "/privacy") return true;
   if (pathname === "/tokusho") return true;
+  if (pathname === "/lp") return true;
   return false;
 }
 
@@ -169,6 +170,7 @@ function RootLayoutNav() {
       <Stack.Screen name="terms" options={{ headerShown: false }} />
       <Stack.Screen name="privacy" options={{ headerShown: false }} />
       <Stack.Screen name="tokusho" options={{ headerShown: false }} />
+      <Stack.Screen name="lp" options={{ headerShown: false }} />
     </Stack>
   );
 }
