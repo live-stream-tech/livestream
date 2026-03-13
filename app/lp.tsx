@@ -94,7 +94,7 @@ const html = `
 }
 
 .c-heading {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(30px, 5vw, 52px);
   font-weight: 800;
   color: #fff;
@@ -109,7 +109,7 @@ const html = `
 }
 
 .c-body {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 16px;
   line-height: 2;
   color: rgba(255,255,255,0.72);
@@ -237,7 +237,7 @@ const html = `
   border-bottom: 1px solid rgba(41,182,207,0.3);
   padding: 28px 0 28px 16px;
   margin: 48px 0;
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(17px, 2.5vw, 22px);
   color: #29B6CF;
   line-height: 1.8;
@@ -376,7 +376,7 @@ const html = `
   background: linear-gradient(90deg, rgba(41,182,207,0.4), transparent);
 }
 .v-heading {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(30px, 4vw, 46px);
   font-weight: 800;
   color: #fff;
@@ -384,7 +384,7 @@ const html = `
   margin-bottom: 32px;
 }
 .v-body {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 17px;
   line-height: 1.95;
   color: rgba(255,255,255,0.82);
@@ -397,7 +397,7 @@ const html = `
   margin: 36px 0;
 }
 .v-close {
-  font-family: 'Shippori Mincho', serif;
+  font-family: 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: clamp(17px, 2vw, 20px);
   color: #29B6CF;
   line-height: 1.9;
@@ -443,15 +443,14 @@ const html = `
         </span>
         <span style="flex:1; height:1px; background:#29B6CF; opacity:0.4;"></span>
       </div>
-      <h1 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; line-height:1.25; margin:0 0 16px; color:#1B2838; font-weight:800;">
-        <span style="font-size:clamp(34px,6.4vw,58px);">AIに作れない、</span><br />
-        <span style="font-size:clamp(26px,5vw,40px);">現場の記憶が売れる。</span>
+      <h1 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight:800; line-height:1.25; margin:0 0 16px; color:#1B2838;">
+        個人開発×AIで、還元率90%。
       </h1>
       <p style="font-size:clamp(14px,3.2vw,18px); color:#29B6CF; margin:0 0 24px;">
-        個人開発×AIで、還元率90%。
+        AIに作れない現場の記憶が売れる。
       </p>
       <div style="border-left:4px solid #E53935; padding-left:20px; margin-bottom:28px;">
-        <p style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(14px,3.4vw,17px); line-height:1.9; margin:0; color:#1B2838;">
+        <p style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(14px,3.4vw,17px); line-height:1.9; margin:0; color:#1B2838;">
           個人開発だから、余計なコストがない。AIを活用して作ったから、少人数で回せる。だから有料動画は売上の90%をクリエイターに還元できる。手数料は受け取る側じゃなく、払う側が負担する。クリエイターの論理だけで設計できた、それが個人×AI開発の強みです。
         </p>
       </div>
@@ -472,7 +471,7 @@ const html = `
       <div style="font-size:11px; letter-spacing:0.25em; text-transform:uppercase; color:#29B6CF; margin-bottom:8px;">
         For You
       </div>
-      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(24px,4.4vw,36px); margin:0 0 24px; color:#1B2838;">
+      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(24px,4.4vw,36px); margin:0 0 24px; color:#1B2838;">
         こんな人のために作りました。
       </h2>
       <div style="border-top:1px solid #e0e8f0;">
@@ -737,7 +736,7 @@ const html = `
   <!-- NUMBERS -->
   <section style="background:#1B2838;">
     <div style="max-width:960px; margin:0 auto; padding:64px 48px;">
-      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 32px; color:#FFFFFF;">
+      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 32px; color:#FFFFFF;">
         数字で見るRawStock。
       </h2>
       <div style="display:flex; flex-wrap:wrap; border-top:1px solid rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.2);">
@@ -763,7 +762,7 @@ const html = `
   <!-- REVENUE -->
   <section>
     <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
-      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 24px; color:#1B2838;">
+      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 24px; color:#1B2838;">
         稼ぎ方は一つじゃない。
       </h2>
       <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:24px;">
@@ -802,7 +801,7 @@ const html = `
       </table>
 
       <div style="background:#f4f8fb; border:1px solid #e0e8f0; padding:18px 16px; border-radius:4px; margin-bottom:18px;">
-        <div style="font-family:'DM Serif Display', 'Shippori Mincho', serif; font-size:30px; color:#29B6CF; margin-bottom:10px;">
+        <div style="font-family:'DM Serif Display', 'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:30px; color:#29B6CF; margin-bottom:10px;">
           メンバー数 × 7円 / 日（最低10,000円〜）
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:13px; color:#546A82;">
@@ -822,7 +821,7 @@ const html = `
   <!-- COMMUNITY -->
   <section style="background:#f4f8fb;">
     <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
-      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 20px; color:#1B2838;">
+      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 20px; color:#1B2838;">
         コミュニティが、自走する。
       </h2>
       <p style="font-size:15px; line-height:1.9; color:#546A82; margin:0;">
@@ -857,7 +856,7 @@ const html = `
   <!-- HONEST -->
   <section>
     <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
-      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 20px; color:#1B2838;">
+      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 20px; color:#1B2838;">
         個人開発です。正直に言います。
       </h2>
       <p style="font-size:15px; line-height:1.9; color:#546A82; margin:0;">
@@ -869,7 +868,7 @@ const html = `
   <!-- CONTACT -->
   <section style="background:#1B2838;">
     <div style="max-width:720px; margin:0 auto; padding:64px clamp(16px,5vw,48px);">
-      <h2 style="font-family:'Shippori Mincho', 'Noto Sans JP', serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 16px; color:#FFFFFF;">
+      <h2 style="font-family:'Noto Sans JP', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size:clamp(22px,4.4vw,30px); margin:0 0 16px; color:#FFFFFF;">
         まず、話を聞かせてください。
       </h2>
       <p style="font-size:14px; line-height:1.9; color:#E0ECFF; margin:0 0 10px;">
