@@ -114,7 +114,7 @@ function isPublicPath(pathname: string): boolean {
   if (pathname === "/terms") return true;
   if (pathname === "/privacy") return true;
   if (pathname === "/tokusho") return true;
-  if (pathname === "/lp") return true;
+  if (pathname === "/lp" || pathname === "/rawstock-lp") return true;
   return false;
 }
 
@@ -171,6 +171,7 @@ function RootLayoutNav() {
       <Stack.Screen name="privacy" options={{ headerShown: false }} />
       <Stack.Screen name="tokusho" options={{ headerShown: false }} />
       <Stack.Screen name="lp" options={{ headerShown: false }} />
+      <Stack.Screen name="rawstock-lp" options={{ headerShown: false }} />
       <Stack.Screen name="community/genre-ad-apply" options={{ headerShown: false }} />
       <Stack.Screen name="admin/reports" options={{ headerShown: false }} />
       <Stack.Screen name="concert/create" options={{ headerShown: false }} />
