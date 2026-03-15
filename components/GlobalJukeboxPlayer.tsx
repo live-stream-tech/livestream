@@ -144,7 +144,7 @@ export function GlobalJukeboxPlayer() {
     queryKey: communityId ? [`/api/jukebox/${communityId}`] : ["jukebox:none"],
     enabled: !!communityId,
     refetchInterval: (query) =>
-      (query.state.data as JukeboxData)?.state?.isPlaying ? 3000 : false,
+      (query.state.data as JukeboxData)?.state?.isPlaying ? 8000 : false,
   });
 
   const nextMutation = useMutation({

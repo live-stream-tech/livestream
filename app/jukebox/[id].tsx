@@ -111,16 +111,21 @@ function NowPlaying({
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const ytContainerId = useRef(`jukebox-yt-${Math.random().toString(36).slice(2)}`).current;
   const ytPlayerRef = useRef<any>(null);
+  const ytContainerRef = useRef<HTMLDivElement | null>(null);
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
   const [elapsedDisplay, setElapsedDisplay] = useState(0);
+  const [muted, setMuted] = useState(true);
+
+  useEffect(() => {
+    if (state?.currentVideoYoutubeId) setMuted(true);
+  }, [state?.currentVideoYoutubeId]);
 
   // Web: YouTube IFrame プレイヤー（メイン再生エリア）
+  // コンテナを React 外で作成し、再レンダー時の iframe 破棄を防ぐ（カクつき対策）
   useEffect(() => {
     if (Platform.OS !== "web" || !state?.currentVideoYoutubeId) return;
     const vid = state.currentVideoYoutubeId;
     let cancelled = false;
-    // #region agent log
-    fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96c0b7'},body:JSON.stringify({sessionId:'96c0b7',location:'jukebox/[id].tsx:YT effect',message:'YT effect start',data:{vid,ytContainerId,hasContainer:!!(typeof document!=='undefined'&&document.getElementById(ytContainerId))},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
 
     function ensureYT(): Promise<any> {
       return new Promise((resolve) => {
@@ -150,68 +155,72 @@ function NowPlaying({
       if (ytPlayerRef.current) {
         try {
           ytPlayerRef.current.loadVideoById({ videoId: vid, startSeconds: startSec });
-          // #region agent log
-          fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96c0b7'},body:JSON.stringify({sessionId:'96c0b7',location:'jukebox/[id].tsx:loadVideoById',message:'loadVideoById ok',data:{vid,startSec},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-          // #endregion
-        } catch (err: any) {
-          // #region agent log
-          fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96c0b7'},body:JSON.stringify({sessionId:'96c0b7',location:'jukebox/[id].tsx:loadVideoById',message:'loadVideoById error',data:{vid,err:String(err?.message||err)},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-          // #endregion
+        } catch {
           try { ytPlayerRef.current.destroy(); } catch {}
           ytPlayerRef.current = null;
         }
       }
       if (!ytPlayerRef.current) {
-        const containerEl = typeof document !== "undefined" ? document.getElementById(ytContainerId) : null;
-        // #region agent log
-        fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96c0b7'},body:JSON.stringify({sessionId:'96c0b7',location:'jukebox/[id].tsx:new Player',message:'creating YT.Player',data:{vid,ytContainerId,hasContainer:!!containerEl},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-        // #endregion
-        let retries = 0;
-        const tryCreate = () => {
-          if (cancelled) return;
-          const el = typeof document !== "undefined" ? document.getElementById(ytContainerId) : null;
-          if (!el && typeof requestAnimationFrame === "function" && retries < 20) {
-            retries++;
-            requestAnimationFrame(tryCreate);
-            return;
+        const anchor = document.getElementById("jukebox-yt-holder");
+        if (!anchor) return;
+        const rect = anchor.getBoundingClientRect();
+        const container = document.createElement("div");
+        container.id = ytContainerId;
+        container.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;z-index:10;`;
+        document.body.appendChild(container);
+        ytContainerRef.current = container;
+
+        const syncPosition = () => {
+          const a = document.getElementById("jukebox-yt-holder");
+          if (a && container.parentNode) {
+            const r = a.getBoundingClientRect();
+            container.style.left = `${r.left}px`;
+            container.style.top = `${r.top}px`;
+            container.style.width = `${r.width}px`;
+            container.style.height = `${r.height}px`;
           }
-          if (cancelled) return;
-          ytPlayerRef.current = new YT.Player(ytContainerId, {
-            videoId: vid,
-            playerVars: {
-              autoplay: 1,
-              mute: 1,
-              rel: 0,
-              controls: 1,
-              playsinline: 1,
-              start: Math.floor(startSec),
-            },
-            events: {
-              onStateChange: (e: any) => {
-                try {
-                  if (e.data === (window as any).YT?.PlayerState?.ENDED) onNext();
-                } catch {}
-              },
-            },
-          });
         };
-        tryCreate();
+        window.addEventListener("resize", syncPosition);
+        const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncPosition) : null;
+        ro?.observe(anchor);
+        resizeCleanupRef.current = () => {
+          window.removeEventListener("resize", syncPosition);
+          ro?.disconnect();
+        };
+
+        ytPlayerRef.current = new YT.Player(ytContainerId, {
+          videoId: vid,
+          playerVars: {
+            autoplay: 1,
+            mute: 1,
+            rel: 0,
+            controls: 1,
+            playsinline: 1,
+            start: Math.floor(startSec),
+          },
+          events: {
+            onStateChange: (e: any) => {
+              try {
+                if (e.data === (window as any).YT?.PlayerState?.ENDED) onNext();
+              } catch {}
+            },
+          },
+        });
       }
-    }).catch((err: any) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96c0b7'},body:JSON.stringify({sessionId:'96c0b7',location:'jukebox/[id].tsx:ensureYT',message:'ensureYT rejected',data:{err:String(err?.message||err)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
-    });
+    }).catch(() => {});
 
     return () => {
       cancelled = true;
+      resizeCleanupRef.current?.();
+      resizeCleanupRef.current = null;
       if (ytPlayerRef.current) {
         try { ytPlayerRef.current.destroy(); } catch {}
         ytPlayerRef.current = null;
       }
+      const c = ytContainerRef.current;
+      if (c && c.parentNode) c.parentNode.removeChild(c);
+      ytContainerRef.current = null;
     };
-  // 依存は currentVideoYoutubeId のみ。elapsedSecs/startedAt を入れると3秒ポーリングのたびに
-  // プレイヤーが破棄・再作成され、再生が不安定になる
   }, [state?.currentVideoYoutubeId, onNext, ytContainerId]);
 
   // 表示用の経過時間を1秒ごとに更新（再生中のみ）
@@ -279,7 +288,7 @@ function NowPlaying({
     <View style={styles.nowPlaying}>
       <View style={StyleSheet.absoluteFillObject}>
         {Platform.OS === "web" && hasYoutube ? (
-          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#000" }]} nativeID={ytContainerId} />
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#000" }]} nativeID="jukebox-yt-holder" />
         ) : state.currentVideoThumbnail ? (
           <Image
             source={{ uri: state.currentVideoThumbnail }}
@@ -323,10 +332,41 @@ function NowPlaying({
           <Text style={styles.progressTime}>{fmtSecs(state.currentVideoDurationSecs)}</Text>
         </View>
 
-        <Pressable style={styles.nextBtn} onPress={onNext}>
-          <Ionicons name="play-skip-forward" size={14} color={C.textMuted} />
-          <Text style={styles.nextBtnText}>次へスキップ</Text>
-        </Pressable>
+        <View style={styles.nextRow}>
+          {Platform.OS === "web" && hasYoutube && (
+            <Pressable
+              style={styles.unmuteBtn}
+              onPress={() => {
+                try {
+                  const p = ytPlayerRef.current;
+                  if (muted) {
+                    p?.unMute?.();
+                    setMuted(false);
+                  } else {
+                    p?.mute?.();
+                    setMuted(true);
+                  }
+                } catch {}
+              }}
+            >
+              {muted ? (
+                <>
+                  <Ionicons name="volume-mute" size={14} color="#fff" />
+                  <Text style={styles.unmuteBtnText}>音声オン</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="volume-high" size={14} color="#fff" />
+                  <Text style={styles.unmuteBtnText}>音声オフ</Text>
+                </>
+              )}
+            </Pressable>
+          )}
+          <Pressable style={styles.nextBtn} onPress={onNext}>
+            <Ionicons name="play-skip-forward" size={14} color={C.textMuted} />
+            <Text style={styles.nextBtnText}>次へスキップ</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -405,7 +445,7 @@ export default function JukeboxScreen() {
   const { data } = useQuery<JukeboxData>({
     queryKey: jukeboxKey,
     refetchInterval: (query) =>
-      (query.state.data as JukeboxData)?.state?.isPlaying ? 3000 : false,
+      (query.state.data as JukeboxData)?.state?.isPlaying ? 8000 : false,
   });
 
   const { data: myVideos = [] } = useQuery<Video[]>({
@@ -416,14 +456,6 @@ export default function JukeboxScreen() {
   const state = data?.state ?? null;
   const queue = data?.queue ?? [];
   const chat = data?.chat ?? [];
-
-  // #region agent log
-  useEffect(() => {
-    if (state && Platform.OS === "web") {
-      fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96c0b7'},body:JSON.stringify({sessionId:'96c0b7',location:'jukebox/[id].tsx:state',message:'jukebox state',data:{hasState:!!state,currentVideoYoutubeId:state?.currentVideoYoutubeId,isPlaying:state?.isPlaying},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-    }
-  }, [state?.currentVideoYoutubeId, state?.isPlaying]);
-  // #endregion
 
   const uploadedVideos: Video[] = myVideos;
   const purchasedVideos: Video[] = (myVideos as any[]).filter((v) => v.price && v.price > 0);
@@ -895,11 +927,26 @@ const styles = StyleSheet.create({
     backgroundColor: C.accent,
     marginLeft: -5,
   },
+  nextRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 12,
+  },
+  unmuteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  unmuteBtnText: { color: "#fff", fontSize: 11, fontWeight: "600" },
   nextBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    alignSelf: "flex-end",
   },
   nextBtnText: { color: C.textMuted, fontSize: 11 },
 

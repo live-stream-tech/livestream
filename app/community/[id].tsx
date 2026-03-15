@@ -218,7 +218,7 @@ function EmbeddedJukebox({ communityId }: { communityId: number }) {
   const { data } = useQuery<JukeboxData>({
     queryKey: [`/api/jukebox/${communityId}`],
     refetchInterval: (query) =>
-      (query.state.data as JukeboxData)?.state?.isPlaying ? 5000 : false,
+      (query.state.data as JukeboxData)?.state?.isPlaying ? 8000 : false,
   });
 
   const state = data?.state ?? null;
