@@ -380,6 +380,37 @@ export async function registerRoutes(app: Express): Promise<void> {
     });
   });
 
+  /** 投稿者名からユーザー or ライバーのプロフィールIDを取得（認証不要） */
+  app.get("/api/profile/by-name/:name", async (req: Request, res: Response) => {
+    const name = decodeURIComponent((req.params as { name: string }).name || "");
+    if (!name.trim()) return res.status(400).json({ error: "名前を指定してください" });
+    const [u] = await db.select({ id: users.id }).from(users).where(eq(users.displayName, name));
+    if (u) return res.json({ type: "user", id: u.id });
+    const [c] = await db.select({ id: creators.id }).from(creators).where(eq(creators.name, name));
+    if (c) return res.json({ type: "liver", id: c.id });
+    return res.status(404).json({ error: "Not found" });
+  });
+
+  /** 他ユーザーの公開プロフィール取得（認証不要） */
+  app.get("/api/users/:id", async (req: Request, res: Response) => {
+    const id = paramNum(req, "id");
+    const [u] = await db.select({
+      id: users.id,
+      displayName: users.displayName,
+      profileImageUrl: users.profileImageUrl,
+      bio: users.bio,
+    }).from(users).where(eq(users.id, id));
+    if (!u) return res.status(404).json({ error: "Not found" });
+    res.json({
+      id: u.id,
+      name: u.displayName,
+      displayName: u.displayName,
+      avatar: u.profileImageUrl,
+      profileImageUrl: u.profileImageUrl,
+      bio: u.bio ?? "",
+    });
+  });
+
   // ── LINE OAuth ────────────────────────────────────────────────────
   // LINE_CALLBACK_URL: LINE Developers に登録するコールバックURL（本番: https://livestream-nu-ten.vercel.app/api/auth/line-callback）
   // FRONTEND_URL: ログイン完了後のリダイレクト先。同一オリジン（フロントとAPIが同じVercelドメイン）なら未設定でOK（相対パスでリダイレクト）。別ドメインの場合は https://フロントのドメイン を指定（末尾スラッシュなし）。
@@ -2714,6 +2745,21 @@ export async function registerRoutes(app: Express): Promise<void> {
   // ── Seed Demo Data ────────────────────────────────────────────────
   app.post("/api/seed", async (_req: Request, res: Response) => {
     // ユーザーはLINEログインでのみ作成。メール/パスワードのシードは廃止。
+
+    // Seed dm_messages（DM一覧用）-------------------------------------------
+    const existingDm = await db.select().from(dmMessages);
+    if (existingDm.length === 0) {
+      await db.insert(dmMessages).values([
+        { name: "桜花アリス", avatar: "https://images.unsplash.com/photo-1521119989659-a83eee488004?w=100&h=100&fit=crop", lastMessage: "ありがとうございます！次の配信もよろしくお願いします", time: "たった今", unread: 2, online: true, sortOrder: 1 },
+        { name: "エミリー先生", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop", lastMessage: "次のレッスンは3/2の19:00からです。お楽しみに！", time: "5分前", unread: 1, online: true, sortOrder: 2 },
+        { name: "星空りん", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=100&h=100&fit=crop", lastMessage: "鑑定の結果をDMでお送りしますね", time: "12分前", unread: 0, online: false, sortOrder: 3 },
+        { name: "心理士 みく", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop", lastMessage: "お気持ちを聞かせていただいてありがとうございます", time: "1時間前", unread: 0, online: true, sortOrder: 4 },
+        { name: "料理家 はるか", avatar: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=100&h=100&fit=crop", lastMessage: "レシピを送りました！ぜひ作ってみてください🍳", time: "3時間前", unread: 0, online: false, sortOrder: 5 },
+        { name: "ライフコーチ けんじ", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop", lastMessage: "目標設定シートを確認しました。素晴らしい進捗です！", time: "昨日", unread: 0, online: false, sortOrder: 6 },
+        { name: "ヨガ講師 なな", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop", lastMessage: "明日のクラスもお待ちしています", time: "昨日", unread: 0, online: false, sortOrder: 7 },
+        { name: "地下アイドル界隈", avatar: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=100&h=100&fit=crop", lastMessage: "【お知らせ】本日21:00からライブ配信があります", time: "2日前", unread: 0, online: false, sortOrder: 8 },
+      ] as typeof dmMessages.$inferInsert[]);
+    }
 
     // Seed creators / livers -------------------------------------------------
     const existingCreators = await db.select().from(creators);

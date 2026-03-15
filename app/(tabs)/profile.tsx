@@ -432,6 +432,7 @@ export default function ProfileScreen() {
     setProfileSaving(true);
     try {
       await updateProfile({ name: editName.trim(), bio: editBio.trim(), avatar: editAvatar.trim() || null });
+      // モーダルを先に閉じてから saving を解除（UI の即時反映）
       setShowProfileModal(false);
     } catch (e: any) {
       Alert.alert("保存失敗", e.message ?? "エラーが発生しました");

@@ -84,6 +84,7 @@ export function GlobalJukeboxPlayer() {
   const [minimized, setMinimized] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [elapsedDisplay, setElapsedDisplay] = useState(0);
   const posRef = useRef({ x: 0, y: 0 });
   const dragBaseRef = useRef({ x: 0, y: 0 });
   const youtubePlayerRef = useRef<any | null>(null);
@@ -142,7 +143,8 @@ export function GlobalJukeboxPlayer() {
   const { data } = useQuery<JukeboxData>({
     queryKey: communityId ? [`/api/jukebox/${communityId}`] : ["jukebox:none"],
     enabled: !!communityId,
-    refetchInterval: 3000,
+    refetchInterval: (query) =>
+      (query.state.data as JukeboxData)?.state?.isPlaying ? 3000 : false,
   });
 
   const nextMutation = useMutation({
@@ -154,6 +156,29 @@ export function GlobalJukeboxPlayer() {
 
   const state = data?.state ?? null;
   const queue = data?.queue ?? [];
+
+  // 表示用の経過時間を1秒ごとに更新（再生中のみ）
+  useEffect(() => {
+    if (!state) return;
+    const calcElapsed = () => {
+      const base =
+        !state.isPlaying && typeof state.elapsedSecs === "number"
+          ? state.elapsedSecs
+          : (Date.now() - new Date(state.startedAt).getTime()) / 1000;
+      return Math.min(base, state.currentVideoDurationSecs);
+    };
+    setElapsedDisplay(calcElapsed());
+    if (state.isPlaying) {
+      const iv = setInterval(() => setElapsedDisplay(calcElapsed()), 1000);
+      return () => clearInterval(iv);
+    }
+  }, [
+    state?.isPlaying,
+    state?.startedAt,
+    state?.currentVideoDurationSecs,
+    state?.currentVideoYoutubeId,
+    state?.elapsedSecs,
+  ]);
 
   const handleNext = useCallback(() => {
     nextMutation.mutate();
@@ -278,10 +303,11 @@ export function GlobalJukeboxPlayer() {
 
   if (!communityId || !state || dismissed) return null;
 
-  const elapsed =
+  const fallbackElapsed =
     typeof state.elapsedSecs === "number"
       ? state.elapsedSecs
       : (Date.now() - new Date(state.startedAt).getTime()) / 1000;
+  const elapsed = state.isPlaying ? (elapsedDisplay || fallbackElapsed) : fallbackElapsed;
   const progress =
     state.currentVideoDurationSecs > 0
       ? Math.min(elapsed / state.currentVideoDurationSecs, 1)

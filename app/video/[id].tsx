@@ -321,16 +321,29 @@ export default function VideoDetailScreen() {
 
         {/* Creator info */}
         <View style={styles.creatorSection}>
-          <View style={styles.creatorRow}>
+          <Pressable
+            style={styles.creatorRow}
+            onPress={async () => {
+              if (!video?.creator) return;
+              try {
+                const res = await apiRequest("GET", `/api/profile/by-name/${encodeURIComponent(video.creator)}`);
+                const { type, id } = (await res.json()) as { type: "user" | "liver"; id: number };
+                if (type === "user") router.push(`/user/${id}`);
+                else router.push(`/livers/${id}`);
+              } catch {
+                // プロフィールが見つからない場合は何もしない
+              }
+            }}
+          >
             <Image source={{ uri: video.avatar }} style={styles.creatorAvatar} contentFit="cover" />
             <View style={styles.creatorInfo}>
               <Text style={styles.creatorName}>{video.creator}</Text>
               <Text style={styles.creatorCommunity}>{video.community}</Text>
             </View>
-            <Pressable style={styles.followBtn}>
+            <Pressable style={styles.followBtn} onPress={(e) => e.stopPropagation()}>
               <Text style={styles.followBtnText}>フォロー</Text>
             </Pressable>
-          </View>
+          </Pressable>
         </View>
 
         {/* Video meta */}

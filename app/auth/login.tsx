@@ -88,6 +88,20 @@ export default function LoginScreen() {
       <Pressable style={styles.guestLink} onPress={() => router.replace("/(tabs)")}>
         <Text style={styles.guestLinkText}>ログインせずに閲覧する</Text>
       </Pressable>
+
+      <View style={styles.legalLinks}>
+        <Pressable onPress={() => router.push("/terms")}>
+          <Text style={styles.legalLinkText}>利用規約</Text>
+        </Pressable>
+        <Text style={styles.legalSeparator}>|</Text>
+        <Pressable onPress={() => router.push("/privacy")}>
+          <Text style={styles.legalLinkText}>プライバシーポリシー</Text>
+        </Pressable>
+        <Text style={styles.legalSeparator}>|</Text>
+        <Pressable onPress={() => router.push("/tokusho")}>
+          <Text style={styles.legalLinkText}>特定商取引法に基づく表記</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -122,6 +136,18 @@ const styles = StyleSheet.create({
 
   guestLink: { alignItems: "center", paddingVertical: 12 },
   guestLinkText: { color: C.textMuted, fontSize: 13 },
+
+  legalLinks: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    gap: 4,
+    paddingTop: 24,
+    paddingHorizontal: 16,
+  },
+  legalLinkText: { color: C.accent, fontSize: 12 },
+  legalSeparator: { color: C.textMuted, fontSize: 12 },
 
   googleLoginBtn: {
     marginTop: 12,

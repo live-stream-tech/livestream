@@ -34,7 +34,7 @@ export default function TermsScreen() {
         showsVerticalScrollIndicator={true}
       >
         <Text style={styles.docTitle}>SANCTUM HAVEN 利用規約</Text>
-        <Text style={styles.effectiveDate}>制定日：2025年　月　日</Text>
+        <Text style={styles.effectiveDate}>制定日：2026年3月18日</Text>
 
         <Text style={styles.intro}>
           本利用規約（以下「本規約」）は、株式会社　（以下「当社」）が提供するサービス「SANCTUM

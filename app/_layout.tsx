@@ -109,8 +109,12 @@ function isPublicPath(pathname: string): boolean {
   if (!pathname) return false;
   if (pathname === "/") return true; // /(tabs)/index
   if (pathname === "/auth/login") return true;
-  if (pathname === "/community" || pathname.startsWith("/community/")) return true; // /(tabs)/community + 詳細
+  if (pathname === "/community" || pathname.startsWith("/community/")) return true; // /(tabs)/community + 詳細 + members
   if (pathname === "/live" || pathname.startsWith("/live")) return true; // /(tabs)/live + /live/[id]
+  if (pathname === "/livers" || pathname.startsWith("/livers/")) return true; // ライバー一覧・詳細（他ユーザーページ）
+  if (pathname.startsWith("/video/")) return true; // 動画詳細
+  if (pathname.startsWith("/jukebox/")) return true; // ジュークボックス（コミュニティ同時視聴）
+  if (pathname.startsWith("/user/")) return true; // 他ユーザープロフィール
   if (pathname === "/terms") return true;
   if (pathname === "/privacy") return true;
   if (pathname === "/tokusho") return true;
@@ -151,6 +155,10 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="community/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="community/members/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="livers" options={{ headerShown: false }} />
+      <Stack.Screen name="livers/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="user/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="community/ad-apply" options={{ headerShown: false }} />
       <Stack.Screen name="community/ad-review" options={{ headerShown: false }} />
       <Stack.Screen name="video/[id]" options={{ headerShown: false }} />

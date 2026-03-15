@@ -136,25 +136,15 @@ export default function CreateCommunityScreen() {
       });
       const newCommunity = await res.json();
 
-      await queryClient.invalidateQueries({ queryKey: ["/api/communities"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/communities"] });
 
-      Alert.alert("コミュニティを作成しました", "トップページや投稿画面から利用できます。", [
-        {
-          text: "詳細を見る",
-          onPress: () => {
-            if (newCommunity?.id != null) {
-              router.replace(`/community/${newCommunity.id}`);
-            } else {
-              router.replace("/(tabs)/community");
-            }
-          },
-        },
-        {
-          text: "コミュニティ一覧へ",
-          style: "cancel",
-          onPress: () => router.replace("/(tabs)/community"),
-        },
-      ]);
+      // Alert に依存せず即座に遷移（Web で Alert が表示されない場合の対策）
+      if (newCommunity?.id != null) {
+        router.replace(`/community/${newCommunity.id}`);
+      } else {
+        router.replace("/(tabs)/community");
+      }
+      Alert.alert("コミュニティを作成しました", "トップページや投稿画面から利用できます。");
     } catch (e: any) {
       const msg =
         e?.message && typeof e.message === "string"

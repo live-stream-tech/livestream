@@ -14,6 +14,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
 
+/** 配信機能の有効化フラグ（Cloudflare Stream 実装後に true に変更） */
+const BROADCAST_ENABLED = false;
+
 const FILTERS = [
   { id: "none", label: "なし", icon: "ban-outline", css: "" },
   { id: "beauty", label: "美肌", icon: "sparkles-outline", css: "brightness(1.05) saturate(1.1)" },
@@ -25,6 +28,31 @@ const FILTERS = [
 
 export default function BroadcastScreen() {
   const insets = useSafeAreaInsets();
+
+  if (!BROADCAST_ENABLED) {
+    const topInset = Platform.OS === "web" ? 67 : insets.top;
+    return (
+      <View style={[styles.container, { backgroundColor: C.bg }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: topInset + 8, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border }}>
+          <Pressable style={styles.closeButton} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={22} color={C.text} />
+          </Pressable>
+          <Text style={{ color: C.text, fontSize: 16, fontWeight: "700" }}>配信</Text>
+          <View style={{ width: 38 }} />
+        </View>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}>
+          <Ionicons name="radio-outline" size={64} color={C.textMuted} />
+          <Text style={{ color: C.text, fontSize: 18, fontWeight: "700", marginTop: 16, textAlign: "center" }}>
+            準備中
+          </Text>
+          <Text style={{ color: C.textMuted, fontSize: 14, marginTop: 8, textAlign: "center" }}>
+            ライブ配信機能は近日公開予定です。
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   const videoRef = useRef<any>(null);
   const [isLive, setIsLive] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState("none");

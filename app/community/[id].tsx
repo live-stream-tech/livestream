@@ -217,7 +217,8 @@ function EmbeddedJukebox({ communityId }: { communityId: number }) {
 
   const { data } = useQuery<JukeboxData>({
     queryKey: [`/api/jukebox/${communityId}`],
-    refetchInterval: 5000,
+    refetchInterval: (query) =>
+      (query.state.data as JukeboxData)?.state?.isPlaying ? 5000 : false,
   });
 
   const state = data?.state ?? null;
@@ -565,10 +566,15 @@ export default function CommunityDetailScreen() {
           <Text style={styles.description}>ライブとチェキで繋がる{community.name}応援コミュニティ</Text>
 
           <View style={styles.statsRow}>
-            <Text style={styles.statText}>
-              <Text style={styles.statNumber}>{(community.members / 1000).toFixed(0)}千</Text>
-              {" "}フォロワー
-            </Text>
+            <Pressable
+              style={styles.statPressable}
+              onPress={() => router.push(`/community/members/${communityId}`)}
+            >
+              <Text style={styles.statText}>
+                <Text style={styles.statNumber}>{(community.members / 1000).toFixed(0)}千</Text>
+                {" "}フォロワー
+              </Text>
+            </Pressable>
             <Text style={styles.statDivider}>·</Text>
             <Text style={styles.statText}>
               <Text style={styles.statNumber}>2</Text>
@@ -576,10 +582,12 @@ export default function CommunityDetailScreen() {
             </Text>
           </View>
 
-          <View style={styles.staffHintRow}>
-            <Ionicons name="shield-checkmark-outline" size={13} color={C.accent} />
-            <Text style={styles.staffHintText}>このコミュニティには管理人とモデレーターがいます</Text>
-          </View>
+          {(staffData?.admin || (staffData?.moderators && staffData.moderators.length > 0)) && (
+            <View style={styles.staffHintRow}>
+              <Ionicons name="shield-checkmark-outline" size={13} color={C.accent} />
+              <Text style={styles.staffHintText}>このコミュニティには管理人とモデレーターがいます</Text>
+            </View>
+          )}
 
           <Pressable
             style={[styles.followBtn, following && styles.followBtnActive]}
@@ -614,15 +622,22 @@ export default function CommunityDetailScreen() {
               <View style={styles.staffSectionHeader}>
                 <Text style={styles.staffSectionTitle}>管理人・モデレーター</Text>
                 {isCommunityAdmin && (
-                  <Pressable
-                    onPress={() => {
-                      setSelectedAdminId(staffData?.adminId ?? null);
-                      setSelectedModeratorIds(staffData?.moderatorIds ?? []);
-                      setStaffModalVisible(true);
-                    }}
-                  >
-                    <Text style={styles.staffEditLink}>編集</Text>
-                  </Pressable>
+                  <View style={styles.staffAdminLinks}>
+                    <Pressable
+                      onPress={() => {
+                        setSelectedAdminId(staffData?.adminId ?? null);
+                        setSelectedModeratorIds(staffData?.moderatorIds ?? []);
+                        setStaffModalVisible(true);
+                      }}
+                    >
+                      <Text style={styles.staffEditLink}>編集</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => router.push("/community/ad-review")}
+                    >
+                      <Text style={styles.staffEditLink}>広告審査</Text>
+                    </Pressable>
+                  </View>
                 )}
               </View>
               {staffData?.admin && (
@@ -717,7 +732,22 @@ export default function CommunityDetailScreen() {
                 <View style={styles.postHeader}>
                   <Image source={{ uri: video.avatar }} style={styles.postAvatar} contentFit="cover" />
                   <View style={styles.postMeta}>
-                    <Text style={styles.postCreator}>{video.creator}</Text>
+                    <Pressable
+                      onPress={async (e) => {
+                        e.stopPropagation();
+                        if (!video?.creator) return;
+                        try {
+                          const res = await apiRequest("GET", `/api/profile/by-name/${encodeURIComponent(video.creator)}`);
+                          const { type, id } = (await res.json()) as { type: "user" | "liver"; id: number };
+                          if (type === "user") router.push(`/user/${id}`);
+                          else router.push(`/livers/${id}`);
+                        } catch {
+                          /* プロフィールが見つからない場合は何もしない */
+                        }
+                      }}
+                    >
+                      <Text style={styles.postCreator}>{video.creator}</Text>
+                    </Pressable>
                     <Text style={styles.postTime}>{video.timeAgo}</Text>
                   </View>
                   {video.price && (
@@ -1343,6 +1373,7 @@ const styles = StyleSheet.create({
   },
   staffSectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   staffSectionTitle: { color: C.textMuted, fontSize: 12, fontWeight: "600" },
+  staffAdminLinks: { flexDirection: "row", alignItems: "center", gap: 16 },
   staffEditLink: { color: C.accent, fontSize: 13, fontWeight: "600" },
   staffRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   staffAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.surface3 },
@@ -1374,6 +1405,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  statPressable: {
+    paddingVertical: 4,
+    paddingRight: 4,
   },
   statText: { color: C.textSec, fontSize: 12 },
   statNumber: { color: C.text, fontWeight: "700" },

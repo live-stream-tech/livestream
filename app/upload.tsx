@@ -248,10 +248,10 @@ export default function UploadScreen() {
         concertId,
       });
       const data = (await res.json()) as { id: number };
-      await queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
-      await queryClient.invalidateQueries({ queryKey: ["/api/videos/my"] });
-      // 投稿成功後はマイページへ遷移
-      router.push("/(tabs)/profile");
+      // 遷移を先に実行（invalidate の完了を待たない）
+      router.replace("/(tabs)/profile");
+      queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/videos/my"] });
     } catch (err: any) {
       if (err instanceof ApiError) {
         if (err.status === 401) {

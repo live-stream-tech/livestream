@@ -257,6 +257,12 @@ function LiveStartModal({ visible, onClose }: { visible: boolean; onClose: () =>
               style={styles.startBtn}
               onPress={async () => {
                 if (creating) return;
+                // 配信機能は未実装のため、リリース時は準備中表示（Cloudflare Stream 実装後に有効化）
+                const BROADCAST_ENABLED = false;
+                if (!BROADCAST_ENABLED) {
+                  Alert.alert("準備中", "ライブ配信機能は近日公開予定です。しばらくお待ちください。");
+                  return;
+                }
                 try {
                   setCreating(true);
                   const res = await apiRequest("POST", "/api/stream/create", {

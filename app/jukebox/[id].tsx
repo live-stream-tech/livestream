@@ -111,6 +111,7 @@ function NowPlaying({
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const ytContainerId = useRef(`jukebox-yt-${Math.random().toString(36).slice(2)}`).current;
   const ytPlayerRef = useRef<any>(null);
+  const [elapsedDisplay, setElapsedDisplay] = useState(0);
 
   // Web: YouTube IFrame プレイヤー（メイン再生エリア）
   useEffect(() => {
@@ -183,6 +184,29 @@ function NowPlaying({
   // プレイヤーが破棄・再作成され、再生が不安定になる
   }, [state?.currentVideoYoutubeId, onNext, ytContainerId]);
 
+  // 表示用の経過時間を1秒ごとに更新（再生中のみ）
+  useEffect(() => {
+    if (!state) return;
+    const calcElapsed = () => {
+      const base =
+        !state.isPlaying && typeof state.elapsedSecs === "number"
+          ? state.elapsedSecs
+          : (Date.now() - new Date(state.startedAt).getTime()) / 1000;
+      return Math.min(base, state.currentVideoDurationSecs);
+    };
+    setElapsedDisplay(calcElapsed());
+    if (state.isPlaying) {
+      const iv = setInterval(() => setElapsedDisplay(calcElapsed()), 1000);
+      return () => clearInterval(iv);
+    }
+  }, [
+    state?.isPlaying,
+    state?.startedAt,
+    state?.currentVideoDurationSecs,
+    state?.currentVideoYoutubeId,
+    state?.elapsedSecs,
+  ]);
+
   // LIVE ラベルのパルスアニメーション
   useEffect(() => {
     const pulse = Animated.loop(
@@ -206,11 +230,14 @@ function NowPlaying({
     );
   }
 
-  const elapsedSource =
+  const fallbackElapsed =
     typeof state.elapsedSecs === "number"
       ? state.elapsedSecs
       : (Date.now() - new Date(state.startedAt).getTime()) / 1000;
-  const elapsed = Math.min(elapsedSource, state.currentVideoDurationSecs);
+  const elapsed = Math.min(
+    state.isPlaying ? (elapsedDisplay || fallbackElapsed) : fallbackElapsed,
+    state.currentVideoDurationSecs
+  );
   const progress =
     state.currentVideoDurationSecs > 0
       ? Math.min(elapsed / state.currentVideoDurationSecs, 1)
@@ -347,7 +374,8 @@ export default function JukeboxScreen() {
 
   const { data } = useQuery<JukeboxData>({
     queryKey: jukeboxKey,
-    refetchInterval: 3000,
+    refetchInterval: (query) =>
+      (query.state.data as JukeboxData)?.state?.isPlaying ? 3000 : false,
   });
 
   const { data: myVideos = [] } = useQuery<Video[]>({
