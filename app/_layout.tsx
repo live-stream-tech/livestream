@@ -65,9 +65,15 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
 
         const saved = getLoginReturn();
         const returnTo = saved ?? "/(tabs)/profile";
+        // #region agent log
+        fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f89b21'},body:JSON.stringify({sessionId:'f89b21',location:'_layout.tsx:67',message:'Web login post-auth',data:{saved,returnTo,platform:'web'},hypothesisId:'H2,H3',timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
 
         setTimeout(() => {
           if (cancelled) return;
+          // #region agent log
+          fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f89b21'},body:JSON.stringify({sessionId:'f89b21',location:'_layout.tsx:75',message:'Web router.replace called',data:{returnTo,pathname:typeof window!=='undefined'?window.location.pathname:''},hypothesisId:'H2,H4',timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
           router.replace(returnTo as any);
           setWebTokenProcessed(true);
         }, 100);
@@ -96,6 +102,9 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
   // ネイティブ: line_token パラメータを処理
   useEffect(() => {
     if (Platform.OS !== "web" && line_token) {
+      // #region agent log
+      fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f89b21'},body:JSON.stringify({sessionId:'f89b21',location:'_layout.tsx:99',message:'Native login using router.navigate',data:{platform:'native',method:'navigate'},hypothesisId:'H1',timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       loginWithToken(line_token as string)
         .then(() => router.navigate("/(tabs)/profile"))
         .catch(() => {});

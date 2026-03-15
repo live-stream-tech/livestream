@@ -2761,6 +2761,34 @@ export async function registerRoutes(app: Express): Promise<void> {
       ] as typeof dmMessages.$inferInsert[]);
     }
 
+    // Seed communities（creators の community 名と一致）------------------------
+    const communityData = [
+      { name: "地下アイドル界隈", category: "idol" },
+      { name: "お笑い芸人界隈", category: "idol" },
+      { name: "キャバ嬢・ホスト界隈", category: "idol" },
+      { name: "JK日常界隈", category: "idol" },
+      { name: "アイドル部", category: "idol" },
+      { name: "英会話クラブ", category: "english" },
+      { name: "占いサロン", category: "fortune" },
+      { name: "フィットネス部", category: "coaching" },
+      { name: "カウンセリングルーム", category: "counselor" },
+      { name: "料理教室", category: "cooking" },
+    ];
+    const existingComm = await db.select().from(communities);
+    const existingCommNames = new Set(existingComm.map((c: { name: string }) => c.name));
+    for (const { name, category } of communityData) {
+      if (!existingCommNames.has(name)) {
+        await db.insert(communities).values({
+          name,
+          members: 0,
+          thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=250&fit=crop",
+          online: false,
+          category,
+        } as typeof communities.$inferInsert);
+        existingCommNames.add(name);
+      }
+    }
+
     // Seed creators / livers -------------------------------------------------
     const existingCreators = await db.select().from(creators);
     if (existingCreators.length >= 10) {
@@ -3022,6 +3050,17 @@ export async function registerRoutes(app: Express): Promise<void> {
       await db.insert(bookingSessions).values(bookingData);
     }
 
+    // Seed live_streams（デモ配信）--------------------------------------------
+    const existingLive = await db.select().from(liveStreams);
+    if (existingLive.length === 0) {
+      await db.insert(liveStreams).values([
+        { title: "星空みゆ♪ 歌とダンスでお届け！", creator: "星空みゆ", community: "地下アイドル界隈", viewers: 1240, thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", timeAgo: "配信予定", isLive: true },
+        { title: "麗華の夜トーク【本音で語るよ】", creator: "麗華 -REIKA-", community: "キャバ嬢・ホスト界隈", viewers: 890, thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop", timeAgo: "配信予定", isLive: true },
+        { title: "朝活！一緒にヨガしよう", creator: "松本 こうた", community: "フィットネス部", viewers: 420, thumbnail: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop", timeAgo: "配信予定", isLive: true },
+        { title: "神崎リナ【深夜の占いタイム】", creator: "神崎 リナ", community: "占いサロン", viewers: 312, thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop", timeAgo: "配信予定", isLive: true },
+      ] as typeof liveStreams.$inferInsert[]);
+    }
+
     res.json({ ok: true, created: insertedCreators.length });
   });
 
@@ -3031,12 +3070,15 @@ export async function registerRoutes(app: Express): Promise<void> {
       return res.json({ ok: true, message: "Already seeded" });
     }
 
+    const [idolCommunity] = await db.select({ id: communities.id }).from(communities).where(eq(communities.name, "地下アイドル界隈"));
+    const defaultCommunityId = idolCommunity?.id ?? 1;
+
     const demoEditors = [
       {
         name: "映像編集マン",
         avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop",
         bio: "テロップ・カット・サムネまでワンストップで対応する動画編集クリエイター。",
-        communityId: 1,
+        communityId: defaultCommunityId,
         genres: "YouTube,バラエティ,ゲーム",
         deliveryDays: 3,
         priceType: "per_minute",
@@ -3050,7 +3092,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         name: "シネマ編集スタジオ",
         avatar: "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=150&h=150&fit=crop",
         bio: "映画風のシネマティックなMV制作が得意です。",
-        communityId: 1,
+        communityId: defaultCommunityId,
         genres: "MV,アーティスト,シネマティック",
         deliveryDays: 7,
         priceType: "revenue_share",
@@ -3064,7 +3106,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         name: "ショート動画職人",
         avatar: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=150&h=150&fit=crop",
         bio: "TikTok・YouTubeショートの伸びる構成を提案します。",
-        communityId: 1,
+        communityId: defaultCommunityId,
         genres: "ショート動画,縦型,SNS運用",
         deliveryDays: 2,
         priceType: "per_minute",
@@ -3078,7 +3120,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         name: "ゲーム実況エディター",
         avatar: "https://images.unsplash.com/photo-1533236897111-3e94666b2dde?w=150&h=150&fit=crop",
         bio: "APEX/VALORANTなどFPS系実況の編集が中心です。",
-        communityId: 1,
+        communityId: defaultCommunityId,
         genres: "ゲーム実況,FPS,切り抜き",
         deliveryDays: 4,
         priceType: "per_minute",
@@ -3092,7 +3134,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         name: "教育チャンネル編集室",
         avatar: "https://images.unsplash.com/photo-1525134479668-1bee5c7c6845?w=150&h=150&fit=crop",
         bio: "ビジネス・教育系の分かりやすい図解動画を制作します。",
-        communityId: 1,
+        communityId: defaultCommunityId,
         genres: "ビジネス,教育,セミナー",
         deliveryDays: 5,
         priceType: "revenue_share",

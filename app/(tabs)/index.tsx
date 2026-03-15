@@ -298,6 +298,8 @@ export default function HomeScreen() {
   const { data: apiVideos = [] } = useQuery<any[]>({ queryKey: ["/api/videos"] });
   const { data: apiLive = [] } = useQuery<any[]>({ queryKey: ["/api/live-streams"] });
   const { data: apiRanked = [] } = useQuery<any[]>({ queryKey: ["/api/videos/ranked"] });
+  const { data: apiCommunities = [] } = useQuery<{ id: number }[]>({ queryKey: ["/api/communities"] });
+  const firstCommunityId = apiCommunities[0]?.id;
   type BookingSession = {
     id: number;
     creator: string;
@@ -328,7 +330,10 @@ export default function HomeScreen() {
     watchersCount: number;
   };
   type JukeData = { state: JukeState | null; queue: any[]; chat: any[] };
-  const { data: jukeData } = useQuery<JukeData>({ queryKey: ["/api/jukebox/1"] });
+  const { data: jukeData } = useQuery<JukeData>({
+    queryKey: firstCommunityId ? ["/api/jukebox", firstCommunityId] : ["jukebox:none"],
+    enabled: !!firstCommunityId,
+  });
   type Announcement = { id: number; title: string; body: string; type: string; isPinned: boolean; createdAt: string };
   const { data: announcements = [] } = useQuery<Announcement[]>({ queryKey: ["/api/announcements"] });
 

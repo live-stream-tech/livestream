@@ -42,7 +42,7 @@
       "scope": "/"
     },
     "plugins": [
-      "expo-router",
+      ["expo-router", { "root": "./app" }],
       "expo-font",
       "expo-web-browser",
       "expo-image"

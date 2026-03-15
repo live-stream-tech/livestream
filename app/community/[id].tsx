@@ -571,7 +571,7 @@ export default function CommunityDetailScreen() {
               onPress={() => router.push(`/community/members/${communityId}`)}
             >
               <Text style={styles.statText}>
-                <Text style={styles.statNumber}>{(community.members / 1000).toFixed(0)}千</Text>
+                <Text style={styles.statNumber}>{((community.members ?? 0) / 1000).toFixed(0)}千</Text>
                 {" "}フォロワー
               </Text>
             </Pressable>

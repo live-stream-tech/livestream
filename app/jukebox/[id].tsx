@@ -118,6 +118,9 @@ function NowPlaying({
     if (Platform.OS !== "web" || !state?.currentVideoYoutubeId) return;
     const vid = state.currentVideoYoutubeId;
     let cancelled = false;
+    // #region agent log
+    fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96c0b7'},body:JSON.stringify({sessionId:'96c0b7',location:'jukebox/[id].tsx:YT effect',message:'YT effect start',data:{vid,ytContainerId,hasContainer:!!(typeof document!=='undefined'&&document.getElementById(ytContainerId))},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
 
     function ensureYT(): Promise<any> {
       return new Promise((resolve) => {
@@ -147,31 +150,58 @@ function NowPlaying({
       if (ytPlayerRef.current) {
         try {
           ytPlayerRef.current.loadVideoById({ videoId: vid, startSeconds: startSec });
-        } catch {
+          // #region agent log
+          fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96c0b7'},body:JSON.stringify({sessionId:'96c0b7',location:'jukebox/[id].tsx:loadVideoById',message:'loadVideoById ok',data:{vid,startSec},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+          // #endregion
+        } catch (err: any) {
+          // #region agent log
+          fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96c0b7'},body:JSON.stringify({sessionId:'96c0b7',location:'jukebox/[id].tsx:loadVideoById',message:'loadVideoById error',data:{vid,err:String(err?.message||err)},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+          // #endregion
           try { ytPlayerRef.current.destroy(); } catch {}
           ytPlayerRef.current = null;
         }
       }
       if (!ytPlayerRef.current) {
-        ytPlayerRef.current = new YT.Player(ytContainerId, {
-          videoId: vid,
-          playerVars: {
-            autoplay: 1,
-            mute: 1,
-            rel: 0,
-            controls: 1,
-            playsinline: 1,
-          },
-          events: {
-            onStateChange: (e: any) => {
-              try {
-                if (e.data === (window as any).YT?.PlayerState?.ENDED) onNext();
-              } catch {}
+        const containerEl = typeof document !== "undefined" ? document.getElementById(ytContainerId) : null;
+        // #region agent log
+        fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96c0b7'},body:JSON.stringify({sessionId:'96c0b7',location:'jukebox/[id].tsx:new Player',message:'creating YT.Player',data:{vid,ytContainerId,hasContainer:!!containerEl},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
+        let retries = 0;
+        const tryCreate = () => {
+          if (cancelled) return;
+          const el = typeof document !== "undefined" ? document.getElementById(ytContainerId) : null;
+          if (!el && typeof requestAnimationFrame === "function" && retries < 20) {
+            retries++;
+            requestAnimationFrame(tryCreate);
+            return;
+          }
+          if (cancelled) return;
+          ytPlayerRef.current = new YT.Player(ytContainerId, {
+            videoId: vid,
+            playerVars: {
+              autoplay: 1,
+              mute: 1,
+              rel: 0,
+              controls: 1,
+              playsinline: 1,
+              start: Math.floor(startSec),
             },
-          },
-        });
+            events: {
+              onStateChange: (e: any) => {
+                try {
+                  if (e.data === (window as any).YT?.PlayerState?.ENDED) onNext();
+                } catch {}
+              },
+            },
+          });
+        };
+        tryCreate();
       }
-    }).catch(() => {});
+    }).catch((err: any) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96c0b7'},body:JSON.stringify({sessionId:'96c0b7',location:'jukebox/[id].tsx:ensureYT',message:'ensureYT rejected',data:{err:String(err?.message||err)},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
+    });
 
     return () => {
       cancelled = true;
@@ -386,6 +416,14 @@ export default function JukeboxScreen() {
   const state = data?.state ?? null;
   const queue = data?.queue ?? [];
   const chat = data?.chat ?? [];
+
+  // #region agent log
+  useEffect(() => {
+    if (state && Platform.OS === "web") {
+      fetch('http://127.0.0.1:7349/ingest/7dff581f-bd1a-45e7-a59d-07959fb1fc8e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'96c0b7'},body:JSON.stringify({sessionId:'96c0b7',location:'jukebox/[id].tsx:state',message:'jukebox state',data:{hasState:!!state,currentVideoYoutubeId:state?.currentVideoYoutubeId,isPlaying:state?.isPlaying},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+    }
+  }, [state?.currentVideoYoutubeId, state?.isPlaying]);
+  // #endregion
 
   const uploadedVideos: Video[] = myVideos;
   const purchasedVideos: Video[] = (myVideos as any[]).filter((v) => v.price && v.price > 0);

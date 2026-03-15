@@ -257,6 +257,9 @@ export function GlobalJukeboxPlayer() {
         }
 
         if (!youtubePlayerRef.current) {
+          const startSec = state.elapsedSecs && state.elapsedSecs > 0
+            ? state.elapsedSecs
+            : Math.max(0, (Date.now() - new Date(state.startedAt).getTime()) / 1000);
           youtubePlayerRef.current = new YT.Player(containerId, {
             videoId: state.currentVideoYoutubeId,
             playerVars: {
@@ -266,6 +269,7 @@ export function GlobalJukeboxPlayer() {
               controls: 1,
               disablekb: 0,
               playsinline: 1,
+              start: Math.floor(startSec),
             },
             events: {
               onStateChange: (event: any) => {

@@ -41,5 +41,5 @@ function walkDir(dir) {
   });
 }
 
-walkDir('./src/app');
+walkDir('./vite-app/app');
 console.log('✓ All colors updated!');
