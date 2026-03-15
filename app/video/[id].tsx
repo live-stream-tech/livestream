@@ -346,19 +346,28 @@ export default function VideoDetailScreen() {
         <View style={styles.creatorSection}>
           <Pressable
             style={styles.creatorRow}
-            onPress={async () => {
-              if (!video?.creator) return;
-              try {
-                const res = await apiRequest("GET", `/api/profile/by-name/${encodeURIComponent(video.creator)}`);
-                const { type, id } = (await res.json()) as { type: "user" | "liver"; id: number };
-                if (type === "user") router.push(`/user/${id}`);
-                else router.push(`/livers/${id}`);
-              } catch {
-                // プロフィールが見つからない場合は何もしない
+            onPress={() => {
+              const type = (video as any).creatorType;
+              const cid = (video as any).creatorId;
+              if (type === "user" && typeof cid === "number") {
+                router.push(`/user/${cid}`);
+                return;
               }
+              if (type === "liver" && typeof cid === "number") {
+                router.push(`/livers/${cid}`);
+                return;
+              }
+              if (!video?.creator) return;
+              apiRequest("GET", `/api/profile/by-name/${encodeURIComponent(video.creator)}`)
+                .then((res) => res.json())
+                .then(({ type: t, id: i }: { type: "user" | "liver"; id: number }) => {
+                  if (t === "user") router.push(`/user/${i}`);
+                  else router.push(`/livers/${i}`);
+                })
+                .catch(() => {});
             }}
           >
-            <Image source={{ uri: video.avatar }} style={styles.creatorAvatar} contentFit="cover" />
+            <Image source={{ uri: video.avatar }} style={styles.creatorAvatar} contentFit="cover" pointerEvents="none" />
             <View style={styles.creatorInfo}>
               <Text style={styles.creatorName}>{video.creator}</Text>
               <Text style={styles.creatorCommunity}>{video.community}</Text>

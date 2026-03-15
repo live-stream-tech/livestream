@@ -581,6 +581,14 @@ export default function CommunityDetailScreen() {
               {" "}クリエイター
             </Text>
           </View>
+          <Pressable
+            style={styles.membersLink}
+            onPress={() => router.push(`/community/members/${communityId}`)}
+          >
+            <Ionicons name="people-outline" size={16} color={C.accent} />
+            <Text style={styles.membersLinkText}>メンバー一覧を見る</Text>
+            <Ionicons name="chevron-forward" size={16} color={C.accent} />
+          </Pressable>
 
           {(staffData?.admin || (staffData?.moderators && staffData.moderators.length > 0)) && (
             <View style={styles.staffHintRow}>
@@ -641,19 +649,28 @@ export default function CommunityDetailScreen() {
                 )}
               </View>
               {staffData?.admin && (
-                <View style={styles.staffRow}>
-                  <Image source={{ uri: staffData.admin.profileImageUrl ?? undefined }} style={styles.staffAvatar} contentFit="cover" />
+                <Pressable
+                  style={styles.staffRow}
+                  onPress={() => router.push(`/user/${staffData.admin!.id}`)}
+                >
+                  <Image source={{ uri: staffData.admin.profileImageUrl ?? undefined }} style={styles.staffAvatar} contentFit="cover" pointerEvents="none" />
                   <Text style={styles.staffLabel}>管理人</Text>
                   <Text style={styles.staffName}>{staffData.admin.displayName}</Text>
-                </View>
+                  <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
+                </Pressable>
               )}
               {staffData?.moderators && staffData.moderators.length > 0 && (
                 staffData.moderators.map((m) => (
-                  <View key={m.id} style={styles.staffRow}>
-                    <Image source={{ uri: m.profileImageUrl ?? undefined }} style={styles.staffAvatar} contentFit="cover" />
+                  <Pressable
+                    key={m.id}
+                    style={styles.staffRow}
+                    onPress={() => router.push(`/user/${m.id}`)}
+                  >
+                    <Image source={{ uri: m.profileImageUrl ?? undefined }} style={styles.staffAvatar} contentFit="cover" pointerEvents="none" />
                     <Text style={styles.staffLabel}>モデレーター</Text>
                     <Text style={styles.staffName}>{m.displayName}</Text>
-                  </View>
+                    <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
+                  </Pressable>
                 ))
               )}
             </View>
@@ -730,26 +747,36 @@ export default function CommunityDetailScreen() {
                 }
               >
                 <View style={styles.postHeader}>
-                  <Image source={{ uri: video.avatar }} style={styles.postAvatar} contentFit="cover" />
-                  <View style={styles.postMeta}>
-                    <Pressable
-                      onPress={async (e) => {
-                        e.stopPropagation();
-                        if (!video?.creator) return;
-                        try {
-                          const res = await apiRequest("GET", `/api/profile/by-name/${encodeURIComponent(video.creator)}`);
-                          const { type, id } = (await res.json()) as { type: "user" | "liver"; id: number };
-                          if (type === "user") router.push(`/user/${id}`);
-                          else router.push(`/livers/${id}`);
-                        } catch {
-                          /* プロフィールが見つからない場合は何もしない */
-                        }
-                      }}
-                    >
+                  <Pressable
+                    style={styles.postCreatorPressable}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      const type = (video as any).creatorType;
+                      const cid = (video as any).creatorId;
+                      if (type === "user" && typeof cid === "number") {
+                        router.push(`/user/${cid}`);
+                        return;
+                      }
+                      if (type === "liver" && typeof cid === "number") {
+                        router.push(`/livers/${cid}`);
+                        return;
+                      }
+                      if (!video?.creator) return;
+                      apiRequest("GET", `/api/profile/by-name/${encodeURIComponent(video.creator)}`)
+                        .then((res) => res.json())
+                        .then(({ type: t, id: i }: { type: "user" | "liver"; id: number }) => {
+                          if (t === "user") router.push(`/user/${i}`);
+                          else router.push(`/livers/${i}`);
+                        })
+                        .catch(() => {});
+                    }}
+                  >
+                    <Image source={{ uri: video.avatar }} style={styles.postAvatar} contentFit="cover" pointerEvents="none" />
+                    <View style={styles.postMeta}>
                       <Text style={styles.postCreator}>{video.creator}</Text>
-                    </Pressable>
-                    <Text style={styles.postTime}>{video.timeAgo}</Text>
-                  </View>
+                      <Text style={styles.postTime}>{video.timeAgo}</Text>
+                    </View>
+                  </Pressable>
                   {video.price && (
                     <View style={styles.pricePill}>
                       <Text style={styles.pricePillText}>¥{video.price}</Text>
@@ -1413,6 +1440,19 @@ const styles = StyleSheet.create({
   statText: { color: C.textSec, fontSize: 12 },
   statNumber: { color: C.text, fontWeight: "700" },
   statDivider: { color: C.textMuted },
+  membersLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: C.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  membersLinkText: { color: C.accent, fontSize: 14, fontWeight: "600" },
   staffHintRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1489,6 +1529,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+  },
+  postCreatorPressable: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
   },
   postAvatar: {
     width: 34,

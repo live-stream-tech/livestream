@@ -1706,7 +1706,24 @@ export async function registerRoutes(app: Express): Promise<void> {
       .from(videos)
       .where(and(eq(videos.isRanked, false), eq(videos.hidden, false)))
       .orderBy(desc(videos.createdAt));
-    res.json(rows);
+    const names = [...new Set(rows.map((r) => r.creator))];
+    const userMap = new Map<string, number>();
+    const creatorMap = new Map<string, number>();
+    if (names.length > 0) {
+      const userRows = await db.select({ id: users.id, displayName: users.displayName }).from(users).where(inArray(users.displayName, names));
+      userRows.forEach((u) => userMap.set(u.displayName, u.id));
+      const notFoundUsers = names.filter((n) => !userMap.has(n));
+      if (notFoundUsers.length > 0) {
+        const creatorRows = await db.select({ id: creators.id, name: creators.name }).from(creators).where(inArray(creators.name, notFoundUsers));
+        creatorRows.forEach((c) => creatorMap.set(c.name, c.id));
+      }
+    }
+    const withCreator = rows.map((r) => {
+      const uid = userMap.get(r.creator);
+      const cid = creatorMap.get(r.creator);
+      return { ...r, creatorType: uid ? "user" : cid ? "liver" : null, creatorId: uid ?? cid ?? null };
+    });
+    res.json(withCreator);
   });
 
   app.get("/api/videos/my", async (req: Request, res: Response) => {
@@ -1730,7 +1747,11 @@ export async function registerRoutes(app: Express): Promise<void> {
     const [row] = await db.select().from(videos).where(eq(videos.id, id));
     if (!row || row.hidden) return res.status(404).json({ message: "Not found" });
     const timeAgo = row.createdAt ? formatTimeAgo(row.createdAt) : row.timeAgo;
-    res.json({ ...row, timeAgo });
+    const [creatorUser] = await db.select({ id: users.id }).from(users).where(eq(users.displayName, row.creator));
+    const [creatorLiver] = !creatorUser ? await db.select({ id: creators.id }).from(creators).where(eq(creators.name, row.creator)) : [];
+    const creatorType = creatorUser ? "user" : creatorLiver ? "liver" : null;
+    const creatorId = creatorUser?.id ?? creatorLiver?.id ?? null;
+    res.json({ ...row, timeAgo, creatorType, creatorId });
   });
 
   /** 動画コメント一覧（非表示コメントは除外） */
