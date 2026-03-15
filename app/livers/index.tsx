@@ -16,6 +16,7 @@ import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { getApiUrl } from "@/lib/query-client";
 import { C } from "@/constants/colors";
+import { CREATORS } from "@/constants/data";
 
 type Liver = {
   id: number;
@@ -118,7 +119,7 @@ export default function LiversScreen() {
   if (selectedDate) queryParams.set("date", selectedDate);
   const queryString = queryParams.toString();
 
-  const { data: livers = [], isLoading } = useQuery<Liver[]>({
+  const { data: apiLivers = [], isLoading } = useQuery<Liver[]>({
     queryKey: [`/api/livers?${queryString}`, searchText, category, minScore, selectedDate],
     queryFn: async () => {
       const url = new URL(`/api/livers${queryString ? "?" + queryString : ""}`, getApiUrl());
@@ -126,6 +127,26 @@ export default function LiversScreen() {
       return res.json();
     },
   });
+
+  const fallbackLivers: Liver[] =
+    apiLivers.length === 0 && !searchText && category === "all"
+      ? CREATORS.map((c, i) => ({
+          id: parseInt(c.id) || i + 1,
+          name: c.name,
+          community: c.community,
+          avatar: c.avatar,
+          rank: c.rank,
+          heatScore: c.heatScore,
+          streamCount: c.streamCount,
+          followers: c.followers,
+          satisfactionScore: 4.6,
+          attendanceRate: 4.8,
+          bio: `${c.community}で活動する人気ライバーです。（ダミーデータ）`,
+          category: "idol",
+        }))
+      : [];
+
+  const livers = apiLivers.length > 0 ? apiLivers : fallbackLivers;
 
   return (
     <View style={[styles.container, { paddingTop: topInset, paddingBottom: bottomInset }]}>

@@ -72,6 +72,14 @@ type TwoshotBooking = {
   userId: string;
 };
 
+/** デモモード用：API が空のときのフォールバック（DUMMY_LIVE と対応） */
+const DEMO_LIVE_STREAMS: Record<number, LiveStream> = {
+  1: { id: 1, title: "星空みゆ♪ 歌とダンスでお届け！", creator: "星空みゆ", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&h=200&fit=crop", viewers: 1240, category: "idol", fee: "無料", price: null },
+  2: { id: 2, title: "麗華の夜トーク【本音で語るよ】", creator: "麗華 -REIKA-", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop", thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&h=200&fit=crop", viewers: 890, category: "idol", fee: "無料", price: null },
+  3: { id: 3, title: "朝活！一緒にヨガしよう🧘", creator: "ヨガ講師 なな", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop", thumbnail: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=200&fit=crop", viewers: 420, category: "coaching", fee: "無料", price: null },
+  4: { id: 4, title: "神崎リナ【深夜の占いタイム🔮】", creator: "神崎 リナ", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop", thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=200&fit=crop", viewers: 312, category: "fortune", fee: "無料", price: null },
+};
+
 export default function LiveStreamScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const streamId = parseInt(id ?? "1");
@@ -91,10 +99,12 @@ export default function LiveStreamScreen() {
   const myUserId = user ? `user-${user.id}` : "guest";
   const myUsername = user?.name ?? "ゲスト";
 
-  const { data: stream } = useQuery<LiveStream>({
+  const { data: apiStream } = useQuery<LiveStream>({
     queryKey: [`/api/live-streams/${streamId}`],
     refetchInterval: 10000,
   });
+
+  const stream = apiStream ?? DEMO_LIVE_STREAMS[streamId];
 
   const { data: chat = [] } = useQuery<ChatMsg[]>({
     queryKey: [`/api/live-streams/${streamId}/chat`],

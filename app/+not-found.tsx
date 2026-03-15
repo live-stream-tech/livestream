@@ -1,16 +1,28 @@
-// template
 import { Link, Stack } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
+import { useDemoMode } from "@/lib/demo-mode";
+import { C } from "@/constants/colors";
 
 export default function NotFoundScreen() {
+  const { isDemoMode } = useDemoMode();
+
   return (
     <>
-      <Stack.Screen options={{ title: "Oops!" }} />
+      <Stack.Screen options={{ title: "ページが見つかりません" }} />
       <View style={styles.container}>
-        <Text style={styles.title}>This screen doesn&apos;t exist.</Text>
+        {isDemoMode ? (
+          <>
+            <Text style={styles.title}>このコンテンツはデモ用のため表示できません</Text>
+            <Text style={styles.sub}>
+              実データでは正常に表示されます。リンク切れはデモモードによるものです。
+            </Text>
+          </>
+        ) : (
+          <Text style={styles.title}>ページが見つかりません</Text>
+        )}
 
         <Link href="/" style={styles.link}>
-          <Text style={styles.linkText}>Go to home screen!</Text>
+          <Text style={styles.linkText}>ホームに戻る</Text>
         </Link>
       </View>
     </>
@@ -23,17 +35,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 20,
+    backgroundColor: C.bg,
   },
   title: {
-    fontSize: 20,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: "700",
+    color: C.text,
+    textAlign: "center",
+  },
+  sub: {
+    marginTop: 12,
+    fontSize: 14,
+    color: C.textMuted,
+    textAlign: "center",
+    lineHeight: 22,
   },
   link: {
-    marginTop: 15,
-    paddingVertical: 15,
+    marginTop: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: C.accent,
+    borderRadius: 12,
   },
   linkText: {
     fontSize: 14,
-    color: "#2e78b7",
+    fontWeight: "700",
+    color: "#fff",
   },
 });

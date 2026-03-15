@@ -31,6 +31,25 @@ type VideoComment = {
   profileImageUrl?: string | null;
 };
 
+function formatRelativeTime(dateStr: string | Date | null | undefined): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "";
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffSec < 60) return "たった今";
+  if (diffMin < 60) return `${diffMin}分前`;
+  if (diffHour < 24) return `${diffHour}時間前`;
+  if (diffDay < 7) return `${diffDay}日前`;
+  if (diffDay < 30) return `${Math.floor(diffDay / 7)}週間前`;
+  if (diffDay < 365) return `${Math.floor(diffDay / 30)}ヶ月前`;
+  return `${Math.floor(diffDay / 365)}年前`;
+}
+
 export default function VideoDetailScreen() {
   const { id, demo } = useLocalSearchParams<{ id: string; demo?: string }>();
   const insets = useSafeAreaInsets();
@@ -185,7 +204,11 @@ export default function VideoDetailScreen() {
       >
         {/* メディア領域（テキスト / 写真展 / 動画など共通レイアウト） */}
         <View style={styles.playerContainer}>
-          <Image source={{ uri: video.thumbnail }} style={styles.playerThumb} contentFit="cover" />
+          <Image
+            source={{ uri: (video as any).thumbnail || "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=400&fit=crop" }}
+            style={styles.playerThumb}
+            contentFit="cover"
+          />
           <View style={styles.playerOverlay}>
             {/* 有料コンテンツの場合のみロック表示 */}
             {!purchased && video.price && (
@@ -247,9 +270,9 @@ export default function VideoDetailScreen() {
               </View>
             )}
           </View>
-          <Text style={styles.videoDesc}>
-            昨日の渋谷WWWワンマンライブの舞台裏を特別公開！リハ風景、メイクルーム、本番直前の緊張感まで全部見せます。チェキ会の様子もあるよ
-          </Text>
+          {(video.description ?? video.title) ? (
+            <Text style={styles.videoDesc}>{video.description ?? video.title}</Text>
+          ) : null}
 
           {/* Comments Preview */}
           <View style={styles.commentsPreview}>
@@ -354,7 +377,9 @@ export default function VideoDetailScreen() {
           </View>
           <View style={styles.metaItem}>
             <Ionicons name="time-outline" size={16} color={C.textSec} />
-            <Text style={styles.metaText}>{video.timeAgo}</Text>
+            <Text style={styles.metaText}>
+              {(video as any).timeAgo ?? (video as any).time_ago ?? formatRelativeTime((video as any).createdAt ?? (video as any).created_at) ?? "たった今"}
+            </Text>
           </View>
           <View style={styles.metaItem}>
             <Ionicons name="heart-outline" size={16} color={C.textSec} />

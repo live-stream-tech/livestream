@@ -60,6 +60,25 @@ function paramStr(req: Request, key: string): string {
 function paramNum(req: Request, key: string): number {
   return parseInt(paramStr(req, key), 10) || 0;
 }
+
+function formatTimeAgo(d: Date | string | null | undefined): string {
+  if (!d) return "たった今";
+  const date = typeof d === "string" ? new Date(d) : d;
+  if (isNaN(date.getTime())) return "たった今";
+  const diffMs = Date.now() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffSec < 60) return "たった今";
+  if (diffMin < 60) return `${diffMin}分前`;
+  if (diffHour < 24) return `${diffHour}時間前`;
+  if (diffDay < 7) return `${diffDay}日前`;
+  if (diffDay < 30) return `${Math.floor(diffDay / 7)}週間前`;
+  if (diffDay < 365) return `${Math.floor(diffDay / 30)}ヶ月前`;
+  return `${Math.floor(diffDay / 365)}年前`;
+}
+
 /** req.query の値を string に正規化（Express の ParsedQs を string に統一） */
 function queryStr(req: Request, key: string): string {
   const v = req.query[key];
@@ -1710,7 +1729,8 @@ export async function registerRoutes(app: Express): Promise<void> {
     const id = paramNum(req, "id");
     const [row] = await db.select().from(videos).where(eq(videos.id, id));
     if (!row || row.hidden) return res.status(404).json({ message: "Not found" });
-    res.json(row);
+    const timeAgo = row.createdAt ? formatTimeAgo(row.createdAt) : row.timeAgo;
+    res.json({ ...row, timeAgo });
   });
 
   /** 動画コメント一覧（非表示コメントは除外） */
@@ -1753,12 +1773,13 @@ export async function registerRoutes(app: Express): Promise<void> {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
 
-    const { title, community, duration, price, thumbnail, concertId } = req.body as {
+    const { title, community, duration, price, thumbnail, description, concertId } = req.body as {
       title?: string;
       community?: string;
       duration?: string;
       price?: number | null;
       thumbnail?: string;
+      description?: string | null;
       concertId?: number | null;
     };
 
@@ -1777,6 +1798,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         duration,
         price: price ?? null,
         thumbnail,
+        description: description?.trim() || null,
         avatar:
           user.profileImageUrl ??
           user.avatar ??

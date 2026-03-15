@@ -239,6 +239,7 @@ export default function UploadScreen() {
 
       const res = await apiRequest("POST", "/api/videos", {
         title,
+        description: title,
         creator: creatorName,
         community: communityName,
         duration: "00:00",

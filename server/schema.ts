@@ -134,6 +134,8 @@ export const videos = pgTable("videos", {
   rank: integer("rank"),
   isRanked: boolean("is_ranked").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
+  /** 投稿本文（任意） */
+  description: text("description"),
   /** 通報で明らかな違反と判定された場合に非表示 */
   hidden: boolean("hidden").notNull().default(false),
   concertId: integer("concert_id"),
