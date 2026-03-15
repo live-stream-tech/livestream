@@ -36,7 +36,7 @@ import {
   concerts,
   concertStaff,
 } from "./schema";
-import { eq, asc, desc, count, sql, and, gte, lte, isNull, inArray } from "drizzle-orm";
+import { eq, asc, desc, count, sql, and, or, gte, lte, isNull, inArray } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey, createConnectExpressAccount, createConnectAccountLink, getConnectAccount, createBannerPaymentIntent, getPaymentIntentStatus } from "./stripeClient";
 import { getMonthlyRevenueRank } from "./aggregateRevenue";
 import { judgeReportContent } from "./claudeReport";
@@ -1152,7 +1152,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       .from(communityModerators)
       .where(and(eq(communityModerators.communityId, ad.communityId), eq(communityModerators.userId, user.id)));
     if (!mod) return res.status(403).json({ error: "このコミュニティのモデレーターのみ承認できます" });
-    await db.update(communityAds).set({ status: "moderator_approved", approvedByModerator: user.id }).where(eq(communityAds.id, id));
+    await db.update(communityAds).set({ status: "moderator_approved", approvedByModerator: user.id } as Partial<typeof communityAds.$inferInsert>).where(eq(communityAds.id, id));
     res.json({ ok: true });
   });
 
@@ -1165,7 +1165,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     if (ad.status !== "moderator_approved") return res.status(400).json({ error: "モデレーター承認後に管理人が承認できます" });
     const [community] = await db.select().from(communities).where(eq(communities.id, ad.communityId));
     if (!community || community.adminId !== user.id) return res.status(403).json({ error: "管理人のみ最終承認できます" });
-    await db.update(communityAds).set({ status: "approved", approvedByOwner: user.id }).where(eq(communityAds.id, id));
+    await db.update(communityAds).set({ status: "approved", approvedByOwner: user.id } as Partial<typeof communityAds.$inferInsert>).where(eq(communityAds.id, id));
     res.json({ ok: true });
   });
 
@@ -1184,7 +1184,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const isOwner = community?.adminId === user.id;
     const isMod = !!mod;
     if (!isOwner && !isMod) return res.status(403).json({ error: "管理人またはモデレーターのみ却下できます" });
-    await db.update(communityAds).set({ status: "rejected" }).where(eq(communityAds.id, id));
+    await db.update(communityAds).set({ status: "rejected" } as Partial<typeof communityAds.$inferInsert>).where(eq(communityAds.id, id));
     res.json({ ok: true });
   });
 
@@ -1234,9 +1234,9 @@ export async function registerRoutes(app: Express): Promise<void> {
 
     if (verdict === "clear_violation") {
       if (type === "video") {
-        await db.update(videos).set({ hidden: true }).where(eq(videos.id, cid));
+        await db.update(videos).set({ hidden: true } as Partial<typeof videos.$inferInsert>).where(eq(videos.id, cid));
       } else {
-        await db.update(videoComments).set({ hidden: true }).where(eq(videoComments.id, cid));
+        await db.update(videoComments).set({ hidden: true } as Partial<typeof videoComments.$inferInsert>).where(eq(videoComments.id, cid));
       }
     }
 
@@ -1557,7 +1557,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const [owner] = await db.select().from(genreOwners).where(and(eq(genreOwners.genreId, ad.genreId), eq(genreOwners.ownerUserId, user.id)));
     if (!owner) return res.status(403).json({ error: "このジャンルの管理人ではありません" });
 
-    await db.update(genreAds).set({ status: "approved" }).where(eq(genreAds.id, id));
+    await db.update(genreAds).set({ status: "approved" } as Partial<typeof genreAds.$inferInsert>).where(eq(genreAds.id, id));
     res.json({ ok: true });
   });
 
@@ -1572,7 +1572,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const [owner] = await db.select().from(genreOwners).where(and(eq(genreOwners.genreId, ad.genreId), eq(genreOwners.ownerUserId, user.id)));
     if (!owner) return res.status(403).json({ error: "このジャンルの管理人ではありません" });
 
-    await db.update(genreAds).set({ status: "rejected" }).where(eq(genreAds.id, id));
+    await db.update(genreAds).set({ status: "rejected" } as Partial<typeof genreAds.$inferInsert>).where(eq(genreAds.id, id));
     res.json({ ok: true });
   });
 
@@ -1597,7 +1597,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
       const existing = await db.select().from(genreOwners).where(eq(genreOwners.genreId, gid)).limit(1);
       if (existing.length > 0) {
-        await db.update(genreOwners).set({ ownerUserId: top.adminId, updatedAt: sql`now()` }).where(eq(genreOwners.genreId, gid));
+        await db.update(genreOwners).set({ ownerUserId: top.adminId, updatedAt: sql`now()` } as Partial<typeof genreOwners.$inferInsert>).where(eq(genreOwners.genreId, gid));
       } else {
         await db.insert(genreOwners).values({ genreId: gid, ownerUserId: top.adminId } as typeof genreOwners.$inferInsert);
       }
@@ -1631,12 +1631,12 @@ export async function registerRoutes(app: Express): Promise<void> {
     if (!report) return res.status(404).json({ error: "通報が見つかりません" });
 
     if (report.contentType === "video") {
-      await db.update(videos).set({ hidden: true }).where(eq(videos.id, report.contentId));
+      await db.update(videos).set({ hidden: true } as Partial<typeof videos.$inferInsert>).where(eq(videos.id, report.contentId));
     } else if (report.contentType === "comment") {
-      await db.update(videoComments).set({ hidden: true }).where(eq(videoComments.id, report.contentId));
+      await db.update(videoComments).set({ hidden: true } as Partial<typeof videoComments.$inferInsert>).where(eq(videoComments.id, report.contentId));
     }
 
-    await db.update(reports).set({ status: "hidden" }).where(eq(reports.id, id));
+    await db.update(reports).set({ status: "hidden" } as Partial<typeof reports.$inferInsert>).where(eq(reports.id, id));
     res.json({ ok: true });
   });
 
@@ -1650,7 +1650,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const [report] = await db.select().from(reports).where(eq(reports.id, id));
     if (!report) return res.status(404).json({ error: "通報が見つかりません" });
 
-    await db.update(reports).set({ status: "reviewed" }).where(eq(reports.id, id));
+    await db.update(reports).set({ status: "reviewed" } as Partial<typeof reports.$inferInsert>).where(eq(reports.id, id));
     res.json({ ok: true });
   });
 
@@ -2758,7 +2758,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         { name: "ライフコーチ けんじ", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop", lastMessage: "目標設定シートを確認しました。素晴らしい進捗です！", time: "昨日", unread: 0, online: false, sortOrder: 6 },
         { name: "ヨガ講師 なな", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop", lastMessage: "明日のクラスもお待ちしています", time: "昨日", unread: 0, online: false, sortOrder: 7 },
         { name: "地下アイドル界隈", avatar: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=100&h=100&fit=crop", lastMessage: "【お知らせ】本日21:00からライブ配信があります", time: "2日前", unread: 0, online: false, sortOrder: 8 },
-      ] as typeof dmMessages.$inferInsert[]);
+      ] as unknown as typeof dmMessages.$inferInsert[]);
     }
 
     // Seed communities（creators の community 名と一致）------------------------
@@ -3058,7 +3058,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         { title: "麗華の夜トーク【本音で語るよ】", creator: "麗華 -REIKA-", community: "キャバ嬢・ホスト界隈", viewers: 890, thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop", timeAgo: "配信予定", isLive: true },
         { title: "朝活！一緒にヨガしよう", creator: "松本 こうた", community: "フィットネス部", viewers: 420, thumbnail: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop", timeAgo: "配信予定", isLive: true },
         { title: "神崎リナ【深夜の占いタイム】", creator: "神崎 リナ", community: "占いサロン", viewers: 312, thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop", timeAgo: "配信予定", isLive: true },
-      ] as typeof liveStreams.$inferInsert[]);
+      ] as unknown as typeof liveStreams.$inferInsert[]);
     }
 
     res.json({ ok: true, created: insertedCreators.length });

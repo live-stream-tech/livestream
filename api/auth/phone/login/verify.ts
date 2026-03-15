@@ -3,7 +3,7 @@
  * Vercel から Express API へフォワードする薄いラッパー。
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getApp, normalizeReqUrl } from "../../../../_shared";
+import { getApp, normalizeReqUrl } from "../../../_shared";
 
 export default async function handler(
   req: VercelRequest,
