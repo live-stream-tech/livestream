@@ -18,7 +18,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest, ApiError } from "@/lib/query-client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { apiRequest, ApiError, getApiUrl } from "@/lib/query-client";
 import { C } from "@/constants/colors";
 import { useAuth } from "@/lib/auth";
 
@@ -60,9 +61,14 @@ export default function UploadScreen() {
   }
 
   async function uploadFileToR2Web(file: File) {
-    const res = await fetch(new URL("/api/upload-url", window.location.origin).toString(), {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    try {
+      const token = await AsyncStorage.getItem("auth_token");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    } catch {}
+    const res = await fetch(new URL("/api/upload-url", getApiUrl()).toString(), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         fileName: file.name,
         contentType: file.type || "application/octet-stream",
@@ -72,11 +78,14 @@ export default function UploadScreen() {
       throw new Error("署名付きURLの取得に失敗しました");
     }
     const { uploadUrl, url } = await res.json();
-    await fetch(uploadUrl, {
+    const putRes = await fetch(uploadUrl, {
       method: "PUT",
       headers: { "Content-Type": file.type || "application/octet-stream" },
       body: file,
     });
+    if (!putRes.ok) {
+      throw new Error("ファイルのアップロードに失敗しました");
+    }
     return url as string;
   }
 
@@ -215,6 +224,28 @@ export default function UploadScreen() {
     }
   }
 
+  /** blob: URL は永続化できないため、R2 にアップロードして https URL に変換する */
+  async function ensureHttpsUrl(uri: string, type: "image" | "video"): Promise<string> {
+    if (!uri.startsWith("blob:")) return uri;
+    const res = await fetch(uri);
+    if (!res.ok) throw new Error("画像の読み込みに失敗しました");
+    const blob = await res.blob();
+    const contentType = res.headers.get("content-type") || (type === "image" ? "image/jpeg" : "video/mp4");
+    const ext = type === "image" ? "jpg" : "mp4";
+    const resp = await apiRequest("POST", "/api/upload-url", {
+      fileName: `upload.${ext}`,
+      contentType,
+    });
+    const { uploadUrl, url } = await resp.json();
+    const putRes = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType },
+      body: blob,
+    });
+    if (!putRes.ok) throw new Error("画像のアップロードに失敗しました");
+    return url as string;
+  }
+
   async function handleSubmit() {
     const title = text.trim();
     if (!title.length) {
@@ -228,10 +259,21 @@ export default function UploadScreen() {
       const communityName = selectedCommunity?.name ?? "一般";
       const creatorName = user?.name ?? user?.displayName ?? "ゲストライバー";
       const firstImage = mediaItems.find((m) => m.type === "image");
-      const thumbUrl =
+      let thumbUrl =
         firstImage?.uri ??
         selectedCommunity?.thumbnail ??
         "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=400&fit=crop";
+      // blob: URL は永続化できないため R2 にアップロード
+      if (thumbUrl.startsWith("blob:") && firstImage) {
+        try {
+          thumbUrl = await ensureHttpsUrl(firstImage.uri, "image");
+        } catch (e) {
+          console.error("blob URL upload failed:", e);
+          thumbUrl =
+            selectedCommunity?.thumbnail ??
+            "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=400&fit=crop";
+        }
+      }
       const avatarUrl =
         user?.avatar ??
         user?.profileImageUrl ??
