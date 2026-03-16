@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 36,
     height: 36,
-    borderRadius: 0,
+    borderRadius: 18,
     backgroundColor: C.surface,
     alignItems: "center",
     justifyContent: "center",
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
   docTitle: { fontSize: 20, fontWeight: "700", color: C.text, marginBottom: 20, textAlign: "center" },
   table: {
     backgroundColor: C.surface,
-    borderRadius: 0,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: C.border,
     overflow: "hidden",

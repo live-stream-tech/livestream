@@ -82,9 +82,9 @@ function VideoCard({ item, isDemo, panelWidth }: { item: any; isDemo: boolean; p
         <View style={styles.creatorRow}>
           <Image source={{ uri: item.avatar }} style={styles.smallAvatar} contentFit="cover" />
           <Text style={styles.communityText} numberOfLines={1}>{item.community}</Text>
+          <Text style={styles.videoTimeAgo} numberOfLines={1}>{item.timeAgo}</Text>
         </View>
         <Text style={styles.videoTitle} numberOfLines={1}>{item.title}</Text>
-        <Text style={styles.videoTimeAgo}>{item.timeAgo}</Text>
       </View>
     </Pressable>
   );
@@ -592,7 +592,7 @@ export default function HomeScreen() {
         </ScrollView>
 
         {/* 現在ライブ中 */}
-        <View style={[styles.sectionHeaderRow, { marginTop: 40 }]}>
+        <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionHeaderLeft}>
             <Ionicons name="radio" size={16} color={C.live} />
             <Text style={[styles.sectionTitle, { color: "#E53935" }]}>Now</Text>
@@ -676,7 +676,7 @@ export default function HomeScreen() {
           </View>
         </View>
         {creatorTab === "ranking" ? (
-          <View style={styles.sectionHeaderRow}>
+          <View style={[styles.sectionHeaderRow, styles.creatorFilterRow]}>
             <View style={styles.sectionHeaderLeft} />
             <View style={styles.filterPills}>
               {(["WEEKLY", "MONTHLY", "ALL"] as const).map((f) => (
@@ -760,7 +760,7 @@ const styles = StyleSheet.create({
     gap: 4,
     borderWidth: 1,
     borderColor: C.accent,
-    borderRadius: 0,
+    borderRadius: 3,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
@@ -777,7 +777,7 @@ const styles = StyleSheet.create({
     top: -4,
     right: -4,
     backgroundColor: C.live,
-    borderRadius: 0,
+    borderRadius: 2,
     minWidth: 16,
     height: 16,
     alignItems: "center",
@@ -809,7 +809,7 @@ const styles = StyleSheet.create({
   },
   announcementCard: {
     backgroundColor: C.surface,
-    borderRadius: 0,
+    borderRadius: 3,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
@@ -850,8 +850,8 @@ const styles = StyleSheet.create({
   },
   announcementModalSheet: {
     backgroundColor: C.bg,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
     maxHeight: "80%",
   },
   announcementModalHeader: {
@@ -877,7 +877,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 20,
     backgroundColor: C.surface,
-    borderRadius: 0,
+    borderRadius: 3,
     padding: 14,
     flexDirection: "row",
     alignItems: "center",
@@ -894,7 +894,7 @@ const styles = StyleSheet.create({
   jukeBotIcon: {
     width: 40,
     height: 40,
-    borderRadius: 0,
+    borderRadius: 3,
     backgroundColor: C.surface2,
     alignItems: "center",
     justifyContent: "center",
@@ -927,13 +927,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    marginBottom: 12,
-    marginTop: 8,
+    marginBottom: 8,
+    marginTop: 20,
   },
   sectionHeaderLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  creatorFilterRow: {
+    marginTop: 4,
+    marginBottom: 8,
   },
   sectionTitle: {
     color: C.text,
@@ -948,7 +952,7 @@ const styles = StyleSheet.create({
   liveDotInline: {
     width: 8,
     height: 8,
-    borderRadius: 0,
+    borderRadius: 2,
     backgroundColor: C.live,
   },
   viewAllBtn: {
@@ -966,7 +970,7 @@ const styles = StyleSheet.create({
   filterPill: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 0,
+    borderRadius: 2,
     backgroundColor: C.surface2,
   },
   filterPillActive: {
@@ -983,14 +987,14 @@ const styles = StyleSheet.create({
   creatorTabs: {
     flexDirection: "row",
     backgroundColor: C.surface,
-    borderRadius: 0,
+    borderRadius: 3,
     padding: 2,
     gap: 2,
   },
   creatorTab: {
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 0,
+    paddingVertical: 3,
+    borderRadius: 2,
   },
   creatorTabActive: {
     backgroundColor: C.accent,
@@ -1117,14 +1121,14 @@ const styles = StyleSheet.create({
   },
   panelInfo: {
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 4,
     backgroundColor: C.surface,
-    gap: 3,
+    gap: 2,
   },
   twoshotCard: {
     width: 220,
     backgroundColor: C.surface,
-    borderRadius: 0,
+    borderRadius: 3,
     overflow: "hidden",
     borderWidth: 1,
     borderColor: C.border,
@@ -1141,7 +1145,7 @@ const styles = StyleSheet.create({
     top: 6,
     left: 6,
     backgroundColor: C.accent,
-    borderRadius: 0,
+    borderRadius: 2,
     paddingHorizontal: 8,
     paddingVertical: 3,
     flexDirection: "row",
@@ -1176,13 +1180,13 @@ const styles = StyleSheet.create({
   },
   videoThumbContainer: {
     position: "relative",
-    borderRadius: 0,
+    borderRadius: 3,
     overflow: "hidden",
   },
   videoThumb: {
     width: 180,
     height: 101,
-    borderRadius: 0,
+    borderRadius: 3,
   },
   durationBadge: {
     position: "absolute",
@@ -1232,7 +1236,7 @@ const styles = StyleSheet.create({
   smallAvatar: {
     width: 18,
     height: 18,
-    borderRadius: 0,
+    borderRadius: 2,
   },
   communityText: {
     color: C.textSec,
@@ -1248,6 +1252,8 @@ const styles = StyleSheet.create({
   videoTimeAgo: {
     color: C.textMuted,
     fontSize: 9,
+    flexShrink: 0,
+    marginLeft: 4,
   },
   videoMeta: {
     flexDirection: "row",
@@ -1267,7 +1273,7 @@ const styles = StyleSheet.create({
   },
   freeBadge: {
     backgroundColor: C.green,
-    borderRadius: 0,
+    borderRadius: 2,
     paddingHorizontal: 6,
     paddingVertical: 2,
     alignSelf: "flex-start",
@@ -1283,13 +1289,13 @@ const styles = StyleSheet.create({
   },
   liveThumbContainer: {
     position: "relative",
-    borderRadius: 0,
+    borderRadius: 3,
     overflow: "hidden",
   },
   liveThumb: {
     width: 180,
     height: 101,
-    borderRadius: 0,
+    borderRadius: 3,
   },
   comingSoonRibbon: {
     position: "absolute",
@@ -1321,7 +1327,7 @@ const styles = StyleSheet.create({
   liveDot: {
     width: 6,
     height: 6,
-    borderRadius: 0,
+    borderRadius: 2,
     backgroundColor: "#fff",
   },
   liveText: {
@@ -1356,7 +1362,7 @@ const styles = StyleSheet.create({
   rankedThumb: {
     width: 180,
     height: 101,
-    borderRadius: 0,
+    borderRadius: 3,
   },
   rankBadge: {
     position: "absolute",
@@ -1365,7 +1371,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.orange,
     width: 28,
     height: 28,
-    borderRadius: 0,
+    borderRadius: 3,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1377,7 +1383,7 @@ const styles = StyleSheet.create({
   creatorCard: {
     width: 220,
     backgroundColor: C.surface,
-    borderRadius: 0,
+    borderRadius: 3,
     padding: 14,
     borderWidth: 1.5,
     gap: 8,
@@ -1390,7 +1396,7 @@ const styles = StyleSheet.create({
   rankCircle: {
     width: 32,
     height: 32,
-    borderRadius: 0,
+    borderRadius: 3,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1402,7 +1408,7 @@ const styles = StyleSheet.create({
   creatorAvatar: {
     width: 44,
     height: 44,
-    borderRadius: 0,
+    borderRadius: 3,
     borderWidth: 2,
     borderColor: C.accent,
   },
@@ -1424,7 +1430,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 5,
     backgroundColor: C.surface2,
-    borderRadius: 0,
+    borderRadius: 3,
     padding: 10,
   },
   heatLabel: {
@@ -1457,7 +1463,7 @@ const styles = StyleSheet.create({
   },
   revenueShareRow: {
     backgroundColor: "#0A0A0A",
-    borderRadius: 0,
+    borderRadius: 3,
     padding: 10,
     alignItems: "center",
     gap: 4,

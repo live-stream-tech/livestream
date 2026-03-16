@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 36,
     height: 36,
-    borderRadius: 0,
+    borderRadius: 18,
     backgroundColor: C.surface,
     alignItems: "center",
     justifyContent: "center",
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
     marginTop: 40,
     marginHorizontal: 16,
     padding: 16,
-    borderRadius: 0,
+    borderRadius: 12,
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: C.surface,
-    borderRadius: 0,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: C.border,
     padding: 14,
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 0,
+    borderRadius: 999,
     backgroundColor: C.surface2,
   },
   badgeGray: {
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
   statusPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 0,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.bg,
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 0,
+    borderRadius: 999,
   },
   hideBtn: {
     backgroundColor: C.live,

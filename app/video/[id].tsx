@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
     left: 16,
     width: 36,
     height: 36,
-    borderRadius: 0,
+    borderRadius: 18,
     backgroundColor: "rgba(0,0,0,0.5)",
     alignItems: "center",
     justifyContent: "center",
@@ -582,7 +582,7 @@ const styles = StyleSheet.create({
   editTitleInput: {
     flex: 1,
     backgroundColor: C.bg,
-    borderRadius: 0,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: C.border,
     paddingHorizontal: 10,
@@ -607,7 +607,7 @@ const styles = StyleSheet.create({
   },
   commentsPreview: {
     backgroundColor: C.bg,
-    borderRadius: 0,
+    borderRadius: 10,
     padding: 12,
     gap: 10,
   },
@@ -619,7 +619,7 @@ const styles = StyleSheet.create({
   commentAvatar: {
     width: 28,
     height: 28,
-    borderRadius: 0,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: C.accent,
   },
@@ -649,7 +649,7 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 360,
     backgroundColor: C.surface,
-    borderRadius: 0,
+    borderRadius: 16,
     padding: 20,
     borderWidth: 1,
     borderColor: C.border,
@@ -674,7 +674,7 @@ const styles = StyleSheet.create({
   reportReasonBtn: {
     paddingVertical: 12,
     paddingHorizontal: 14,
-    borderRadius: 0,
+    borderRadius: 10,
     backgroundColor: C.surface2,
     marginBottom: 8,
     borderWidth: 1,
@@ -700,7 +700,7 @@ const styles = StyleSheet.create({
   reportCancelBtn: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 0,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: C.border,
     alignItems: "center",
@@ -713,7 +713,7 @@ const styles = StyleSheet.create({
   reportSubmitBtn: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 0,
+    borderRadius: 12,
     backgroundColor: C.accent,
     alignItems: "center",
   },
@@ -735,7 +735,7 @@ const styles = StyleSheet.create({
   commentInput: {
     flex: 1,
     backgroundColor: C.surface,
-    borderRadius: 0,
+    borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
     color: C.text,
@@ -744,7 +744,7 @@ const styles = StyleSheet.create({
   commentSendBtn: {
     width: 32,
     height: 32,
-    borderRadius: 0,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -758,7 +758,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     backgroundColor: "#111",
-    borderRadius: 0,
+    borderRadius: 10,
     paddingVertical: 14,
     width: "100%",
   },
@@ -785,7 +785,7 @@ const styles = StyleSheet.create({
   creatorAvatar: {
     width: 44,
     height: 44,
-    borderRadius: 0,
+    borderRadius: 22,
     borderWidth: 2,
     borderColor: C.accent,
   },
@@ -804,7 +804,7 @@ const styles = StyleSheet.create({
   },
   followBtn: {
     backgroundColor: C.accent,
-    borderRadius: 0,
+    borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },

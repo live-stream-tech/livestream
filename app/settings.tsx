@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 36,
     height: 36,
-    borderRadius: 0,
+    borderRadius: 18,
     backgroundColor: C.surface,
     alignItems: "center",
     justifyContent: "center",
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface,
     marginHorizontal: 16,
     marginBottom: 8,
-    borderRadius: 0,
+    borderRadius: 12,
     padding: 16,
     gap: 12,
     borderWidth: 1,
@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   section: {
     backgroundColor: C.surface,
     marginHorizontal: 16,
-    borderRadius: 0,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: C.border,
     overflow: "hidden",
@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
   rowIcon: {
     width: 32,
     height: 32,
-    borderRadius: 0,
+    borderRadius: 8,
     backgroundColor: C.surface2,
     alignItems: "center",
     justifyContent: "center",

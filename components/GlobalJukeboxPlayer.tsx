@@ -466,7 +466,7 @@ const styles = StyleSheet.create({
   },
   card: {
     position: "absolute",
-    borderRadius: 0,
+    borderRadius: 16,
     backgroundColor: "rgba(7,15,24,0.96)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
   thumbWrap: {
     width: 52,
     height: 52,
-    borderRadius: 0,
+    borderRadius: 12,
     overflow: "hidden",
     marginRight: 8,
     backgroundColor: C.surface2,
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
   progressTrack: {
     flex: 1,
     height: 3,
-    borderRadius: 0,
+    borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.15)",
     overflow: "hidden",
   },
@@ -543,7 +543,7 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 28,
     height: 28,
-    borderRadius: 0,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 4,
@@ -551,7 +551,7 @@ const styles = StyleSheet.create({
   closeBtn: {
     width: 28,
     height: 28,
-    borderRadius: 0,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 4,
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(7,15,24,0.95)",
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 0,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
     shadowColor: "#000",

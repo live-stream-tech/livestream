@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 36,
     height: 36,
-    borderRadius: 0,
+    borderRadius: 18,
     backgroundColor: C.surface,
     alignItems: "center",
     justifyContent: "center",
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   roleBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 0,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: C.border,
   },
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   required: { color: C.live },
   input: {
     backgroundColor: C.surface,
-    borderRadius: 0,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: C.border,
     paddingHorizontal: 12,
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   toggleBtn: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 0,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.surface,
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
   shareBox: {
     marginTop: 8,
     padding: 12,
-    borderRadius: 0,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.surface,
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   shareBtn: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 0,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.surface2,
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
     backgroundColor: C.accent,
     paddingVertical: 12,
-    borderRadius: 0,
+    borderRadius: 999,
     alignItems: "center",
   },
   submitBtnDisabled: { opacity: 0.4 },

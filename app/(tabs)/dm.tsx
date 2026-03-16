@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 52,
     height: 52,
-    borderRadius: 0,
+    borderRadius: 26,
   },
   onlineDot: {
     position: "absolute",
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     right: 1,
     width: 13,
     height: 13,
-    borderRadius: 0,
+    borderRadius: 7,
     backgroundColor: C.green,
     borderWidth: 2,
     borderColor: C.bg,
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   },
   unreadBadge: {
     backgroundColor: C.accent,
-    borderRadius: 0,
+    borderRadius: 10,
     minWidth: 20,
     height: 20,
     alignItems: "center",

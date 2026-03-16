@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 24,
     backgroundColor: C.accent,
-    borderRadius: 0,
+    borderRadius: 12,
   },
   linkText: {
     fontSize: 14,
