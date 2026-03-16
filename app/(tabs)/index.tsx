@@ -61,26 +61,26 @@ function VideoCard({ item, isDemo, panelWidth }: { item: any; isDemo: boolean; p
             <Text style={styles.durationText}>{item.duration}</Text>
           </View>
         )}
+        {/* 画像内オーバーレイ: アバター・コミュニティ・視聴数・価格 */}
+        <View style={styles.panelThumbOverlay}>
+          <View style={styles.panelThumbOverlayLeft}>
+            <Image source={{ uri: item.avatar }} style={styles.overlayAvatar} contentFit="cover" />
+            <Text style={styles.overlayCommunityText} numberOfLines={1}>{item.community}</Text>
+          </View>
+          <View style={styles.panelThumbOverlayRight}>
+            <Ionicons name="eye-outline" size={9} color="rgba(255,255,255,0.9)" />
+            <Text style={styles.overlayMetaText}>{formatNumber(item.views)}</Text>
+            {item.price != null && item.price > 0 ? (
+              <Text style={styles.overlayPriceText}>¥{item.price.toLocaleString()}</Text>
+            ) : (
+              <Text style={styles.overlayFreeText}>無料</Text>
+            )}
+          </View>
+        </View>
       </View>
       <View style={styles.panelInfo}>
-        <View style={styles.creatorRow}>
-          <Image source={{ uri: item.avatar }} style={styles.smallAvatar} contentFit="cover" />
-          <Text style={styles.communityText} numberOfLines={1}>{item.community}</Text>
-        </View>
         <Text style={styles.videoTitle} numberOfLines={2}>{item.title}</Text>
-        <View style={styles.videoMeta}>
-          <Ionicons name="eye-outline" size={11} color={C.textMuted} />
-          <Text style={styles.metaText}>{formatNumber(item.views)}</Text>
-          <Ionicons name="time-outline" size={11} color={C.textMuted} />
-          <Text style={styles.metaText}>{item.timeAgo}</Text>
-        </View>
-        {item.price != null && item.price > 0 ? (
-          <Text style={styles.priceText}>¥{item.price.toLocaleString()}</Text>
-        ) : (
-          <View style={styles.freeBadge}>
-            <Text style={styles.freeText}>無料</Text>
-          </View>
-        )}
+        <Text style={styles.videoTimeAgo}>{item.timeAgo}</Text>
       </View>
     </Pressable>
   );
@@ -970,11 +970,60 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 9,
     borderRadius: 0,
   },
+  panelThumbOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  panelThumbOverlayLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    flex: 1,
+    minWidth: 0,
+  },
+  panelThumbOverlayRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: 6,
+  },
+  overlayAvatar: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+  },
+  overlayCommunityText: {
+    color: "rgba(255,255,255,0.95)",
+    fontSize: 9,
+    fontWeight: "600",
+  },
+  overlayMetaText: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 9,
+  },
+  overlayPriceText: {
+    color: C.accent,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  overlayFreeText: {
+    color: "#4CAF50",
+    fontSize: 9,
+    fontWeight: "700",
+  },
   panelInfo: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     backgroundColor: C.surface,
-    gap: 3,
+    gap: 2,
     borderRadius: 0,
   },
   twoshotCard: {
@@ -1097,9 +1146,13 @@ const styles = StyleSheet.create({
   },
   videoTitle: {
     color: C.text,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
-    lineHeight: 17,
+    lineHeight: 15,
+  },
+  videoTimeAgo: {
+    color: C.textMuted,
+    fontSize: 9,
   },
   videoMeta: {
     flexDirection: "row",
