@@ -499,8 +499,8 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* Juke bot - 参加コミュニティからランダムに1つのjukeboxを表示 */}
-        {user && randomCommunityId && randomCommunity && (
+        {/* Juke bot - 再生中のみ表示 */}
+        {user && randomCommunityId && randomCommunity && jukeboxData?.state?.isPlaying && (
           <Pressable
             style={styles.jukeBotCard}
             onPress={() => router.push(`/jukebox/${randomCommunityId}`)}

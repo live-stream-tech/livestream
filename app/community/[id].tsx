@@ -1227,10 +1227,41 @@ export default function CommunityDetailScreen() {
                   }}
                 >
                   <Ionicons name="add" size={16} color="#fff" />
-                  <Text style={styles.createThreadBtnText}>新規スレッド</Text>
+                  <Text style={styles.createThreadBtnText}>スレッドを立てる</Text>
                 </Pressable>
               )}
             </View>
+            {following && (
+              <View style={styles.createThreadForm}>
+                <TextInput
+                  style={styles.createThreadInput}
+                  placeholder="タイトル"
+                  placeholderTextColor={C.textMuted}
+                  value={newThreadTitle}
+                  onChangeText={setNewThreadTitle}
+                />
+                <TextInput
+                  style={[styles.createThreadInput, styles.createThreadInputBody]}
+                  placeholder="本文（任意）"
+                  placeholderTextColor={C.textMuted}
+                  value={newThreadBody}
+                  onChangeText={setNewThreadBody}
+                  multiline
+                  textAlignVertical="top"
+                />
+                <Pressable
+                  style={[styles.createThreadSubmitBtn, (!newThreadTitle.trim() || creatingThread) && styles.createThreadSubmitBtnDisabled]}
+                  onPress={handleCreateThread}
+                  disabled={!newThreadTitle.trim() || creatingThread}
+                >
+                  {creatingThread ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.createThreadSubmitText}>スレッドを立てる</Text>
+                  )}
+                </Pressable>
+              </View>
+            )}
             {threads.length === 0 ? (
               <Text style={styles.boardEmpty}>まだスレッドがありません</Text>
             ) : (
@@ -1328,7 +1359,7 @@ export default function CommunityDetailScreen() {
           <View style={styles.requestModalSheet}>
             <View style={styles.requestModalHandle} />
             <View style={styles.requestModalHeader}>
-              <Text style={styles.requestModalTitle}>新規スレッド</Text>
+              <Text style={styles.requestModalTitle}>スレッドを立てる</Text>
               <Pressable onPress={() => setShowCreateThread(false)} hitSlop={8}>
                 <Ionicons name="close" size={24} color={C.textMuted} />
               </Pressable>
@@ -2239,6 +2270,36 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   createThreadBtnText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  createThreadForm: {
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    gap: 10,
+  },
+  createThreadInput: {
+    backgroundColor: C.surface2,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: C.text,
+    fontSize: 14,
+  },
+  createThreadInputBody: {
+    minHeight: 60,
+    maxHeight: 100,
+  },
+  createThreadSubmitBtn: {
+    backgroundColor: C.accent,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  createThreadSubmitBtnDisabled: { opacity: 0.5 },
+  createThreadSubmitText: { color: "#fff", fontSize: 14, fontWeight: "700" },
   boardEmpty: { color: C.textMuted, fontSize: 14, paddingVertical: 24, textAlign: "center" },
   boardPostCount: { color: C.textMuted, fontSize: 10, marginTop: 2 },
   threadDetailHeader: { padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
