@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 0,
     backgroundColor: C.surface,
     alignItems: "center",
     justifyContent: "center",

@@ -213,7 +213,7 @@ export default function Revenue() {
                       contentStyle={{
                         backgroundColor: "#1E293B",
                         border: "1px solid #334155",
-                        borderRadius: "12px",
+                        borderRadius: 0,
                         fontSize: "10px",
                         fontWeight: "bold",
                         color: "white"

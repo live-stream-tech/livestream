@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
   previewRow: { marginBottom: 12 },
   previewScroll: { flexDirection: "row", gap: 10 },
   previewItem: { position: "relative" },
-  previewThumb: { width: 80, height: 80, borderRadius: 10, backgroundColor: C.surface },
+  previewThumb: { width: 80, height: 80, borderRadius: 0, backgroundColor: C.surface },
   previewVideo: { alignItems: "center", justifyContent: "center" },
   removeBtn: {
     position: "absolute",
@@ -581,7 +581,7 @@ const styles = StyleSheet.create({
     right: 4,
     width: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: 0,
     backgroundColor: "rgba(0,0,0,0.6)",
     alignItems: "center",
     justifyContent: "center",
@@ -589,7 +589,7 @@ const styles = StyleSheet.create({
   inputWrap: {
     minHeight: 140,
     backgroundColor: C.surface,
-    borderRadius: 12,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: C.border,
     paddingHorizontal: 14,
@@ -611,7 +611,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 999,
+    borderRadius: 0,
     backgroundColor: C.surface2,
   },
   communityChipText: {
@@ -622,7 +622,7 @@ const styles = StyleSheet.create({
   communityPill: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 0,
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,
@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
   postTargetBtn: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: 0,
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,
@@ -652,8 +652,8 @@ const styles = StyleSheet.create({
   publishFromText: { color: C.accent, fontSize: 13, fontWeight: "600" },
   publishFromModal: {
     backgroundColor: C.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     padding: 20,
     maxHeight: "70%",
   },
@@ -667,7 +667,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  publishFromThumb: { width: 56, height: 56, borderRadius: 8 },
+  publishFromThumb: { width: 56, height: 56, borderRadius: 0 },
   publishFromItemTitle: { flex: 1, color: C.text, fontSize: 14 },
   publishFromCancel: {
     marginTop: 16,
@@ -679,7 +679,7 @@ const styles = StyleSheet.create({
   feeBtn: {
     paddingHorizontal: 18,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 0,
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,
@@ -691,7 +691,7 @@ const styles = StyleSheet.create({
   priceBtn: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 0,
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,
@@ -712,7 +712,7 @@ const styles = StyleSheet.create({
   addBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 0,
     backgroundColor: "rgba(41,182,207,0.15)",
     alignItems: "center",
     justifyContent: "center",
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
   submitBtn: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 22,
+    borderRadius: 0,
     backgroundColor: C.accent,
   },
   submitBtnDisabled: { backgroundColor: C.surface3, opacity: 0.8 },
@@ -732,8 +732,8 @@ const styles = StyleSheet.create({
   },
   menuCard: {
     backgroundColor: C.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     padding: 16,
     paddingBottom: 32,
   },

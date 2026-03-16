@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
   successIcon: {
     width: 90,
     height: 90,
-    borderRadius: 45,
+    borderRadius: 0,
     backgroundColor: C.green,
     alignItems: "center",
     justifyContent: "center",
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   subtitle: { color: C.textSec, fontSize: 14, textAlign: "center" },
   card: {
     backgroundColor: C.surface,
-    borderRadius: 16,
+    borderRadius: 0,
     padding: 24,
     alignItems: "center",
     gap: 6,
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.accent,
     paddingVertical: 14,
     paddingHorizontal: 32,
-    borderRadius: 12,
+    borderRadius: 0,
     width: "100%",
     justifyContent: "center",
   },

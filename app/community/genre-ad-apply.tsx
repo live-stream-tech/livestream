@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 24 },
   errorText: { color: C.text, fontSize: 14 },
-  backBtnStandalone: { marginTop: 16, paddingVertical: 12, paddingHorizontal: 24, backgroundColor: C.surface, borderRadius: 12 },
+  backBtnStandalone: { marginTop: 16, paddingVertical: 12, paddingHorizontal: 24, backgroundColor: C.surface, borderRadius: 0 },
   backBtnText: { color: C.text, fontSize: 14, fontWeight: "600" },
   genreLabel: { color: C.accent, fontSize: 14, fontWeight: "700", marginBottom: 4 },
   hint: { color: C.textMuted, fontSize: 12, marginBottom: 20 },
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   required: { color: C.live },
   input: {
     backgroundColor: C.surface,
-    borderRadius: 10,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: C.border,
     paddingHorizontal: 12,
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   summaryBox: {
     marginTop: 20,
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 0,
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: C.accent,
     paddingVertical: 12,
-    borderRadius: 999,
+    borderRadius: 0,
   },
   submitBtnDisabled: {
     opacity: 0.4,

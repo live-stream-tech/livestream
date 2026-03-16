@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
   },
   bannerPicker: {
     height: 170,
-    borderRadius: 14,
+    borderRadius: 0,
     overflow: "hidden",
     backgroundColor: C.surface,
     borderWidth: 1.5,
@@ -440,7 +440,7 @@ const styles = StyleSheet.create({
   iconPicker: {
     width: 80,
     height: 80,
-    borderRadius: 18,
+    borderRadius: 0,
     backgroundColor: C.surface,
     borderWidth: 1.5,
     borderColor: C.border,
@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: C.surface,
-    borderRadius: 10,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: C.border,
     paddingHorizontal: 14,
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderRadius: 18,
+    borderRadius: 0,
     backgroundColor: C.surface,
     borderWidth: 1.5,
     borderColor: C.border,
@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
   addCategoryBtn: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 0,
     backgroundColor: C.accent,
     alignItems: "center",
     justifyContent: "center",
@@ -546,7 +546,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 0,
     backgroundColor: C.surface2,
   },
   selectedChipText: {
@@ -566,7 +566,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     backgroundColor: C.accent,
-    borderRadius: 14,
+    borderRadius: 0,
     paddingVertical: 15,
   },
   submitBtnDisabled: {
@@ -594,7 +594,7 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 400,
     backgroundColor: C.surface,
-    borderRadius: 16,
+    borderRadius: 0,
     padding: 20,
     borderWidth: 1,
     borderColor: C.border,
@@ -627,7 +627,7 @@ const styles = StyleSheet.create({
   consentCheckbox: {
     width: 24,
     height: 24,
-    borderRadius: 6,
+    borderRadius: 0,
     borderWidth: 2,
     borderColor: C.border,
     alignItems: "center",
@@ -649,7 +649,7 @@ const styles = StyleSheet.create({
   consentCancelBtn: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: C.border,
     alignItems: "center",
@@ -658,7 +658,7 @@ const styles = StyleSheet.create({
   consentConfirmBtn: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 0,
     backgroundColor: C.accent,
     alignItems: "center",
   },

@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 0,
     backgroundColor: C.surface,
     alignItems: "center",
     justifyContent: "center",
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
   infoText: { fontSize: 13, color: C.textSec },
   chipRow: { flexDirection: "row", gap: 8, marginTop: 8, marginBottom: 12 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 0 },
   chipOn: { backgroundColor: "#C8E6C9" },
   chipOff: { backgroundColor: "#FFCDD2" },
   chipText: { fontSize: 11, fontWeight: "600" },
@@ -261,7 +261,7 @@ const styles = StyleSheet.create({
   box: {
     marginTop: 8,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.surface,
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     backgroundColor: C.live,
     paddingVertical: 12,
-    borderRadius: 999,
+    borderRadius: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   primaryBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
   secondaryBtn: {
     marginTop: 12,
-    borderRadius: 999,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: C.accent,
     paddingVertical: 10,
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   secondaryBtnText: { color: C.accent, fontSize: 13, fontWeight: "700" },
   outlineBtn: {
     marginTop: 16,
-    borderRadius: 999,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: C.border,
     paddingVertical: 10,
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   staffCard: {
     marginTop: 8,
     padding: 10,
-    borderRadius: 10,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: C.border,
     backgroundColor: C.surface,
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   statusPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 999,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: C.border,
   },
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
   staffBtn: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: 0,
   },
   approveBtn: { backgroundColor: C.accent },
   rejectBtn: { backgroundColor: C.live },

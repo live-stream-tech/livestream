@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
   reportBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 0,
   },
   reportBtnHide: { backgroundColor: C.live },
   reportBtnDismiss: { backgroundColor: C.surface2, borderWidth: 1, borderColor: C.border },
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     backgroundColor: "rgba(255,80,80,0.1)",
-    borderRadius: 8,
+    borderRadius: 0,
     borderWidth: 1,
     borderColor: "rgba(255,80,80,0.3)",
   },
