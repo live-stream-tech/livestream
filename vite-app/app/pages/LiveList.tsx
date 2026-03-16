@@ -143,7 +143,7 @@ export default function LiveList() {
               <div className="bg-[#0891B2]/10 border border-[#0891B2]/20 rounded-2xl p-4 mb-2">
                 <p className="text-[10px] text-[#0891B2] font-black mb-1 tracking-widest uppercase italic">Professional Matching</p>
                 <p className="text-xs text-slate-400 leading-relaxed font-bold">
-                  講師や専門家と1対1で会話ができるツーショット予約機能です。ビデオ通話での相談やレッスンが可能です。
+                  講師や専門家と1対1で会話ができる個別セッション機能です。ビデオ通話での相談やレッスンが可能です。
                 </p>
               </div>
 

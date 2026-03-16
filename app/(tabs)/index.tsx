@@ -17,7 +17,6 @@ import { C } from "@/constants/colors";
 import { getTabTopInset, getTabBottomInset } from "@/constants/layout";
 import { getApiUrl } from "@/lib/query-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { MetallicLine } from "@/components/MetallicLine";
 import { AppLogo } from "@/components/AppLogo";
 import { useAuth } from "@/lib/auth";
 
@@ -113,7 +112,6 @@ function LiveCard({ item, panelWidth }: { item: any; panelWidth: number }) {
           <Text style={styles.communityText} numberOfLines={1}>{item.community}</Text>
         </View>
         <Text style={styles.videoTitle} numberOfLines={2}>{item.title}</Text>
-        <Text style={styles.metaTextSingle}>{item.timeAgo}</Text>
       </View>
     </Pressable>
   );
@@ -470,28 +468,11 @@ export default function HomeScreen() {
           </Pressable>
         </View>
       </View>
-      <MetallicLine thickness={1} style={{ marginHorizontal: 16 }} />
 
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        {/* Premium Banner */}
-        <Pressable style={styles.premiumBanner}>
-          <View style={styles.premiumLeft}>
-            <View style={styles.proBadge}>
-              <Text style={styles.proText}>PRO</Text>
-            </View>
-            <View>
-              <Text style={styles.premiumTitle}>RawStock Premium</Text>
-              <Text style={styles.premiumSub} numberOfLines={2}>30日間の無料トライアル実施中。すべての機能を解放。</Text>
-            </View>
-          </View>
-          <Pressable style={styles.detailButton}>
-            <Text style={styles.detailButtonText}>詳細</Text>
-          </Pressable>
-        </Pressable>
-
         {/* 運営からのお知らせ */}
         <View style={styles.announcementSection}>
           <View style={styles.announcementSectionHeader}>
@@ -564,11 +545,15 @@ export default function HomeScreen() {
         <View style={[styles.sectionHeader, { marginTop: 40 }]}>
           <View style={styles.liveDotInline} />
           <Text style={styles.sectionTitle}>現在ライブ中</Text>
+        </View>
+        <View style={styles.feedTabRowWithViewAll}>
+          <View style={styles.feedTabRowWithViewAllLeft}>
+            <FeedTabRow activeTab={liveFeedTab} onTabChange={setLiveFeedTab} />
+          </View>
           <Pressable style={styles.viewAllBtn}>
             <Text style={styles.viewAllText}>VIEW ALL</Text>
           </Pressable>
         </View>
-        <FeedTabRow activeTab={liveFeedTab} onTabChange={setLiveFeedTab} />
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -635,7 +620,7 @@ export default function HomeScreen() {
                   creatorTab === "twoshot" && styles.creatorTabTextActive,
                 ]}
               >
-                ツーショット予約
+                個別セッション
               </Text>
             </Pressable>
           </View>
@@ -676,7 +661,7 @@ export default function HomeScreen() {
                   <Image source={{ uri: s.thumbnail }} style={styles.twoshotThumb} contentFit="cover" />
                   <View style={styles.twoshotBadge}>
                     <Ionicons name="camera-outline" size={10} color="#fff" />
-                    <Text style={styles.twoshotBadgeText}>ツーショット</Text>
+                    <Text style={styles.twoshotBadgeText}>個別セッション</Text>
                   </View>
                 </View>
                 <View style={styles.twoshotBody}>
@@ -756,56 +741,6 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flex: 1,
-  },
-  premiumBanner: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    backgroundColor: C.premium,
-    borderRadius: 12,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: "#2A5FA5",
-  },
-  premiumLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flex: 1,
-  },
-  proBadge: {
-    backgroundColor: C.accent,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  proText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "800",
-  },
-  premiumTitle: {
-    color: C.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  premiumSub: {
-    color: C.textSec,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  detailButton: {
-    backgroundColor: C.accent,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  detailButtonText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "700",
   },
   announcementSection: {
     marginHorizontal: 16,
@@ -989,6 +924,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 10,
   },
+  feedTabRowWithViewAll: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  feedTabRowWithViewAllLeft: {
+    flex: 1,
+  },
   feedTab: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -1165,11 +1110,6 @@ const styles = StyleSheet.create({
     color: C.textMuted,
     fontSize: 10,
     marginRight: 4,
-  },
-  metaTextSingle: {
-    color: C.textMuted,
-    fontSize: 10,
-    marginTop: 2,
   },
   priceText: {
     color: C.accent,

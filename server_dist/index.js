@@ -1070,6 +1070,27 @@ async function registerRoutes(app2) {
       xUrl: updated.xUrl ?? null
     });
   });
+  app2.delete("/api/auth/account", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const [owned] = await db.select().from(communities).where(eq2(communities.ownerId, user.id)).limit(1);
+    if (owned) {
+      return res.status(400).json({ error: "\u7BA1\u7406\u3057\u3066\u3044\u308B\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u304C\u3042\u308B\u305F\u3081\u524A\u9664\u3067\u304D\u307E\u305B\u3093\u3002\u5148\u306B\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u3092\u524A\u9664\u3057\u3066\u304F\u3060\u3055\u3044\u3002" });
+    }
+    try {
+      await db.delete(communityMembers).where(eq2(communityMembers.userId, user.id));
+      await db.delete(communityModerators).where(eq2(communityModerators.userId, user.id));
+      await db.delete(communityPollVotes).where(eq2(communityPollVotes.userId, user.id));
+      await db.delete(communityVotes).where(eq2(communityVotes.userId, user.id));
+      await db.update(videos).set({ userId: null }).where(eq2(videos.userId, user.id));
+      await db.delete(videoComments).where(eq2(videoComments.userId, user.id));
+      await db.delete(users).where(eq2(users.id, user.id));
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("Account deletion error:", e);
+      res.status(500).json({ error: "\u30A2\u30AB\u30A6\u30F3\u30C8\u306E\u524A\u9664\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
+    }
+  });
   app2.get("/api/profile/by-name/:name", async (req, res) => {
     const name = decodeURIComponent(req.params.name || "");
     if (!name.trim()) return res.status(400).json({ error: "\u540D\u524D\u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044" });
@@ -1396,6 +1417,7 @@ async function registerRoutes(app2) {
     const moderatorUsers = modRows.length > 0 ? await db.select().from(users).where(inArray(users.id, modRows.map((r) => r.userId))) : [];
     res.json({
       adminId: community.adminId,
+      ownerId: community.ownerId,
       admin: admin ? { id: admin.id, displayName: admin.displayName, profileImageUrl: admin.profileImageUrl } : null,
       moderatorIds: modRows.map((r) => r.userId),
       moderators: moderatorUsers.map((u) => ({ id: u.id, displayName: u.displayName, profileImageUrl: u.profileImageUrl }))
@@ -1874,6 +1896,45 @@ async function registerRoutes(app2) {
     } catch (e) {
       console.error("Create community error:", e);
       res.status(500).json({ error: "\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u306E\u4F5C\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
+    }
+  });
+  app2.delete("/api/communities/:id", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    if (community.ownerId !== user.id) {
+      return res.status(403).json({ error: "\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u306E\u524A\u9664\u306F\u4F5C\u6210\u8005\u306E\u307F\u53EF\u80FD\u3067\u3059" });
+    }
+    try {
+      const threadRows = await db.select({ id: communityThreads.id }).from(communityThreads).where(eq2(communityThreads.communityId, communityId));
+      const threadIds = threadRows.map((t) => t.id);
+      if (threadIds.length > 0) {
+        await db.delete(communityThreadPosts).where(inArray(communityThreadPosts.threadId, threadIds));
+      }
+      await db.delete(communityThreads).where(eq2(communityThreads.communityId, communityId));
+      const pollRows = await db.select({ id: communityPolls.id }).from(communityPolls).where(eq2(communityPolls.communityId, communityId));
+      const pollIds = pollRows.map((p) => p.id);
+      if (pollIds.length > 0) {
+        await db.delete(communityPollVotes).where(inArray(communityPollVotes.pollId, pollIds));
+        await db.delete(communityPollOptions).where(inArray(communityPollOptions.pollId, pollIds));
+      }
+      await db.delete(communityPolls).where(eq2(communityPolls.communityId, communityId));
+      await db.delete(communityVotes).where(eq2(communityVotes.communityId, communityId));
+      await db.delete(communityAds).where(eq2(communityAds.communityId, communityId));
+      await db.delete(communityModerators).where(eq2(communityModerators.communityId, communityId));
+      await db.delete(communityMembers).where(eq2(communityMembers.communityId, communityId));
+      await db.delete(jukeboxChat).where(eq2(jukeboxChat.communityId, communityId));
+      await db.delete(jukeboxQueue).where(eq2(jukeboxQueue.communityId, communityId));
+      await db.delete(jukeboxState).where(eq2(jukeboxState.communityId, communityId));
+      await db.delete(videoEditors).where(eq2(videoEditors.communityId, communityId));
+      await db.update(videos).set({ communityId: null }).where(eq2(videos.communityId, communityId));
+      await db.delete(communities).where(eq2(communities.id, communityId));
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("Community deletion error:", e);
+      res.status(500).json({ error: "\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u306E\u524A\u9664\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
     }
   });
   const MIN_AD_AMOUNT = 1e4;

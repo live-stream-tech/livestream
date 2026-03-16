@@ -41,7 +41,7 @@ const TERMS = [
     id: "no_sns",
     icon: "logo-twitter" as const,
     title: "SNS投稿制限",
-    body: "ツーショット内容・クリエイターの発言・映像等のSNS投稿・拡散を禁止します。",
+    body: "個別セッション内容・クリエイターの発言・映像等のSNS投稿・拡散を禁止します。",
   },
   {
     id: "no_contact",
@@ -83,7 +83,7 @@ export default function TwoshotBookingScreen() {
 
   async function handleProceedToPayment() {
     if (!allAgreed) return;
-    if (!requireAuth("ツーショット予約")) return;
+    if (!requireAuth("個別セッション")) return;
     setLoading(true);
     try {
       const res = await apiRequest("POST", `/api/twoshot/${streamId}/checkout`, {
@@ -109,7 +109,7 @@ export default function TwoshotBookingScreen() {
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={22} color={C.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>ツーショット予約</Text>
+        <Text style={styles.headerTitle}>個別セッション</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -220,7 +220,7 @@ export default function TwoshotBookingScreen() {
             <View style={styles.tokushoCard}>
               {[
                 ["事業者名", "RawStock運営事務局"],
-                ["サービス名", "ツーショット撮影予約（ライブ内）"],
+                ["サービス名", "個別セッション予約（ライブ内）"],
                 ["販売価格", `¥${TWOSHOT_PRICE.toLocaleString()}（税込）`],
                 ["支払時期", "予約時（クレジットカード事前決済）"],
                 ["提供時期", "予約したライブ配信中・順番が回ってきた時"],
@@ -263,7 +263,7 @@ export default function TwoshotBookingScreen() {
               <View style={styles.confirmDivider} />
               <View style={styles.confirmRow}>
                 <Text style={styles.confirmLabel}>サービス</Text>
-                <Text style={styles.confirmValue}>ツーショット撮影（ライブ内）</Text>
+                <Text style={styles.confirmValue}>個別セッション（ライブ内）</Text>
               </View>
               <View style={styles.confirmRow}>
                 <Text style={styles.confirmLabel}>クリエイター</Text>
@@ -283,7 +283,7 @@ export default function TwoshotBookingScreen() {
             <View style={styles.warningBox}>
               <Ionicons name="alert-circle" size={15} color={C.orange} />
               <Text style={styles.warningText}>
-                ウォーターマーク（透かし）がツーショット中の画面に表示されます。無断キャプチャ・転載は規約違反となります。
+                ウォーターマーク（透かし）が個別セッション中の画面に表示されます。無断キャプチャ・転載は規約違反となります。
               </Text>
             </View>
 

@@ -221,7 +221,7 @@ export default function LiveStreamScreen() {
             {myBooking ? (
               <View style={styles.twoshotBooked}>
                 <Ionicons name="camera" size={12} color={C.accent} />
-                <Text style={styles.twoshotBookedText}>ツーショット予約済み {myBooking.queuePosition}番</Text>
+                <Text style={styles.twoshotBookedText}>個別セッション予約済み {myBooking.queuePosition}番</Text>
               </View>
             ) : (
               <Pressable
@@ -229,7 +229,7 @@ export default function LiveStreamScreen() {
                 onPress={() => router.push(`/twoshot-booking/${streamId}`)}
               >
                 <Ionicons name="camera-outline" size={13} color="#fff" />
-                <Text style={styles.twoshotBtnText}>ツーショット予約</Text>
+                <Text style={styles.twoshotBtnText}>個別セッション</Text>
               </Pressable>
             )}
           </View>
@@ -252,7 +252,7 @@ export default function LiveStreamScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.twoshotNotifTitle}>あなたの番です！</Text>
-                <Text style={styles.twoshotNotifBody}>ツーショット撮影を開始してください</Text>
+                <Text style={styles.twoshotNotifBody}>個別セッションを開始してください</Text>
               </View>
               <Pressable onPress={() => setShowTwoshotNotif(false)}>
                 <Ionicons name="close" size={18} color="rgba(255,255,255,0.6)" />

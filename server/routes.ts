@@ -436,7 +436,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       await db.delete(communityModerators).where(eq(communityModerators.userId, user.id));
       await db.delete(communityPollVotes).where(eq(communityPollVotes.userId, user.id));
       await db.delete(communityVotes).where(eq(communityVotes.userId, user.id));
-      await db.update(videos).set({ userId: null }).where(eq(videos.userId, user.id));
+      await db.update(videos).set({ userId: null } as Partial<typeof videos.$inferInsert>).where(eq(videos.userId, user.id));
       await db.delete(videoComments).where(eq(videoComments.userId, user.id));
       await db.delete(users).where(eq(users.id, user.id));
       res.json({ ok: true });
@@ -1555,7 +1555,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       await db.delete(jukeboxQueue).where(eq(jukeboxQueue.communityId, communityId));
       await db.delete(jukeboxState).where(eq(jukeboxState.communityId, communityId));
       await db.delete(videoEditors).where(eq(videoEditors.communityId, communityId));
-      await db.update(videos).set({ communityId: null }).where(eq(videos.communityId, communityId));
+      await db.update(videos).set({ communityId: null } as Partial<typeof videos.$inferInsert>).where(eq(videos.communityId, communityId));
       await db.delete(communities).where(eq(communities.id, communityId));
       res.json({ ok: true });
     } catch (e) {
