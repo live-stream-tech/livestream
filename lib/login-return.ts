@@ -4,7 +4,7 @@ const RETURN_KEY = "line_login_return";
 export function saveLoginReturn(path: string | null | undefined) {
   if (typeof window === "undefined") return;
   if (!path) return;
-  if (path === "/auth/login") return;
+  if (path.startsWith("/auth/login")) return;
   try {
     const existing = localStorage.getItem(RETURN_KEY);
     if (existing) return;

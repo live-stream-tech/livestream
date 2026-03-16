@@ -51,7 +51,7 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
       const url = new URL(window.location.href);
       url.searchParams.delete("line_error");
       window.history.replaceState({}, "", url.toString());
-      router.replace("/auth/login");
+      router.replace(`/auth/login?line_error=${encodeURIComponent(lineError)}` as any);
       return;
     }
     if (!webToken) {
@@ -66,7 +66,8 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
 
         const saved = getLoginReturn();
-        const returnTo = saved ?? "/(tabs)/profile";
+        let returnTo = saved ?? "/(tabs)/profile";
+        if (returnTo.startsWith("/auth/login")) returnTo = "/(tabs)/profile";
 
         setTimeout(() => {
           if (cancelled) return;

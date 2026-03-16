@@ -1,15 +1,34 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet, Platform, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { C } from "@/constants/colors";
 import { AppLogo } from "@/components/AppLogo";
 import { getApiUrl } from "@/lib/query-client";
 import { saveLoginReturn } from "@/lib/login-return";
 
+const LINE_ERROR_LABELS: Record<string, string> = {
+  invalid_state: "認証の有効期限が切れました。もう一度お試しください。",
+  token_failed: "トークン取得に失敗しました。",
+  profile_failed: "プロフィール取得に失敗しました。",
+  server_error: "サーバーエラーが発生しました。しばらくしてからお試しください。",
+};
+
 /** LINEログインのみ。メール/パスワードは廃止。 */
 export default function LoginScreen() {
+  const { line_error } = useLocalSearchParams<{ line_error?: string }>();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (line_error && Platform.OS === "web" && typeof window !== "undefined") {
+      const msg = LINE_ERROR_LABELS[line_error] ?? `エラー: ${line_error}`;
+      setErrorMsg(msg);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("line_error");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [line_error]);
   const insets = useSafeAreaInsets();
   const topInset = Platform.OS === "web" ? 12 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -62,6 +81,11 @@ export default function LoginScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>ログイン</Text>
+        {errorMsg ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{errorMsg}</Text>
+          </View>
+        ) : null}
         <Text style={styles.cardSub}>
           コメント・投げ銭・購入・投稿・プロフィール設定などを行うには、LINE または Google でログインしてください。
         </Text>
@@ -120,6 +144,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   cardTitle: { color: C.text, fontSize: 22, fontWeight: "800", marginBottom: 12 },
+  errorBanner: { backgroundColor: "rgba(239,68,68,0.15)", borderRadius: 10, padding: 12, marginBottom: 16 },
+  errorText: { color: "#ef4444", fontSize: 13 },
   cardSub: { color: C.textMuted, fontSize: 13, marginBottom: 24, lineHeight: 20 },
 
   lineLoginBtn: {
