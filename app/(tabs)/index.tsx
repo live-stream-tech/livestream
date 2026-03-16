@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
 import { getTabTopInset, getTabBottomInset } from "@/constants/layout";
@@ -403,11 +403,17 @@ export default function HomeScreen() {
   const communityIds = useMemo(() => new Set(myCommunities.map((c) => c.id)), [myCommunities]);
   const communityNames = useMemo(() => new Set(myCommunities.map((c) => c.name)), [myCommunities]);
 
-  const randomCommunity = useMemo(() => {
-    if (myCommunities.length === 0) return null;
-    const idx = Math.floor(Math.random() * myCommunities.length);
-    return myCommunities[idx];
-  }, [myCommunities]);
+  const [randomCommunity, setRandomCommunity] = useState<{ id: number; name: string } | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      if (myCommunities.length === 0) {
+        setRandomCommunity(null);
+        return;
+      }
+      const idx = Math.floor(Math.random() * myCommunities.length);
+      setRandomCommunity(myCommunities[idx]);
+    }, [myCommunities])
+  );
   const randomCommunityId = randomCommunity?.id ?? null;
 
   type JukeboxData = {
@@ -555,7 +561,7 @@ export default function HomeScreen() {
         </ScrollView>
 
         {/* 現在ライブ中 */}
-        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+        <View style={[styles.sectionHeader, { marginTop: 40 }]}>
           <View style={styles.liveDotInline} />
           <Text style={styles.sectionTitle}>現在ライブ中</Text>
           <Pressable style={styles.viewAllBtn}>
