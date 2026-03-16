@@ -61,12 +61,8 @@ function VideoCard({ item, isDemo, panelWidth }: { item: any; isDemo: boolean; p
             <Text style={styles.durationText}>{item.duration}</Text>
           </View>
         )}
-        {/* 画像内オーバーレイ: アバター・コミュニティ・視聴数・価格 */}
+        {/* 画像内オーバーレイ: 視聴数・価格 */}
         <View style={styles.panelThumbOverlay}>
-          <View style={styles.panelThumbOverlayLeft}>
-            <Image source={{ uri: item.avatar }} style={styles.overlayAvatar} contentFit="cover" />
-            <Text style={styles.overlayCommunityText} numberOfLines={1}>{item.community}</Text>
-          </View>
           <View style={styles.panelThumbOverlayRight}>
             <Ionicons name="eye-outline" size={9} color="rgba(255,255,255,0.9)" />
             <Text style={styles.overlayMetaText}>{formatNumber(item.views)}</Text>
@@ -79,7 +75,11 @@ function VideoCard({ item, isDemo, panelWidth }: { item: any; isDemo: boolean; p
         </View>
       </View>
       <View style={styles.panelInfo}>
-        <Text style={styles.videoTitle} numberOfLines={2}>{item.title}</Text>
+        <View style={styles.creatorRow}>
+          <Image source={{ uri: item.avatar }} style={styles.smallAvatar} contentFit="cover" />
+          <Text style={styles.communityText} numberOfLines={1}>{item.community}</Text>
+        </View>
+        <Text style={styles.videoTitle} numberOfLines={1}>{item.title}</Text>
         <Text style={styles.videoTimeAgo}>{item.timeAgo}</Text>
       </View>
     </Pressable>
@@ -977,33 +977,15 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     paddingHorizontal: 6,
     paddingVertical: 4,
     backgroundColor: "rgba(0,0,0,0.55)",
-  },
-  panelThumbOverlayLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    flex: 1,
-    minWidth: 0,
   },
   panelThumbOverlayRight: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginLeft: 6,
-  },
-  overlayAvatar: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-  },
-  overlayCommunityText: {
-    color: "rgba(255,255,255,0.95)",
-    fontSize: 9,
-    fontWeight: "600",
   },
   overlayMetaText: {
     color: "rgba(255,255,255,0.9)",
@@ -1023,7 +1005,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     backgroundColor: C.surface,
-    gap: 2,
+    gap: 3,
     borderRadius: 0,
   },
   twoshotCard: {
