@@ -74,6 +74,9 @@ function VideoCard({ item, isDemo, panelWidth }: { item: any; isDemo: boolean; p
             )}
           </View>
         </View>
+        {/* サムネ境界用: 内側右・下に黒の影 */}
+        <View style={styles.panelThumbInnerShadowRight} />
+        <View style={styles.panelThumbInnerShadowBottom} />
       </View>
       <View style={styles.panelInfo}>
         <View style={styles.creatorRow}>
@@ -106,6 +109,9 @@ function LiveCard({ item, panelWidth }: { item: any; panelWidth: number }) {
           <Ionicons name="eye-outline" size={11} color="#fff" />
           <Text style={styles.viewerText}>{formatNumber(item.viewers)}</Text>
         </View>
+        {/* サムネ境界用: 内側右・下に黒の影 */}
+        <View style={styles.panelThumbInnerShadowRight} />
+        <View style={styles.panelThumbInnerShadowBottom} />
       </View>
       <View style={styles.panelInfo}>
         <View style={styles.creatorRow}>
@@ -571,7 +577,7 @@ export default function HomeScreen() {
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionHeaderLeft}>
             <Ionicons name="sparkles" size={16} color={C.accent} />
-            <Text style={styles.sectionTitle}>New</Text>
+            <Text style={[styles.sectionTitle, { color: "#E53935" }]}>New</Text>
           </View>
           <FeedTabRow activeTab={videoFeedTab} onTabChange={setVideoFeedTab} inline />
         </View>
@@ -589,7 +595,7 @@ export default function HomeScreen() {
         <View style={[styles.sectionHeaderRow, { marginTop: 40 }]}>
           <View style={styles.sectionHeaderLeft}>
             <Ionicons name="radio" size={16} color={C.live} />
-            <Text style={styles.sectionTitle}>Now</Text>
+            <Text style={[styles.sectionTitle, { color: "#E53935" }]}>Now</Text>
           </View>
           <View style={styles.feedTabRowWithViewAllRight}>
             <FeedTabRow activeTab={liveFeedTab} onTabChange={setLiveFeedTab} inline />
@@ -1047,31 +1053,36 @@ const styles = StyleSheet.create({
   },
   panelScroll: {
     paddingBottom: 16,
-    paddingHorizontal: 4,
     gap: 0,
   },
   panelCard: {
-    marginRight: 12,
-    borderRadius: 12,
+    marginRight: 0,
     overflow: "hidden",
     backgroundColor: C.surface,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 3,
-    elevation: 4,
   },
   panelThumbWrap: {
     position: "relative",
     overflow: "hidden",
     aspectRatio: 16 / 9,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
   },
   panelThumb: {
     aspectRatio: 16 / 9,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+  },
+  panelThumbInnerShadowRight: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 2,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  panelThumbInnerShadowBottom: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 2,
+    backgroundColor: "rgba(0,0,0,0.35)",
   },
   panelThumbOverlay: {
     position: "absolute",
@@ -1109,8 +1120,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: C.surface,
     gap: 3,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
   },
   twoshotCard: {
     width: 220,
