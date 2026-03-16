@@ -25,6 +25,24 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   if (event.request.url.includes("/api/")) return;
 
+  // ナビゲーションリクエスト（HTML）はネットワーク優先で最新版を取得
+  const isNav = event.request.mode === "navigate";
+  if (isNav) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200 && response.type !== "opaque") {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((c) => c || caches.match("/")))
+    );
+    return;
+  }
+
+  // その他はキャッシュ優先
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
