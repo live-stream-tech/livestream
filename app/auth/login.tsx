@@ -13,6 +13,7 @@ const LINE_ERROR_LABELS: Record<string, string> = {
   token_failed: "トークン取得に失敗しました。",
   profile_failed: "プロフィール取得に失敗しました。",
   server_error: "サーバーエラーが発生しました。しばらくしてからお試しください。",
+  me_failed: "ログインの確認に失敗しました。もう一度お試しください。",
 };
 const getErrorLabel = (key: string) =>
   LINE_ERROR_LABELS[key] ?? (key.length > 50 ? "エラーが発生しました。" : `エラー: ${key}`);

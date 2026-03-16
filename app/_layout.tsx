@@ -77,6 +77,7 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
       } catch {
         if (cancelled) return;
         setWebTokenProcessed(true);
+        router.replace("/auth/login?line_error=me_failed" as any);
       }
     };
 

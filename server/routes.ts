@@ -595,6 +595,18 @@ export async function registerRoutes(app: Express): Promise<void> {
   const GOOGLE_STATE = "livestage-google-state";
   const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY ?? "";
 
+  app.get("/api/auth/status", (_req: Request, res: Response) => {
+    res.json({
+      line: {
+        configured: !!(LINE_CHANNEL_ID && LINE_CHANNEL_SECRET && LINE_CALLBACK_URL),
+        callbackUrl: LINE_CALLBACK_URL || null,
+      },
+      google: {
+        configured: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_CALLBACK_URL),
+      },
+    });
+  });
+
   app.get("/api/auth/line", (_req: Request, res: Response) => {
     if (!LINE_CHANNEL_ID || !LINE_CHANNEL_SECRET || !LINE_CALLBACK_URL) {
       return res.status(500).json({ error: "LINE OAuth is not configured (LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, LINE_CALLBACK_URL)" });
