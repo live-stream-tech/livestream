@@ -918,6 +918,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.get("/api/auth/callback/line", async (req: Request, res: Response) => {
     const code = req.query.code as string;
     const state = req.query.state as string;
+    console.log("[LINE callback/line] received", { hasCode: !!code, stateMatch: state === LINE_STATE });
     if (!code || state !== LINE_STATE) {
       return res.redirect(lineRedirect("/?line_error=invalid_state"));
     }
@@ -935,6 +936,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
       const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string; error_description?: string };
       if (!tokenData.access_token) {
+        console.error("[LINE callback] token failed", tokenData);
         const err = tokenData.error_description ?? tokenData.error ?? "token_failed";
         return res.redirect(lineRedirect(`/?line_error=${encodeURIComponent(err)}`));
       }
@@ -944,10 +946,12 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
       const profile = await profileRes.json() as { userId?: string; displayName?: string; pictureUrl?: string };
       if (!profile.userId) {
+        console.error("[LINE callback] profile failed", profile);
         return res.redirect(lineRedirect("/?line_error=profile_failed"));
       }
 
       const lineId = profile.userId;
+      console.log("[LINE callback] profile ok", { lineId, displayName: profile.displayName });
       const lineName = profile.displayName ?? "LINEユーザー";
       const lineAvatar = profile.pictureUrl ?? null;
 
@@ -982,6 +986,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.get("/api/auth/line-callback", async (req: Request, res: Response) => {
     const code = req.query.code as string;
     const state = req.query.state as string;
+    console.log("[LINE callback] received", { hasCode: !!code, stateMatch: state === LINE_STATE });
     if (!code || state !== LINE_STATE) {
       return res.redirect(lineRedirect("/?line_error=invalid_state"));
     }
@@ -999,6 +1004,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
       const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string; error_description?: string };
       if (!tokenData.access_token) {
+        console.error("[LINE callback] token failed", tokenData);
         const err = tokenData.error_description ?? tokenData.error ?? "token_failed";
         return res.redirect(lineRedirect(`/?line_error=${encodeURIComponent(err)}`));
       }
@@ -1008,10 +1014,12 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
       const profile = await profileRes.json() as { userId?: string; displayName?: string; pictureUrl?: string };
       if (!profile.userId) {
+        console.error("[LINE callback] profile failed", profile);
         return res.redirect(lineRedirect("/?line_error=profile_failed"));
       }
 
       const lineId = profile.userId;
+      console.log("[LINE callback] profile ok", { lineId, displayName: profile.displayName });
       const lineName = profile.displayName ?? "LINEユーザー";
       const lineAvatar = profile.pictureUrl ?? null;
 
@@ -1035,10 +1043,12 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
 
       const jwtToken = makeToken(existing.id);
+      console.log("[LINE callback] success", { userId: existing.id });
       res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
     } catch (err) {
-      console.error("LINE callback error:", err);
-      res.redirect(lineRedirect("/?line_error=server_error"));
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[LINE callback] server_error", err);
+      res.redirect(lineRedirect(`/?line_error=${encodeURIComponent("server_error:" + msg.slice(0, 80))}`));
     }
   });
 

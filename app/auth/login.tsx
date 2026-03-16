@@ -15,8 +15,11 @@ const LINE_ERROR_LABELS: Record<string, string> = {
   server_error: "サーバーエラーが発生しました。しばらくしてからお試しください。",
   me_failed: "ログインの確認に失敗しました。もう一度お試しください。",
 };
-const getErrorLabel = (key: string) =>
-  LINE_ERROR_LABELS[key] ?? (key.length > 50 ? "エラーが発生しました。" : `エラー: ${key}`);
+const getErrorLabel = (key: string) => {
+  if (LINE_ERROR_LABELS[key]) return LINE_ERROR_LABELS[key];
+  if (key.startsWith("server_error:")) return `サーバーエラー: ${key.slice(13, 93)}`;
+  return key.length > 50 ? "エラーが発生しました。" : `エラー: ${key}`;
+};
 
 /** LINEログインのみ。メール/パスワードは廃止。 */
 export default function LoginScreen() {
