@@ -21,6 +21,8 @@ import { C } from "@/constants/colors";
 import { apiRequest } from "@/lib/query-client";
 import { useAuth } from "@/lib/auth";
 import { Linking } from "react-native";
+import { getApiUrl } from "@/lib/query-client";
+import { saveLoginReturn } from "@/lib/login-return";
 
 type JukeboxState = {
   communityId: number;
@@ -420,6 +422,15 @@ export default function JukeboxScreen() {
     { videoId: string; title: string; thumbnail: string }[]
   >([]);
   const [ytSearching, setYtSearching] = useState(false);
+  const [ytPlaylists, setYtPlaylists] = useState<
+    { id: string; title: string; thumbnail: string }[]
+  >([]);
+  const [ytPlaylistItems, setYtPlaylistItems] = useState<
+    { videoId: string; title: string; thumbnail: string }[]
+  >([]);
+  const [ytPlaylistsLoading, setYtPlaylistsLoading] = useState(false);
+  const [ytPlaylistsNeedGoogle, setYtPlaylistsNeedGoogle] = useState(false);
+  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -539,6 +550,60 @@ export default function JukeboxScreen() {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }, [chat.length]);
+
+  // プレイリスト取得（モーダル表示時・ログイン済み）
+  useEffect(() => {
+    if (!showAddModal || !user) {
+      setYtPlaylists([]);
+      setYtPlaylistsNeedGoogle(false);
+      setSelectedPlaylistId(null);
+      setYtPlaylistItems([]);
+      return;
+    }
+    let cancelled = false;
+    setYtPlaylistsLoading(true);
+    setYtPlaylistsNeedGoogle(false);
+    apiRequest("GET", "/api/youtube/playlists")
+      .then((res) => res.json())
+      .then((data: { id: string; title: string; thumbnail: string }[]) => {
+        if (!cancelled) setYtPlaylists(Array.isArray(data) ? data : []);
+      })
+      .catch((e: any) => {
+        if (!cancelled && (e?.status === 403 || e?.body)) {
+          try {
+            const parsed = e?.body ? JSON.parse(e.body) : {};
+            if (parsed?.needsGoogleLogin) setYtPlaylistsNeedGoogle(true);
+          } catch {}
+        }
+        if (!cancelled) setYtPlaylists([]);
+      })
+      .finally(() => {
+        if (!cancelled) setYtPlaylistsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showAddModal, user?.id]);
+
+  // プレイリスト内の動画取得
+  useEffect(() => {
+    if (!selectedPlaylistId || !user) {
+      setYtPlaylistItems([]);
+      return;
+    }
+    let cancelled = false;
+    apiRequest("GET", `/api/youtube/playlists/${selectedPlaylistId}/items`)
+      .then((res) => res.json())
+      .then((data: { videoId: string; title: string; thumbnail: string }[]) => {
+        if (!cancelled) setYtPlaylistItems(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setYtPlaylistItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPlaylistId, user?.id]);
 
   return (
     <KeyboardAvoidingView
@@ -681,6 +746,94 @@ export default function JukeboxScreen() {
                 </Pressable>
               </View>
             </View>
+
+            {/* 自分のプレイリスト */}
+            {user && (
+              <View style={styles.ytInputSection}>
+                <Text style={styles.ytLabel}>自分のプレイリスト（Googleログイン）</Text>
+                {ytPlaylistsNeedGoogle ? (
+                  <Pressable
+                    style={styles.ytPlaylistLoginHint}
+                    onPress={() => {
+                      if (Platform.OS === "web" && typeof window !== "undefined") {
+                        const returnTo = window.location.pathname + window.location.search;
+                        saveLoginReturn(returnTo);
+                        const url = new URL("/api/auth/google", getApiUrl()).toString();
+                        (window.top || window).location.replace(url);
+                      } else {
+                        router.push("/auth/login");
+                      }
+                    }}
+                  >
+                    <Ionicons name="logo-youtube" size={18} color="#FF0000" />
+                    <Text style={styles.ytPlaylistLoginText}>
+                      Googleでログインするとプレイリストを表示
+                    </Text>
+                  </Pressable>
+                ) : ytPlaylistsLoading ? (
+                  <Text style={styles.ytPlaylistLoading}>読み込み中...</Text>
+                ) : selectedPlaylistId ? (
+                  <View>
+                    <Pressable
+                      style={styles.ytPlaylistBack}
+                      onPress={() => setSelectedPlaylistId(null)}
+                    >
+                      <Ionicons name="chevron-back" size={16} color={C.accent} />
+                      <Text style={styles.ytPlaylistBackText}>プレイリスト一覧へ</Text>
+                    </Pressable>
+                    <ScrollView style={styles.ytPlaylistItemsScroll} showsVerticalScrollIndicator={false}>
+                    {ytPlaylistItems.map((item) => {
+                      const video: Video & { youtubeId: string } = {
+                        id: Math.floor(Math.random() * 2000000),
+                        title: item.title,
+                        thumbnail: item.thumbnail,
+                        duration: "0:00",
+                        category: "YouTube",
+                        price: null,
+                        youtubeId: item.videoId,
+                      };
+                      return (
+                        <Pressable
+                          key={item.videoId}
+                          style={styles.modalItem}
+                          onPress={() => addMutation.mutate(video)}
+                        >
+                          <Image source={{ uri: item.thumbnail }} style={styles.modalThumb} contentFit="cover" />
+                          <View style={styles.modalItemInfo}>
+                            <Text style={styles.modalItemTitle} numberOfLines={2}>{item.title}</Text>
+                            <View style={styles.modalItemMeta}>
+                              <Ionicons name="list" size={12} color={C.accent} />
+                              <Text style={styles.modalItemMetaText}>プレイリストから追加</Text>
+                            </View>
+                          </View>
+                          <Ionicons name="add-circle" size={24} color={C.accent} />
+                        </Pressable>
+                      );
+                    })}
+                    </ScrollView>
+                  </View>
+                ) : ytPlaylists.length > 0 ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.ytPlaylistRow}>
+                    {ytPlaylists.map((pl) => (
+                      <Pressable
+                        key={pl.id}
+                        style={styles.ytPlaylistChip}
+                        onPress={() => setSelectedPlaylistId(pl.id)}
+                      >
+                        {pl.thumbnail ? (
+                          <Image source={{ uri: pl.thumbnail }} style={styles.ytPlaylistChipThumb} contentFit="cover" />
+                        ) : (
+                          <View style={[styles.ytPlaylistChipThumb, { backgroundColor: C.surface3 }]} />
+                        )}
+                        <Text style={styles.ytPlaylistChipTitle} numberOfLines={2}>{pl.title}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.ytPlaylistEmpty}>プレイリストがありません</Text>
+                )}
+              </View>
+            )}
 
             {/* List */}
             <ScrollView style={styles.modalList} showsVerticalScrollIndicator={false}>
@@ -1164,4 +1317,41 @@ const styles = StyleSheet.create({
     fontSize: 12,
     paddingVertical: 8,
   },
+  ytPlaylistLoginHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(255,0,0,0.1)",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,0,0,0.3)",
+  },
+  ytPlaylistLoginText: { color: C.text, fontSize: 12 },
+  ytPlaylistLoading: { color: C.textMuted, fontSize: 12, paddingVertical: 8 },
+  ytPlaylistBack: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 8,
+  },
+  ytPlaylistBackText: { color: C.accent, fontSize: 12 },
+  ytPlaylistItemsScroll: { maxHeight: 200 },
+  ytPlaylistRow: { marginBottom: 8 },
+  ytPlaylistChip: {
+    width: 100,
+    marginRight: 8,
+    backgroundColor: C.surface2,
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  ytPlaylistChipThumb: { width: "100%", height: 56, borderRadius: 6 },
+  ytPlaylistChipTitle: {
+    color: C.text,
+    fontSize: 11,
+    padding: 6,
+    marginTop: 2,
+  },
+  ytPlaylistEmpty: { color: C.textMuted, fontSize: 12, paddingVertical: 8 },
 });

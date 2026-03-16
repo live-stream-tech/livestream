@@ -393,6 +393,10 @@ export const users = pgTable("users", {
   phoneVerifiedAt: timestamp("phone_verified_at"),
   /** Stripe Connect 連結アカウントID（Express/Custom）。連携済みなら設定される */
   stripeConnectId: text("stripe_connect_id"),
+  /** Google OAuth（YouTube プレイリスト用）。Googleログインユーザーのみ */
+  googleRefreshToken: text("google_refresh_token"),
+  googleAccessToken: text("google_access_token"),
+  googleTokenExpiresAt: timestamp("google_token_expires_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

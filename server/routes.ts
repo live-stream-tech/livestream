@@ -529,7 +529,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       response_type: "code",
       client_id: GOOGLE_CLIENT_ID,
       redirect_uri: GOOGLE_CALLBACK_URL,
-      scope: "openid email profile",
+      scope: "openid email profile https://www.googleapis.com/auth/youtube.readonly",
       state: GOOGLE_STATE,
       access_type: "offline",
       prompt: "consent",
@@ -557,6 +557,8 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
       const tokenData = (await tokenRes.json()) as {
         access_token?: string;
+        refresh_token?: string;
+        expires_in?: number;
         id_token?: string;
         error?: string;
       };
@@ -581,6 +583,15 @@ export async function registerRoutes(app: Express): Promise<void> {
       const displayName = profile.name ?? profile.email ?? "Googleユーザー";
       const avatar = profile.picture ?? null;
 
+      const expiresAt = tokenData.expires_in
+        ? new Date(Date.now() + tokenData.expires_in * 1000)
+        : null;
+      const tokenUpdate = {
+        googleAccessToken: tokenData.access_token,
+        ...(tokenData.refresh_token ? { googleRefreshToken: tokenData.refresh_token } : {}),
+        ...(expiresAt ? { googleTokenExpiresAt: expiresAt } : {}),
+      };
+
       let [existing] = await db.select().from(users).where(eq(users.lineId, googleKey));
       if (!existing) {
         [existing] = await db
@@ -590,12 +601,18 @@ export async function registerRoutes(app: Express): Promise<void> {
             displayName,
             profileImageUrl: avatar,
             role: "USER",
+            ...tokenUpdate,
           } as typeof users.$inferInsert)
           .returning();
       } else {
         [existing] = await db
           .update(users)
-          .set({ displayName, profileImageUrl: avatar, updatedAt: new Date() } as Partial<typeof users.$inferInsert>)
+          .set({
+            displayName,
+            profileImageUrl: avatar,
+            updatedAt: new Date(),
+            ...tokenUpdate,
+          } as Partial<typeof users.$inferInsert>)
           .where(eq(users.id, existing.id))
           .returning();
       }
@@ -650,6 +667,151 @@ export async function registerRoutes(app: Express): Promise<void> {
     } catch (e: any) {
       console.error("YouTube search exception:", e);
       res.status(500).json({ error: "YouTube 検索でエラーが発生しました" });
+    }
+  });
+
+  /** ユーザーの Google アクセストークンを取得（必要ならリフレッシュ） */
+  async function getGoogleAccessToken(userId: number): Promise<string | null> {
+    const [u] = await db.select().from(users).where(eq(users.id, userId));
+    if (!u || !(u as any).googleRefreshToken) return null;
+    const row = u as any;
+    const expiresAt = row.googleTokenExpiresAt ? new Date(row.googleTokenExpiresAt).getTime() : 0;
+    const now = Date.now();
+    if (row.googleAccessToken && expiresAt > now + 60_000) {
+      return row.googleAccessToken;
+    }
+    const refreshToken = row.googleRefreshToken;
+    if (!refreshToken || !GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) return null;
+    try {
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
+        }).toString(),
+      });
+      const data = (await tokenRes.json()) as { access_token?: string; expires_in?: number };
+      if (!data.access_token) return null;
+      const newExpiresAt = data.expires_in
+        ? new Date(Date.now() + data.expires_in * 1000)
+        : null;
+      await db
+        .update(users)
+        .set({
+          googleAccessToken: data.access_token,
+          ...(newExpiresAt ? { googleTokenExpiresAt: newExpiresAt } : {}),
+          updatedAt: new Date(),
+        } as Partial<typeof users.$inferInsert>)
+        .where(eq(users.id, userId));
+      return data.access_token;
+    } catch {
+      return null;
+    }
+  }
+
+  // ── YouTube プレイリスト（Google ログインユーザー向け）────────────────────────
+  app.get("/api/youtube/playlists", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const accessToken = await getGoogleAccessToken(user.id);
+    if (!accessToken) {
+      return res.status(403).json({
+        error: "YouTube プレイリストを利用するには Google でログインしてください",
+        needsGoogleLogin: true,
+      });
+    }
+    try {
+      const params = new URLSearchParams({
+        part: "snippet",
+        mine: "true",
+        maxResults: "25",
+      });
+      const ytRes = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlists?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (!ytRes.ok) {
+        const text = await ytRes.text();
+        console.error("YouTube playlists error:", ytRes.status, text);
+        return res.status(502).json({ error: "プレイリストの取得に失敗しました" });
+      }
+      const json = (await ytRes.json()) as {
+        items?: { id?: string; snippet?: { title?: string; thumbnails?: { default?: { url?: string }; medium?: { url?: string } } } }[];
+      };
+      const items = (json.items ?? []).map((item) => {
+        const thumbs = item.snippet?.thumbnails;
+        const thumbUrl = thumbs?.medium?.url ?? thumbs?.default?.url ?? "";
+        return {
+          id: item.id,
+          title: item.snippet?.title ?? "",
+          thumbnail: thumbUrl,
+        };
+      });
+      res.json(items);
+    } catch (e: any) {
+      console.error("YouTube playlists exception:", e);
+      res.status(500).json({ error: "プレイリストの取得でエラーが発生しました" });
+    }
+  });
+
+  app.get("/api/youtube/playlists/:playlistId/items", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const accessToken = await getGoogleAccessToken(user.id);
+    if (!accessToken) {
+      return res.status(403).json({
+        error: "YouTube プレイリストを利用するには Google でログインしてください",
+        needsGoogleLogin: true,
+      });
+    }
+    const playlistId = paramStr(req, "playlistId");
+    if (!playlistId) return res.status(400).json({ error: "プレイリストIDが必要です" });
+    try {
+      const params = new URLSearchParams({
+        part: "snippet,contentDetails",
+        playlistId,
+        maxResults: "50",
+      });
+      const ytRes = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlistItems?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (!ytRes.ok) {
+        const text = await ytRes.text();
+        console.error("YouTube playlistItems error:", ytRes.status, text);
+        return res.status(502).json({ error: "プレイリストの取得に失敗しました" });
+      }
+      const json = (await ytRes.json()) as {
+        items?: {
+          id?: string;
+          snippet?: {
+            title?: string;
+            thumbnails?: { default?: { url?: string }; medium?: { url?: string }; high?: { url?: string } };
+            resourceId?: { videoId?: string };
+          };
+          contentDetails?: { videoId?: string };
+        }[];
+      };
+      const items = (json.items ?? [])
+        .map((item) => {
+          const videoId = item.contentDetails?.videoId ?? item.snippet?.resourceId?.videoId;
+          const thumbs = item.snippet?.thumbnails;
+          const thumbUrl = thumbs?.high?.url ?? thumbs?.medium?.url ?? thumbs?.default?.url ?? "";
+          if (!videoId) return null;
+          return {
+            videoId,
+            title: item.snippet?.title ?? "",
+            thumbnail: thumbUrl,
+          };
+        })
+        .filter(Boolean);
+      res.json(items);
+    } catch (e: any) {
+      console.error("YouTube playlistItems exception:", e);
+      res.status(500).json({ error: "プレイリストの取得でエラーが発生しました" });
     }
   });
 
