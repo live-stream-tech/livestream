@@ -480,7 +480,7 @@ export default function ProfileScreen() {
                 />
               ) : (
                 <View style={[styles.avatar, styles.avatarFallback]}>
-                  <Text style={styles.avatarInitial}>{(user?.name ?? "?")[0].toUpperCase()}</Text>
+                  <View style={styles.avatarWhiteCircle} />
                 </View>
               )}
               <View style={styles.avatarEditBadge}>
@@ -928,7 +928,7 @@ export default function ProfileScreen() {
                     <Image source={{ uri: (user.avatar ?? user.profileImageUrl) ?? "" }} style={styles.previewAvatar} contentFit="cover" />
                   ) : (
                     <View style={[styles.previewAvatar, styles.avatarFallback]}>
-                      <Text style={styles.avatarInitial}>{(user?.name ?? "?")[0].toUpperCase()}</Text>
+                      <View style={styles.previewWhiteCircle} />
                     </View>
                   )}
                 </View>
@@ -1151,7 +1151,7 @@ const styles = StyleSheet.create({
     gap: 5,
     borderWidth: 1,
     borderColor: C.orange,
-    borderRadius: 20,
+    borderRadius: 3,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
@@ -1162,7 +1162,7 @@ const styles = StyleSheet.create({
     top: -4,
     right: -4,
     backgroundColor: C.live,
-    borderRadius: 7,
+    borderRadius: 2,
     minWidth: 14,
     height: 14,
     alignItems: "center",
@@ -1177,7 +1177,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 16,
     backgroundColor: C.surface,
-    borderRadius: 10,
+    borderRadius: 3,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
@@ -1193,7 +1193,7 @@ const styles = StyleSheet.create({
   profileLeft: { flexDirection: "row", alignItems: "center", gap: 14 },
   avatarContainer: {
     borderWidth: 2,
-    borderColor: C.accent,
+    borderColor: "#fff",
     borderRadius: 35,
     padding: 2,
   },
@@ -1207,7 +1207,7 @@ const styles = StyleSheet.create({
   editBtn: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 3,
     borderWidth: 1,
     borderColor: C.border,
     alignItems: "center",
@@ -1225,7 +1225,7 @@ const styles = StyleSheet.create({
   socialIconBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 3,
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,
@@ -1235,7 +1235,7 @@ const styles = StyleSheet.create({
   tagsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 16, flexWrap: "wrap" },
   tag: {
     backgroundColor: C.surface,
-    borderRadius: 20,
+    borderRadius: 3,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderWidth: 1,
@@ -1246,7 +1246,7 @@ const styles = StyleSheet.create({
   enneagramCard: {
     marginHorizontal: 16,
     backgroundColor: C.surface,
-    borderRadius: 16,
+    borderRadius: 3,
     padding: 16,
     marginBottom: 14,
     borderWidth: 1,
@@ -1265,7 +1265,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 2,
     borderWidth: 1,
     borderColor: C.border,
   },
@@ -1277,7 +1277,7 @@ const styles = StyleSheet.create({
   },
   enneagramLegend: { flex: 1, gap: 5, justifyContent: "center" },
   legendRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  legendDot: { width: 6, height: 6, borderRadius: 3 },
+  legendDot: { width: 6, height: 6, borderRadius: 2 },
   legendNum: { color: C.textMuted, fontSize: 9, fontWeight: "700", width: 10 },
   legendLabel: { color: C.textSec, fontSize: 9, flex: 1 },
   legendBarBg: {
@@ -1293,29 +1293,29 @@ const styles = StyleSheet.create({
   supporterCard: {
     marginHorizontal: 16,
     backgroundColor: C.surface,
-    borderRadius: 12,
+    borderRadius: 3,
     padding: 14,
     marginBottom: 12,
     gap: 8,
   },
   supporterHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   supporterTitle: { color: C.accent, fontSize: 12, fontWeight: "800", letterSpacing: 0.5, flex: 1 },
-  activeBadge: { backgroundColor: C.accent, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  activeBadge: { backgroundColor: C.accent, borderRadius: 2, paddingHorizontal: 6, paddingVertical: 2 },
   activeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
   progressBar: {
     height: 8,
     backgroundColor: C.surface2,
-    borderRadius: 4,
+    borderRadius: 2,
     overflow: "hidden",
     position: "relative",
   },
-  progressFill: { height: "100%", backgroundColor: C.accent, borderRadius: 4 },
+  progressFill: { height: "100%", backgroundColor: C.accent, borderRadius: 2 },
   trophyIcon: { position: "absolute", right: 0, top: -3 },
   supporterSub: { color: C.accent, fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
   roleCard: {
     marginHorizontal: 16,
     backgroundColor: C.surface,
-    borderRadius: 12,
+    borderRadius: 3,
     padding: 14,
     marginBottom: 16,
     borderWidth: 1,
@@ -1332,7 +1332,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 3,
     backgroundColor: C.surface2,
     borderWidth: 1,
     borderColor: C.border,
@@ -1346,7 +1346,7 @@ const styles = StyleSheet.create({
   revenueBtn: {
     marginHorizontal: 16,
     backgroundColor: C.green,
-    borderRadius: 12,
+    borderRadius: 3,
     paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center",
@@ -1358,7 +1358,7 @@ const styles = StyleSheet.create({
   adReviewBtn: {
     marginHorizontal: 16,
     backgroundColor: C.orange,
-    borderRadius: 12,
+    borderRadius: 3,
     paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center",
@@ -1371,7 +1371,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 16,
     backgroundColor: C.surface,
-    borderRadius: 10,
+    borderRadius: 3,
     borderWidth: 1,
     borderColor: C.border,
   },
@@ -1386,7 +1386,7 @@ const styles = StyleSheet.create({
   searchResultAvatar: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 3,
     marginRight: 10,
   },
   searchResultBody: { flex: 1 },
@@ -1405,7 +1405,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 5,
     backgroundColor: C.accent,
-    borderRadius: 10,
+    borderRadius: 3,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
@@ -1418,7 +1418,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     backgroundColor: C.surface,
-    borderRadius: 10,
+    borderRadius: 3,
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderWidth: 1,
@@ -1430,7 +1430,7 @@ const styles = StyleSheet.create({
     gap: 8,
     flex: 1,
   },
-  timelineThumb: { width: 40, height: 40, borderRadius: 8, backgroundColor: C.surface2 },
+  timelineThumb: { width: 40, height: 40, borderRadius: 3, backgroundColor: C.surface2 },
   timelineBody: { flex: 1 },
   timelineTitle: { color: C.text, fontSize: 12, fontWeight: "700", marginBottom: 1 },
   timelineMeta: { color: C.textMuted, fontSize: 10 },
@@ -1464,7 +1464,7 @@ const styles = StyleSheet.create({
   },
   myListContent: {
     backgroundColor: C.surface,
-    borderRadius: 12,
+    borderRadius: 3,
     padding: 12,
     borderWidth: 1,
     borderColor: C.border,
@@ -1476,7 +1476,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 8,
     paddingHorizontal: 4,
-    borderRadius: 10,
+    borderRadius: 3,
   },
   myListEmpty: {
     color: C.textMuted,
@@ -1511,7 +1511,7 @@ const styles = StyleSheet.create({
   myCommunityCard: {
     width: 140,
     height: 120,
-    borderRadius: 12,
+    borderRadius: 3,
     overflow: "hidden",
     backgroundColor: C.surface,
     borderWidth: 1,
@@ -1549,14 +1549,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     backgroundColor: C.live,
-    borderRadius: 8,
+    borderRadius: 2,
     paddingHorizontal: 6,
     paddingVertical: 3,
   },
   myCommunityLiveDot: {
     width: 6,
     height: 6,
-    borderRadius: 3,
+    borderRadius: 2,
     backgroundColor: "#fff",
   },
   myCommunityLiveText: {
@@ -1571,7 +1571,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     backgroundColor: C.accent,
-    borderRadius: 24,
+    borderRadius: 3,
     paddingHorizontal: 16,
     paddingVertical: 10,
     shadowColor: C.accent,
@@ -1589,8 +1589,8 @@ const styles = StyleSheet.create({
   },
   modalSheet: {
     backgroundColor: "#131E2A",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
     padding: 20,
     maxHeight: "88%",
   },
@@ -1613,7 +1613,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: C.accent,
-    borderRadius: 10,
+    borderRadius: 3,
   },
   previewOpenPageText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   previewScroll: { maxHeight: 400 },
@@ -1624,6 +1624,14 @@ const styles = StyleSheet.create({
   },
   previewAvatarWrap: { marginBottom: 12 },
   previewAvatar: { width: 80, height: 80, borderRadius: 40 },
+  previewWhiteCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#fff",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
   previewName: { color: C.text, fontSize: 18, fontWeight: "800", marginBottom: 8 },
   previewBio: { color: C.textSec, fontSize: 14, lineHeight: 20, textAlign: "center", marginBottom: 12 },
   previewPostsSection: { paddingBottom: 24 },
@@ -1635,7 +1643,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     backgroundColor: C.surface,
-    borderRadius: 10,
+    borderRadius: 3,
     borderWidth: 1,
     borderColor: C.border,
   },
@@ -1656,7 +1664,7 @@ const styles = StyleSheet.create({
   editTypeBadge: {
     width: 30,
     height: 30,
-    borderRadius: 15,
+    borderRadius: 3,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -1667,7 +1675,7 @@ const styles = StyleSheet.create({
   stepBtn: {
     width: 30,
     height: 30,
-    borderRadius: 8,
+    borderRadius: 2,
     backgroundColor: C.surface2,
     alignItems: "center",
     justifyContent: "center",
@@ -1675,7 +1683,7 @@ const styles = StyleSheet.create({
   scoreBox: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 3,
     borderWidth: 1.5,
     backgroundColor: C.surface,
     alignItems: "center",
@@ -1686,7 +1694,7 @@ const styles = StyleSheet.create({
   cancelBtn: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 3,
     borderWidth: 1,
     borderColor: C.border,
     alignItems: "center",
@@ -1695,7 +1703,7 @@ const styles = StyleSheet.create({
   saveBtn: {
     flex: 2,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 3,
     backgroundColor: C.accent,
     flexDirection: "row",
     alignItems: "center",
@@ -1714,7 +1722,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     backgroundColor: C.accent,
-    borderRadius: 14,
+    borderRadius: 3,
     paddingHorizontal: 28,
     paddingVertical: 14,
   },
@@ -1727,7 +1735,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     backgroundColor: "#06C755",
-    borderRadius: 14,
+    borderRadius: 3,
     paddingHorizontal: 28,
     paddingVertical: 14,
   },
@@ -1739,7 +1747,7 @@ const styles = StyleSheet.create({
     right: 16,
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: 3,
     backgroundColor: C.accent,
     alignItems: "center",
     justifyContent: "center",
@@ -1760,7 +1768,7 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 340,
     backgroundColor: C.surface,
-    borderRadius: 16,
+    borderRadius: 3,
     padding: 16,
     borderWidth: 1,
     borderColor: C.border,
@@ -1781,7 +1789,7 @@ const styles = StyleSheet.create({
   },
   pwaPopupBtn: {
     backgroundColor: C.accent,
-    borderRadius: 12,
+    borderRadius: 3,
     paddingVertical: 12,
     alignItems: "center",
   },
@@ -1793,7 +1801,7 @@ const styles = StyleSheet.create({
   logoutBtn: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 3,
     borderWidth: 1,
     borderColor: C.border,
     alignItems: "center",
@@ -1802,7 +1810,7 @@ const styles = StyleSheet.create({
   settingsBtn: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 3,
     borderWidth: 1,
     borderColor: C.border,
     alignItems: "center",
@@ -1815,9 +1823,17 @@ const styles = StyleSheet.create({
 
   // Avatar fallback + edit badge
   avatarFallback: {
-    backgroundColor: C.surface2,
+    backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
+  },
+  avatarWhiteCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#fff",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
   avatarInitial: { color: C.accent, fontSize: 28, fontWeight: "800" },
   avatarEditBadge: {
@@ -1826,7 +1842,7 @@ const styles = StyleSheet.create({
     right: 0,
     width: 20,
     height: 20,
-    borderRadius: 10,
+    borderRadius: 3,
     backgroundColor: C.accent,
     alignItems: "center",
     justifyContent: "center",
@@ -1840,7 +1856,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: C.surface2,
-    borderRadius: 12,
+    borderRadius: 3,
     paddingHorizontal: 14,
     gap: 10,
     borderWidth: 1,
@@ -1850,7 +1866,7 @@ const styles = StyleSheet.create({
   avatarPreview: {
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: 3,
     marginTop: 10,
     borderWidth: 2,
     borderColor: C.accent,

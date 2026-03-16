@@ -193,7 +193,7 @@ export default function CommunityScreen() {
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+          <View style={[styles.sectionHeader, styles.sectionHeaderFirst]}>
             <View style={styles.sectionAccent} />
             <Text style={styles.sectionTitle}>ジャンルから検索</Text>
           </View>
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: C.surface,
-    borderRadius: 12,
+    borderRadius: 3,
     paddingHorizontal: 12,
     height: 42,
   },
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     backgroundColor: C.accent,
-    borderRadius: 12,
+    borderRadius: 3,
     paddingHorizontal: 14,
     height: 42,
   },
@@ -317,14 +317,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     paddingHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 8,
+    marginTop: 20,
   },
   sectionHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 8,
+    marginTop: 20,
   },
   sectionHeaderLeft: {
     flexDirection: "row",
@@ -338,6 +340,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   sectionTitle: { color: C.text, fontSize: 15, fontWeight: "700" },
+  sectionHeaderFirst: { marginTop: 12 },
   genreGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -349,7 +352,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     backgroundColor: C.surface,
-    borderRadius: 20,
+    borderRadius: 3,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
@@ -369,7 +372,7 @@ const styles = StyleSheet.create({
   rankCard: {
     width: 140,
     height: 180,
-    borderRadius: 12,
+    borderRadius: 3,
     overflow: "hidden",
     position: "relative",
     backgroundColor: C.surface,
@@ -387,7 +390,7 @@ const styles = StyleSheet.create({
     left: 8,
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: 3,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -403,14 +406,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 3,
     backgroundColor: "rgba(0,0,0,0.6)",
-    borderRadius: 8,
+    borderRadius: 2,
     paddingHorizontal: 6,
     paddingVertical: 3,
   },
   onlineDot: {
     width: 6,
     height: 6,
-    borderRadius: 3,
+    borderRadius: 2,
     backgroundColor: "#FF3B30",
   },
   onlineText: {
@@ -444,7 +447,7 @@ const styles = StyleSheet.create({
   purchaseCard: {
     width: 160,
     height: 210,
-    borderRadius: 12,
+    borderRadius: 3,
     overflow: "hidden",
     position: "relative",
     backgroundColor: C.surface,
@@ -461,7 +464,7 @@ const styles = StyleSheet.create({
     top: 36,
     left: 8,
     backgroundColor: C.accent,
-    borderRadius: 6,
+    borderRadius: 2,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
@@ -492,7 +495,7 @@ const styles = StyleSheet.create({
   purchaseCardAvatar: {
     width: 18,
     height: 18,
-    borderRadius: 9,
+    borderRadius: 2,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.4)",
   },
@@ -504,14 +507,14 @@ const styles = StyleSheet.create({
   tabPills: {
     flexDirection: "row",
     backgroundColor: C.surface,
-    borderRadius: 8,
+    borderRadius: 3,
     padding: 2,
     gap: 2,
   },
   tabPill: {
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
+    paddingVertical: 3,
+    borderRadius: 2,
   },
   tabPillActive: {
     backgroundColor: C.accent,

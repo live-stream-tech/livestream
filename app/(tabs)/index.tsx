@@ -340,7 +340,6 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const [rankFilter, setRankFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("ALL");
   const [creatorFilter, setCreatorFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("MONTHLY");
-  const [creatorTab, setCreatorTab] = useState<"ranking" | "twoshot">("ranking");
   const [videoFeedTab, setVideoFeedTab] = useState<FeedTab>("all");
   const [liveFeedTab, setLiveFeedTab] = useState<FeedTab>("all");
   const [showAnnouncementsModal, setShowAnnouncementsModal] = useState(false);
@@ -646,89 +645,61 @@ export default function HomeScreen() {
             <View style={[styles.liveDotInline, { backgroundColor: C.orange }]} />
             <Text style={styles.sectionTitle}>配信者ランキング</Text>
           </View>
-          <View style={styles.creatorTabs}>
-            <Pressable
-              style={[styles.creatorTab, creatorTab === "ranking" && styles.creatorTabActive]}
-              onPress={() => setCreatorTab("ranking")}
-            >
-              <Text
-                style={[
-                  styles.creatorTabText,
-                  creatorTab === "ranking" && styles.creatorTabTextActive,
-                ]}
-              >
-                ランキング
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.creatorTab, creatorTab === "twoshot" && styles.creatorTabActive]}
-              onPress={() => setCreatorTab("twoshot")}
-            >
-              <Text
-                style={[
-                  styles.creatorTabText,
-                  creatorTab === "twoshot" && styles.creatorTabTextActive,
-                ]}
-              >
-                個別セッション
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-        {creatorTab === "ranking" ? (
-          <View style={[styles.sectionHeaderRow, styles.creatorFilterRow]}>
-            <View style={styles.sectionHeaderLeft} />
-            <View style={styles.filterPills}>
-              {(["WEEKLY", "MONTHLY", "ALL"] as const).map((f) => (
-                <Pressable
-                  key={f}
-                  style={[styles.filterPill, creatorFilter === f && styles.filterPillActive]}
-                  onPress={() => setCreatorFilter(f)}
-                >
-                  <Text style={[styles.filterPillText, creatorFilter === f && styles.filterPillTextActive]}>
-                    {f}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        ) : null}
-        {creatorTab === "ranking" ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-            {creators.map((c) => (
-              <CreatorRankCard key={c.id} item={c} />
-            ))}
-          </ScrollView>
-        ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-            {twoshotSessions.map((s) => (
+          <View style={styles.filterPills}>
+            {(["WEEKLY", "MONTHLY", "ALL"] as const).map((f) => (
               <Pressable
-                key={s.id}
-                style={styles.twoshotCard}
-                onPress={() => router.push(`/twoshot-booking/${s.id}`)}
+                key={f}
+                style={[styles.filterPill, creatorFilter === f && styles.filterPillActive]}
+                onPress={() => setCreatorFilter(f)}
               >
-                <View style={styles.twoshotThumbWrap}>
-                  <Image source={{ uri: s.thumbnail }} style={styles.twoshotThumb} contentFit="cover" />
-                  <View style={styles.twoshotBadge}>
-                    <Ionicons name="camera-outline" size={10} color="#fff" />
-                    <Text style={styles.twoshotBadgeText}>個別セッション</Text>
-                  </View>
-                </View>
-                <View style={styles.twoshotBody}>
-                  <Text style={styles.twoshotCreator} numberOfLines={1}>
-                    {s.creator}
-                  </Text>
-                  <Text style={styles.twoshotTitle} numberOfLines={2}>
-                    {s.title}
-                  </Text>
-                  <Text style={styles.twoshotMeta}>
-                    {s.date} {s.time} · 残り{s.spotsLeft}枠
-                  </Text>
-                </View>
+                <Text style={[styles.filterPillText, creatorFilter === f && styles.filterPillTextActive]}>
+                  {f}
+                </Text>
               </Pressable>
             ))}
-          </ScrollView>
-        )}
+          </View>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+          {creators.map((c) => (
+            <CreatorRankCard key={c.id} item={c} />
+          ))}
+        </ScrollView>
+
+        {/* 個別セッションランキング */}
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionHeaderLeft}>
+            <View style={[styles.liveDotInline, { backgroundColor: C.accent }]} />
+            <Text style={styles.sectionTitle}>個別セッションランキング</Text>
+          </View>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+          {twoshotSessions.map((s) => (
+            <Pressable
+              key={s.id}
+              style={styles.twoshotCard}
+              onPress={() => router.push(`/twoshot-booking/${s.id}`)}
+            >
+              <View style={styles.twoshotThumbWrap}>
+                <Image source={{ uri: s.thumbnail }} style={styles.twoshotThumb} contentFit="cover" />
+                <View style={styles.twoshotBadge}>
+                  <Ionicons name="camera-outline" size={10} color="#fff" />
+                  <Text style={styles.twoshotBadgeText}>個別セッション</Text>
+                </View>
+              </View>
+              <View style={styles.twoshotBody}>
+                <Text style={styles.twoshotCreator} numberOfLines={1}>
+                  {s.creator}
+                </Text>
+                <Text style={styles.twoshotTitle} numberOfLines={2}>
+                  {s.title}
+                </Text>
+                <Text style={styles.twoshotMeta}>
+                  {s.date} {s.time} · 残り{s.spotsLeft}枠
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </ScrollView>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -935,10 +906,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  creatorFilterRow: {
-    marginTop: 4,
-    marginBottom: 8,
-  },
   sectionTitle: {
     color: C.text,
     fontSize: 16,
@@ -983,30 +950,6 @@ const styles = StyleSheet.create({
   },
   filterPillTextActive: {
     color: "#fff",
-  },
-  creatorTabs: {
-    flexDirection: "row",
-    backgroundColor: C.surface,
-    borderRadius: 3,
-    padding: 2,
-    gap: 2,
-  },
-  creatorTab: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 2,
-  },
-  creatorTabActive: {
-    backgroundColor: C.accent,
-  },
-  creatorTabText: {
-    color: C.textMuted,
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  creatorTabTextActive: {
-    color: "#fff",
-    fontWeight: "700",
   },
   hScroll: {
     paddingHorizontal: 16,
@@ -1135,10 +1078,11 @@ const styles = StyleSheet.create({
   },
   twoshotThumbWrap: {
     position: "relative",
+    overflow: "hidden",
   },
   twoshotThumb: {
     width: 220,
-    height: 110,
+    aspectRatio: 16 / 9,
   },
   twoshotBadge: {
     position: "absolute",
@@ -1361,7 +1305,7 @@ const styles = StyleSheet.create({
   },
   rankedThumb: {
     width: 180,
-    height: 101,
+    aspectRatio: 16 / 9,
     borderRadius: 3,
   },
   rankBadge: {
