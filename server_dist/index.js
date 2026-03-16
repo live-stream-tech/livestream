@@ -18,15 +18,27 @@ var schema_exports = {};
 __export(schema_exports, {
   TRANSACTION_STATUSES: () => TRANSACTION_STATUSES,
   USER_ROLES: () => USER_ROLES,
+  VIDEO_VISIBILITY: () => VIDEO_VISIBILITY,
   announcements: () => announcements,
   bookingSessions: () => bookingSessions,
   communities: () => communities,
+  communityAds: () => communityAds,
   communityMembers: () => communityMembers,
   communityModerators: () => communityModerators,
+  communityPollOptions: () => communityPollOptions,
+  communityPollVotes: () => communityPollVotes,
+  communityPolls: () => communityPolls,
+  communityThreadPosts: () => communityThreadPosts,
+  communityThreads: () => communityThreads,
+  communityVotes: () => communityVotes,
+  concertStaff: () => concertStaff,
+  concerts: () => concerts,
   creators: () => creators,
   dmConversationMessages: () => dmConversationMessages,
   dmMessages: () => dmMessages,
   earnings: () => earnings,
+  genreAds: () => genreAds,
+  genreOwners: () => genreOwners,
   jukeboxChat: () => jukeboxChat,
   jukeboxQueue: () => jukeboxQueue,
   jukeboxState: () => jukeboxState,
@@ -36,6 +48,7 @@ __export(schema_exports, {
   liverReviews: () => liverReviews,
   notifications: () => notifications,
   phoneVerifications: () => phoneVerifications,
+  reports: () => reports,
   streams: () => streams,
   transactions: () => transactions,
   twoshotBookings: () => twoshotBookings,
@@ -65,7 +78,9 @@ var communities = pgTable("communities", {
   online: boolean("online").notNull().default(false),
   category: text("category").notNull(),
   /** 管理人（users.id）。広告収益10%の受け取り対象 */
-  adminId: integer("admin_id")
+  adminId: integer("admin_id"),
+  /** 作成者＝初代管理人（users.id） */
+  ownerId: integer("owner_id")
 });
 var communityModerators = pgTable("community_moderators", {
   id: serial("id").primaryKey(),
@@ -78,6 +93,124 @@ var communityMembers = pgTable("community_members", {
   userId: integer("user_id").notNull(),
   joinedAt: timestamp("joined_at").defaultNow()
 });
+var communityThreads = pgTable("community_threads", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  authorUserId: integer("author_user_id").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  createdAt: timestamp("created_at").defaultNow(),
+  pinned: boolean("pinned").notNull().default(false)
+});
+var communityThreadPosts = pgTable("community_thread_posts", {
+  id: serial("id").primaryKey(),
+  threadId: integer("thread_id").notNull(),
+  authorUserId: integer("author_user_id").notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+var communityPolls = pgTable("community_polls", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  authorUserId: integer("author_user_id").notNull(),
+  question: text("question").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  endAt: timestamp("end_at")
+});
+var communityPollOptions = pgTable("community_poll_options", {
+  id: serial("id").primaryKey(),
+  pollId: integer("poll_id").notNull(),
+  text: text("text").notNull(),
+  order: integer("order").notNull().default(0)
+});
+var communityPollVotes = pgTable("community_poll_votes", {
+  id: serial("id").primaryKey(),
+  pollId: integer("poll_id").notNull(),
+  optionId: integer("option_id").notNull(),
+  userId: integer("user_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+});
+var communityVotes = pgTable("community_votes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  communityId: integer("community_id").notNull(),
+  type: text("type").notNull(),
+  // 'no_confidence' 等
+  createdAt: timestamp("created_at").defaultNow()
+});
+var communityAds = pgTable("community_ads", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  companyName: text("company_name").notNull(),
+  contactName: text("contact_name").notNull(),
+  email: text("email").notNull(),
+  bannerUrl: text("banner_url").notNull(),
+  startDate: text("start_date").notNull(),
+  // YYYY-MM-DD
+  endDate: text("end_date").notNull(),
+  dailyRate: integer("daily_rate").notNull(),
+  totalAmount: integer("total_amount").notNull(),
+  status: text("status").notNull().default("pending"),
+  // pending | moderator_approved | approved | rejected
+  approvedByModerator: integer("approved_by_moderator"),
+  approvedByOwner: integer("approved_by_owner"),
+  createdAt: timestamp("created_at").defaultNow()
+});
+var genreAds = pgTable("genre_ads", {
+  id: serial("id").primaryKey(),
+  genreId: text("genre_id").notNull(),
+  companyName: text("company_name").notNull(),
+  contactName: text("contact_name").notNull(),
+  email: text("email").notNull(),
+  bannerUrl: text("banner_url").notNull(),
+  startDate: text("start_date").notNull(),
+  // YYYY-MM-DD
+  endDate: text("end_date").notNull(),
+  dailyRate: integer("daily_rate").notNull(),
+  totalAmount: integer("total_amount").notNull(),
+  status: text("status").notNull().default("pending"),
+  // pending | approved | rejected
+  createdAt: timestamp("created_at").defaultNow()
+});
+var genreOwners = pgTable("genre_owners", {
+  id: serial("id").primaryKey(),
+  genreId: text("genre_id").notNull().unique(),
+  ownerUserId: integer("owner_user_id").notNull(),
+  // users.id
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+var concerts = pgTable("concerts", {
+  id: serial("id").primaryKey(),
+  artistUserId: integer("artist_user_id").notNull(),
+  // users.id
+  title: text("title").notNull(),
+  venueName: text("venue_name").notNull(),
+  venueAddress: text("venue_address").notNull(),
+  concertDate: text("concert_date").notNull(),
+  // ISO文字列 or YYYY-MM-DD HH:mm
+  ticketUrl: text("ticket_url"),
+  shootingAllowed: boolean("shooting_allowed").notNull().default(false),
+  shootingNotes: text("shooting_notes"),
+  artistShare: integer("artist_share").notNull().default(0),
+  photographerShare: integer("photographer_share").notNull().default(0),
+  editorShare: integer("editor_share").notNull().default(0),
+  venueShare: integer("venue_share").notNull().default(0),
+  status: text("status").notNull().default("draft"),
+  // draft | published
+  createdAt: timestamp("created_at").defaultNow()
+});
+var concertStaff = pgTable("concert_staff", {
+  id: serial("id").primaryKey(),
+  concertId: integer("concert_id").notNull(),
+  artistUserId: integer("artist_user_id").notNull(),
+  // concerts.artist_user_id
+  staffUserId: integer("staff_user_id").notNull(),
+  // users.id
+  status: text("status").notNull().default("pending"),
+  // pending | approved | rejected
+  createdAt: timestamp("created_at").defaultNow()
+});
+var VIDEO_VISIBILITY = ["draft", "my_page_only", "community"];
 var videos = pgTable("videos", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -91,13 +224,41 @@ var videos = pgTable("videos", {
   avatar: text("avatar").notNull(),
   rank: integer("rank"),
   isRanked: boolean("is_ranked").notNull().default(false),
-  createdAt: timestamp("created_at").defaultNow()
+  createdAt: timestamp("created_at").defaultNow(),
+  /** 投稿本文（任意） */
+  description: text("description"),
+  /** 通報で明らかな違反と判定された場合に非表示 */
+  hidden: boolean("hidden").notNull().default(false),
+  concertId: integer("concert_id"),
+  /** 投稿者（users.id）。既存データは null */
+  userId: integer("user_id"),
+  /** 公開範囲: draft=下書き, my_page_only=自分のページのみ, community=コミュニティ公開 */
+  visibility: text("visibility").notNull().default("community"),
+  /** コミュニティ公開時の communityId。visibility=community の場合に設定 */
+  communityId: integer("community_id")
 });
 var videoComments = pgTable("video_comments", {
   id: serial("id").primaryKey(),
   videoId: integer("video_id").notNull(),
   userId: integer("user_id").notNull(),
   text: text("text").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  /** 通報で明らかな違反と判定された場合に非表示 */
+  hidden: boolean("hidden").notNull().default(false)
+});
+var reports = pgTable("reports", {
+  id: serial("id").primaryKey(),
+  reporterId: integer("reporter_id").notNull(),
+  contentType: text("content_type").notNull(),
+  // 'video' | 'comment'
+  contentId: integer("content_id").notNull(),
+  reason: text("reason").notNull(),
+  // ユーザー選択: spam, harassment, inappropriate, other
+  aiVerdict: text("ai_verdict").notNull(),
+  // 'clear_violation' | 'gray_zone' | 'no_violation'
+  aiReason: text("ai_reason"),
+  status: text("status").notNull().default("pending"),
+  // 'pending' | 'hidden' | 'reviewed'
   createdAt: timestamp("created_at").defaultNow()
 });
 var liveStreams = pgTable("live_streams", {
@@ -238,6 +399,20 @@ var users = pgTable("users", {
   profileImageUrl: text("profile_image_url"),
   role: text("role").notNull().default("USER"),
   bio: text("bio").notNull().default(""),
+  // NOTE: 以下のカラムはNeon側で事前に追加してください:
+  // ALTER TABLE users ADD COLUMN IF NOT EXISTS spotify_url TEXT;
+  // ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_music_url TEXT;
+  // ALTER TABLE users ADD COLUMN IF NOT EXISTS bandcamp_url TEXT;
+  // ALTER TABLE users ADD COLUMN IF NOT EXISTS instagram_url TEXT;
+  // ALTER TABLE users ADD COLUMN IF NOT EXISTS youtube_url TEXT;
+  // ALTER TABLE users ADD COLUMN IF NOT EXISTS x_url TEXT;
+  spotifyUrl: text("spotify_url"),
+  appleMusicUrl: text("apple_music_url"),
+  bandcampUrl: text("bandcamp_url"),
+  /** SNS・動画チャンネル（プロフィールにアイコン表示） */
+  instagramUrl: text("instagram_url"),
+  youtubeUrl: text("youtube_url"),
+  xUrl: text("x_url"),
   /** 紐付け済みの電話番号（1電話番号 = 1ユーザー）。NULL許可だが重複は禁止。 */
   phoneNumber: text("phone_number").unique(),
   /** 電話番号が本人確認済みになった日時 */
@@ -399,7 +574,7 @@ var pool = new Pool({
 var db = drizzle(pool, { schema: schema_exports });
 
 // server/routes.ts
-import { eq as eq2, asc, desc, count, sql as sql2, and as and2, isNull, inArray } from "drizzle-orm";
+import { eq as eq2, asc, desc, count, sql as sql2, and as and2, or, isNull, inArray } from "drizzle-orm";
 
 // server/stripeClient.local.ts
 import Stripe from "stripe";
@@ -506,6 +681,101 @@ async function getMonthlyRevenueRank(yearMonth) {
   return withUser.map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
+// server/claudeReport.ts
+var MODEL = "claude-haiku-4-5-20251001";
+var ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+var SYSTEM_PROMPT = `\u3042\u306A\u305F\u306F\u30B3\u30F3\u30C6\u30F3\u30C4\u30E2\u30C7\u30EC\u30FC\u30B7\u30E7\u30F3\u306E\u5224\u5B9A\u8005\u3067\u3059\u3002
+\u30E6\u30FC\u30B6\u30FC\u304C\u9078\u629E\u3057\u305F\u901A\u5831\u7406\u7531\u306B\u57FA\u3065\u304D\u3001\u6295\u7A3F\u307E\u305F\u306F\u30B3\u30E1\u30F3\u30C8\u306E\u30C6\u30AD\u30B9\u30C8\u304C\u4EE5\u4E0B\u306E\u3044\u305A\u308C\u304B\u306B\u8A72\u5F53\u3059\u308B\u304B\u5224\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044\u3002
+
+\u5224\u5B9A\u57FA\u6E96:
+- \u30B9\u30D1\u30E0: \u5E83\u544A\u30FB\u5BA3\u4F1D\u30FB\u30D5\u30A3\u30C3\u30B7\u30F3\u30B0\u30FB\u7121\u95A2\u4FC2\u306A\u7E70\u308A\u8FD4\u3057
+- \u30CF\u30E9\u30B9\u30E1\u30F3\u30C8: \u8AB9\u8B17\u4E2D\u50B7\u30FB\u3044\u3058\u3081\u30FB\u5DEE\u5225\u7684\u8868\u73FE\u30FB\u500B\u4EBA\u653B\u6483
+- \u6027\u7684\u30B3\u30F3\u30C6\u30F3\u30C4: \u9732\u9AA8\u306A\u6027\u7684\u8868\u73FE\u30FB\u5150\u7AE5\u306B\u95A2\u9023\u3059\u308B\u4E0D\u9069\u5207\u306A\u5185\u5BB9
+- \u66B4\u529B\u7684\u30B3\u30F3\u30C6\u30F3\u30C4: \u8105\u8FEB\u30FB\u66B4\u529B\u306E\u52A9\u9577\u30FB\u30B0\u30ED\u30C6\u30B9\u30AF\u306A\u63CF\u5199
+
+\u5224\u5B9A\u7D50\u679C\u306F\u5FC5\u305A\u4EE5\u4E0B\u306E3\u7A2E\u985E\u306E\u3044\u305A\u308C\u304B1\u3064\u3060\u3051\u3092\u8FD4\u3057\u3066\u304F\u3060\u3055\u3044\u3002JSON\u306E\u307F\u3092\u8FD4\u3057\u3001\u8AAC\u660E\u6587\u306F\u4E0D\u8981\u3067\u3059\u3002
+- clear_violation: \u660E\u3089\u304B\u306B\u898F\u7D04\u9055\u53CD\uFF08\u4E0A\u8A18\u306E\u3044\u305A\u308C\u304B\u306B\u660E\u78BA\u306B\u8A72\u5F53\uFF09
+- gray_zone: \u30B0\u30EC\u30FC\u30BE\u30FC\u30F3\uFF08\u5224\u65AD\u304C\u96E3\u3057\u3044\u3001\u6587\u8108\u6B21\u7B2C\uFF09
+- no_violation: \u9055\u53CD\u306A\u3057\uFF08\u8A72\u5F53\u3057\u306A\u3044\u3001\u8AA4\u901A\u5831\u306E\u53EF\u80FD\u6027)
+
+\u8FD4\u5374\u5F62\u5F0F\uFF08\u3053\u306EJSON\u5F62\u5F0F\u306E\u307F\uFF09:
+{"verdict":"clear_violation"|"gray_zone"|"no_violation","reason":"\u77ED\u3044\u7406\u7531\uFF081\u6587\uFF09"}`;
+async function judgeReportContent(contentText, userReason) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return { verdict: "gray_zone", reason: "API\u30AD\u30FC\u672A\u8A2D\u5B9A\u306E\u305F\u3081\u7BA1\u7406\u8005\u78BA\u8A8D\u306B\u56DE\u3057\u307E\u3057\u305F\u3002" };
+  }
+  const userPrompt = `\u901A\u5831\u7406\u7531: ${userReason}
+
+\u5BFE\u8C61\u30C6\u30AD\u30B9\u30C8:
+${contentText}`;
+  const res = await fetch(ANTHROPIC_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 256,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userPrompt }]
+    })
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("Claude API error:", res.status, errText);
+    return { verdict: "gray_zone", reason: `API\u30A8\u30E9\u30FC(${res.status})\u306E\u305F\u3081\u7BA1\u7406\u8005\u78BA\u8A8D\u306B\u56DE\u3057\u307E\u3057\u305F\u3002` };
+  }
+  const data = await res.json();
+  const text2 = data.content?.[0]?.text?.trim() ?? "";
+  try {
+    const parsed = JSON.parse(text2);
+    const verdict = parsed.verdict;
+    if (verdict === "clear_violation" || verdict === "gray_zone" || verdict === "no_violation") {
+      return {
+        verdict,
+        reason: typeof parsed.reason === "string" ? parsed.reason : ""
+      };
+    }
+  } catch {
+  }
+  return { verdict: "gray_zone", reason: "\u5224\u5B9A\u7D50\u679C\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u305F\u305F\u3081\u7BA1\u7406\u8005\u78BA\u8A8D\u306B\u56DE\u3057\u307E\u3057\u305F\u3002" };
+}
+
+// server/r2.ts
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+var endpoint = process.env.R2_ENDPOINT;
+var bucket = process.env.R2_BUCKET_NAME;
+var accessKeyId = process.env.R2_ACCESS_KEY_ID;
+var secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+if (!endpoint || !bucket) {
+  console.warn("[R2] R2_ENDPOINT / R2_BUCKET_NAME \u304C\u8A2D\u5B9A\u3055\u308C\u3066\u3044\u307E\u305B\u3093");
+}
+var r2Client = endpoint && accessKeyId && secretAccessKey ? new S3Client({
+  region: "auto",
+  endpoint,
+  credentials: {
+    accessKeyId,
+    secretAccessKey
+  }
+}) : null;
+async function createSignedUploadUrl(key, contentType) {
+  if (!r2Client || !endpoint || !bucket) {
+    throw new Error("R2 \u30AF\u30E9\u30A4\u30A2\u30F3\u30C8\u304C\u6B63\u3057\u304F\u8A2D\u5B9A\u3055\u308C\u3066\u3044\u307E\u305B\u3093");
+  }
+  const cmd = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    ContentType: contentType
+  });
+  const uploadUrl = await getSignedUrl(r2Client, cmd, { expiresIn: 60 * 5 });
+  const publicUrl = `${endpoint.replace(/\/$/, "")}/${bucket}/${key}`;
+  return { uploadUrl, publicUrl };
+}
+
 // server/routes.ts
 import jwt from "jsonwebtoken";
 var JWT_SECRET = process.env.SESSION_SECRET ?? "livestage-dev-secret";
@@ -520,6 +790,23 @@ function paramStr(req, key) {
 }
 function paramNum(req, key) {
   return parseInt(paramStr(req, key), 10) || 0;
+}
+function formatTimeAgo(d) {
+  if (!d) return "\u305F\u3063\u305F\u4ECA";
+  const date = typeof d === "string" ? new Date(d) : d;
+  if (isNaN(date.getTime())) return "\u305F\u3063\u305F\u4ECA";
+  const diffMs = Date.now() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1e3);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffSec < 60) return "\u305F\u3063\u305F\u4ECA";
+  if (diffMin < 60) return `${diffMin}\u5206\u524D`;
+  if (diffHour < 24) return `${diffHour}\u6642\u9593\u524D`;
+  if (diffDay < 7) return `${diffDay}\u65E5\u524D`;
+  if (diffDay < 30) return `${Math.floor(diffDay / 7)}\u9031\u9593\u524D`;
+  if (diffDay < 365) return `${Math.floor(diffDay / 30)}\u30F6\u6708\u524D`;
+  return `${Math.floor(diffDay / 365)}\u5E74\u524D`;
 }
 function queryStr(req, key) {
   const v = req.query[key];
@@ -584,7 +871,14 @@ async function registerRoutes(app2) {
       avatar: user.profileImageUrl,
       role: user.role,
       bio: user.bio,
-      stripeConnectId: user.stripeConnectId ?? null
+      stripeConnectId: user.stripeConnectId ?? null,
+      spotifyUrl: user.spotifyUrl ?? null,
+      appleMusicUrl: user.appleMusicUrl ?? null,
+      bandcampUrl: user.bandcampUrl ?? null,
+      instagramUrl: user.instagramUrl ?? null,
+      youtubeUrl: user.youtubeUrl ?? null,
+      xUrl: user.xUrl ?? null,
+      phoneNumber: user.phoneNumber ?? null
     });
   });
   app2.post("/api/connect/onboard", async (req, res) => {
@@ -742,11 +1036,24 @@ async function registerRoutes(app2) {
   app2.put("/api/auth/profile", async (req, res) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
-    const { name, displayName, bio, avatar, profileImageUrl } = req.body;
+    const { name, displayName, bio, avatar, profileImageUrl, spotifyUrl, appleMusicUrl, bandcampUrl, instagramUrl, youtubeUrl, xUrl, phoneNumber } = req.body;
     const newName = name ?? displayName ?? user.displayName;
     const newBio = bio ?? user.bio;
     const newAvatar = avatar ?? profileImageUrl ?? user.profileImageUrl;
-    const [updated] = await db.update(users).set({ displayName: newName, bio: newBio, profileImageUrl: newAvatar !== void 0 ? newAvatar : void 0, updatedAt: /* @__PURE__ */ new Date() }).where(eq2(users.id, user.id)).returning();
+    const newPhone = phoneNumber !== void 0 ? phoneNumber?.trim() || null : void 0;
+    const [updated] = await db.update(users).set({
+      displayName: newName,
+      bio: newBio,
+      profileImageUrl: newAvatar !== void 0 ? newAvatar : void 0,
+      spotifyUrl: spotifyUrl !== void 0 ? spotifyUrl : user.spotifyUrl ?? null,
+      appleMusicUrl: appleMusicUrl !== void 0 ? appleMusicUrl : user.appleMusicUrl ?? null,
+      bandcampUrl: bandcampUrl !== void 0 ? bandcampUrl : user.bandcampUrl ?? null,
+      ...instagramUrl !== void 0 ? { instagramUrl: instagramUrl?.trim() || null } : {},
+      ...youtubeUrl !== void 0 ? { youtubeUrl: youtubeUrl?.trim() || null } : {},
+      ...xUrl !== void 0 ? { xUrl: xUrl?.trim() || null } : {},
+      ...newPhone !== void 0 && { phoneNumber: newPhone },
+      updatedAt: /* @__PURE__ */ new Date()
+    }).where(eq2(users.id, user.id)).returning();
     res.json({
       id: updated.id,
       name: updated.displayName,
@@ -754,7 +1061,52 @@ async function registerRoutes(app2) {
       profileImageUrl: updated.profileImageUrl,
       avatar: updated.profileImageUrl,
       role: updated.role,
-      bio: updated.bio
+      bio: updated.bio,
+      spotifyUrl: updated.spotifyUrl ?? null,
+      appleMusicUrl: updated.appleMusicUrl ?? null,
+      bandcampUrl: updated.bandcampUrl ?? null,
+      instagramUrl: updated.instagramUrl ?? null,
+      youtubeUrl: updated.youtubeUrl ?? null,
+      xUrl: updated.xUrl ?? null
+    });
+  });
+  app2.get("/api/profile/by-name/:name", async (req, res) => {
+    const name = decodeURIComponent(req.params.name || "");
+    if (!name.trim()) return res.status(400).json({ error: "\u540D\u524D\u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const [u] = await db.select({ id: users.id }).from(users).where(eq2(users.displayName, name));
+    if (u) return res.json({ type: "user", id: u.id });
+    const [c] = await db.select({ id: creators.id }).from(creators).where(eq2(creators.name, name));
+    if (c) return res.json({ type: "liver", id: c.id });
+    return res.status(404).json({ error: "Not found" });
+  });
+  app2.get("/api/users/:id", async (req, res) => {
+    const id = paramNum(req, "id");
+    const [u] = await db.select({
+      id: users.id,
+      displayName: users.displayName,
+      profileImageUrl: users.profileImageUrl,
+      bio: users.bio,
+      instagramUrl: users.instagramUrl,
+      youtubeUrl: users.youtubeUrl,
+      xUrl: users.xUrl,
+      spotifyUrl: users.spotifyUrl,
+      appleMusicUrl: users.appleMusicUrl,
+      bandcampUrl: users.bandcampUrl
+    }).from(users).where(eq2(users.id, id));
+    if (!u) return res.status(404).json({ error: "Not found" });
+    res.json({
+      id: u.id,
+      name: u.displayName,
+      displayName: u.displayName,
+      avatar: u.profileImageUrl,
+      profileImageUrl: u.profileImageUrl,
+      bio: u.bio ?? "",
+      instagramUrl: u.instagramUrl ?? null,
+      youtubeUrl: u.youtubeUrl ?? null,
+      xUrl: u.xUrl ?? null,
+      spotifyUrl: u.spotifyUrl ?? null,
+      appleMusicUrl: u.appleMusicUrl ?? null,
+      bandcampUrl: u.bandcampUrl ?? null
     });
   });
   const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID ?? "";
@@ -1121,6 +1473,328 @@ async function registerRoutes(app2) {
     }
     res.status(201).json({ ok: true });
   });
+  app2.get("/api/communities/:id/threads", async (req, res) => {
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const rows = await db.select({
+      id: communityThreads.id,
+      communityId: communityThreads.communityId,
+      authorUserId: communityThreads.authorUserId,
+      title: communityThreads.title,
+      body: communityThreads.body,
+      createdAt: communityThreads.createdAt,
+      pinned: communityThreads.pinned
+    }).from(communityThreads).where(eq2(communityThreads.communityId, communityId)).orderBy(desc(communityThreads.pinned), desc(communityThreads.createdAt));
+    const postCounts = await Promise.all(
+      rows.map(async (t) => {
+        const [c] = await db.select({ n: count() }).from(communityThreadPosts).where(eq2(communityThreadPosts.threadId, t.id));
+        return c?.n ?? 0;
+      })
+    );
+    const authorIds = [...new Set(rows.map((r) => r.authorUserId))];
+    const authorRows = authorIds.length > 0 ? await db.select({ id: users.id, displayName: users.displayName, profileImageUrl: users.profileImageUrl }).from(users).where(inArray(users.id, authorIds)) : [];
+    const authorMap = new Map(authorRows.map((a) => [a.id, a]));
+    res.json(
+      rows.map((r, i) => ({
+        ...r,
+        postCount: postCounts[i],
+        author: authorMap.get(r.authorUserId) ?? { displayName: "\u4E0D\u660E", profileImageUrl: null }
+      }))
+    );
+  });
+  app2.post("/api/communities/:id/threads", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const memberRows = await db.select().from(communityMembers).where(and2(eq2(communityMembers.communityId, communityId), eq2(communityMembers.userId, user.id)));
+    if (memberRows.length === 0) return res.status(403).json({ error: "\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u306B\u53C2\u52A0\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const { title, body } = req.body;
+    if (!title || !title.trim()) return res.status(400).json({ error: "\u30BF\u30A4\u30C8\u30EB\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const [row] = await db.insert(communityThreads).values({
+      communityId,
+      authorUserId: user.id,
+      title: title.trim(),
+      body: (body ?? "").trim()
+    }).returning();
+    res.status(201).json(row);
+  });
+  app2.get("/api/communities/:id/threads/:threadId", async (req, res) => {
+    const communityId = paramNum(req, "id");
+    const threadId = paramNum(req, "threadId");
+    const [thread] = await db.select().from(communityThreads).where(and2(eq2(communityThreads.communityId, communityId), eq2(communityThreads.id, threadId)));
+    if (!thread) return res.status(404).json({ message: "Not found" });
+    const posts = await db.select().from(communityThreadPosts).where(eq2(communityThreadPosts.threadId, threadId)).orderBy(asc(communityThreadPosts.createdAt));
+    const authorIds = [thread.authorUserId, ...posts.map((p) => p.authorUserId)];
+    const authorRows = await db.select({ id: users.id, displayName: users.displayName, profileImageUrl: users.profileImageUrl }).from(users).where(inArray(users.id, authorIds));
+    const authorMap = new Map(authorRows.map((a) => [a.id, a]));
+    res.json({
+      ...thread,
+      author: authorMap.get(thread.authorUserId) ?? { displayName: "\u4E0D\u660E", profileImageUrl: null },
+      posts: posts.map((p) => ({
+        ...p,
+        author: authorMap.get(p.authorUserId) ?? { displayName: "\u4E0D\u660E", profileImageUrl: null }
+      }))
+    });
+  });
+  app2.delete("/api/communities/:id/threads/:threadId", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const communityId = paramNum(req, "id");
+    const threadId = paramNum(req, "threadId");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and2(eq2(communityModerators.communityId, communityId), eq2(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "\u7BA1\u7406\u4EBA\u307E\u305F\u306F\u30E2\u30C7\u30EC\u30FC\u30BF\u30FC\u306E\u307F\u524A\u9664\u3067\u304D\u307E\u3059" });
+    const [thread] = await db.select().from(communityThreads).where(and2(eq2(communityThreads.communityId, communityId), eq2(communityThreads.id, threadId)));
+    if (!thread) return res.status(404).json({ message: "Not found" });
+    await db.delete(communityThreadPosts).where(eq2(communityThreadPosts.threadId, threadId));
+    await db.delete(communityThreads).where(eq2(communityThreads.id, threadId));
+    res.json({ ok: true });
+  });
+  app2.delete("/api/communities/:id/threads/:threadId/posts/:postId", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const communityId = paramNum(req, "id");
+    const threadId = paramNum(req, "threadId");
+    const postId = paramNum(req, "postId");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and2(eq2(communityModerators.communityId, communityId), eq2(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "\u7BA1\u7406\u4EBA\u307E\u305F\u306F\u30E2\u30C7\u30EC\u30FC\u30BF\u30FC\u306E\u307F\u524A\u9664\u3067\u304D\u307E\u3059" });
+    const [thread] = await db.select().from(communityThreads).where(and2(eq2(communityThreads.communityId, communityId), eq2(communityThreads.id, threadId)));
+    if (!thread) return res.status(404).json({ message: "Not found" });
+    await db.delete(communityThreadPosts).where(and2(eq2(communityThreadPosts.threadId, threadId), eq2(communityThreadPosts.id, postId)));
+    res.json({ ok: true });
+  });
+  app2.post("/api/communities/:id/threads/:threadId/posts", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const communityId = paramNum(req, "id");
+    const threadId = paramNum(req, "threadId");
+    const [thread] = await db.select().from(communityThreads).where(and2(eq2(communityThreads.communityId, communityId), eq2(communityThreads.id, threadId)));
+    if (!thread) return res.status(404).json({ message: "Not found" });
+    const memberRows = await db.select().from(communityMembers).where(and2(eq2(communityMembers.communityId, communityId), eq2(communityMembers.userId, user.id)));
+    if (memberRows.length === 0) return res.status(403).json({ error: "\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u306B\u53C2\u52A0\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const { body } = req.body;
+    if (!body || !body.trim()) return res.status(400).json({ error: "\u672C\u6587\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const [row] = await db.insert(communityThreadPosts).values({
+      threadId,
+      authorUserId: user.id,
+      body: body.trim()
+    }).returning();
+    res.status(201).json(row);
+  });
+  app2.get("/api/communities/:id/admin/jukebox-queue", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and2(eq2(communityModerators.communityId, communityId), eq2(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "\u7BA1\u7406\u4EBA\u307E\u305F\u306F\u30E2\u30C7\u30EC\u30FC\u30BF\u30FC\u306E\u307F\u30A2\u30AF\u30BB\u30B9\u53EF\u80FD\u3067\u3059" });
+    const rows = await db.select().from(jukeboxQueue).where(eq2(jukeboxQueue.communityId, communityId)).orderBy(asc(jukeboxQueue.position));
+    res.json(rows);
+  });
+  app2.delete("/api/communities/:id/admin/jukebox-queue/:itemId", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const communityId = paramNum(req, "id");
+    const itemId = paramNum(req, "itemId");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and2(eq2(communityModerators.communityId, communityId), eq2(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "\u7BA1\u7406\u4EBA\u307E\u305F\u306F\u30E2\u30C7\u30EC\u30FC\u30BF\u30FC\u306E\u307F\u64CD\u4F5C\u53EF\u80FD\u3067\u3059" });
+    const [item] = await db.select().from(jukeboxQueue).where(and2(eq2(jukeboxQueue.communityId, communityId), eq2(jukeboxQueue.id, itemId)));
+    if (!item) return res.status(404).json({ message: "Not found" });
+    await db.delete(jukeboxQueue).where(eq2(jukeboxQueue.id, itemId));
+    res.json({ ok: true });
+  });
+  app2.get("/api/communities/:id/admin/ads", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and2(eq2(communityModerators.communityId, communityId), eq2(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "\u7BA1\u7406\u4EBA\u307E\u305F\u306F\u30E2\u30C7\u30EC\u30FC\u30BF\u30FC\u306E\u307F\u30A2\u30AF\u30BB\u30B9\u53EF\u80FD\u3067\u3059" });
+    const rows = await db.select().from(communityAds).where(and2(eq2(communityAds.communityId, communityId), eq2(communityAds.status, "approved"))).orderBy(asc(communityAds.startDate));
+    res.json(rows);
+  });
+  app2.get("/api/communities/:id/admin/reports", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and2(eq2(communityModerators.communityId, communityId), eq2(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "\u7BA1\u7406\u4EBA\u307E\u305F\u306F\u30E2\u30C7\u30EC\u30FC\u30BF\u30FC\u306E\u307F\u30A2\u30AF\u30BB\u30B9\u53EF\u80FD\u3067\u3059" });
+    const videoIdsInCommunity = await db.select({ id: videos.id }).from(videos).where(eq2(videos.communityId, communityId));
+    const vidSet = new Set(videoIdsInCommunity.map((v) => v.id));
+    const byName = await db.select({ id: videos.id }).from(videos).where(eq2(videos.community, community.name));
+    byName.forEach((v) => vidSet.add(v.id));
+    const allReports = await db.select().from(reports).orderBy(desc(reports.createdAt));
+    const filtered = [];
+    for (const r of allReports) {
+      if (r.contentType === "video") {
+        if (vidSet.has(r.contentId)) filtered.push(r);
+      } else if (r.contentType === "comment") {
+        const [cm] = await db.select({ videoId: videoComments.videoId }).from(videoComments).where(eq2(videoComments.id, r.contentId));
+        if (cm) {
+          const [v] = await db.select({ id: videos.id, communityId: videos.communityId, community: videos.community }).from(videos).where(eq2(videos.id, cm.videoId));
+          if (v && (v.communityId === communityId || v.community === community.name)) filtered.push(r);
+        }
+      }
+    }
+    res.json(filtered);
+  });
+  app2.patch("/api/communities/:id/admin/reports/:reportId/hide", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const communityId = paramNum(req, "id");
+    const reportId = paramNum(req, "reportId");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and2(eq2(communityModerators.communityId, communityId), eq2(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "\u7BA1\u7406\u4EBA\u307E\u305F\u306F\u30E2\u30C7\u30EC\u30FC\u30BF\u30FC\u306E\u307F\u64CD\u4F5C\u53EF\u80FD\u3067\u3059" });
+    const [report] = await db.select().from(reports).where(eq2(reports.id, reportId));
+    if (!report) return res.status(404).json({ error: "\u901A\u5831\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    const vidSet = new Set((await db.select({ id: videos.id }).from(videos).where(eq2(videos.communityId, communityId))).map((v) => v.id));
+    const byName = await db.select({ id: videos.id }).from(videos).where(eq2(videos.community, community.name));
+    byName.forEach((v) => vidSet.add(v.id));
+    let allowed = false;
+    if (report.contentType === "video") allowed = vidSet.has(report.contentId);
+    else if (report.contentType === "comment") {
+      const [cm] = await db.select({ videoId: videoComments.videoId }).from(videoComments).where(eq2(videoComments.id, report.contentId));
+      if (cm) {
+        const [v] = await db.select({ communityId: videos.communityId, community: videos.community }).from(videos).where(eq2(videos.id, cm.videoId));
+        allowed = !!v && (v.communityId === communityId || v.community === community.name);
+      }
+    }
+    if (!allowed) return res.status(403).json({ error: "\u3053\u306E\u901A\u5831\u306F\u3053\u306E\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u306B\u5C5E\u3057\u3066\u3044\u307E\u305B\u3093" });
+    if (report.contentType === "video") {
+      await db.update(videos).set({ hidden: true }).where(eq2(videos.id, report.contentId));
+    } else if (report.contentType === "comment") {
+      await db.update(videoComments).set({ hidden: true }).where(eq2(videoComments.id, report.contentId));
+    }
+    await db.update(reports).set({ status: "hidden" }).where(eq2(reports.id, reportId));
+    res.json({ ok: true });
+  });
+  app2.patch("/api/communities/:id/admin/reports/:reportId/dismiss", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const communityId = paramNum(req, "id");
+    const reportId = paramNum(req, "reportId");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and2(eq2(communityModerators.communityId, communityId), eq2(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "\u7BA1\u7406\u4EBA\u307E\u305F\u306F\u30E2\u30C7\u30EC\u30FC\u30BF\u30FC\u306E\u307F\u64CD\u4F5C\u53EF\u80FD\u3067\u3059" });
+    const [report] = await db.select().from(reports).where(eq2(reports.id, reportId));
+    if (!report) return res.status(404).json({ error: "\u901A\u5831\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    const vidSet = new Set((await db.select({ id: videos.id }).from(videos).where(eq2(videos.communityId, communityId))).map((v) => v.id));
+    const byName = await db.select({ id: videos.id }).from(videos).where(eq2(videos.community, community.name));
+    byName.forEach((v) => vidSet.add(v.id));
+    let allowed = false;
+    if (report.contentType === "video") allowed = vidSet.has(report.contentId);
+    else if (report.contentType === "comment") {
+      const [cm] = await db.select({ videoId: videoComments.videoId }).from(videoComments).where(eq2(videoComments.id, report.contentId));
+      if (cm) {
+        const [v] = await db.select({ communityId: videos.communityId, community: videos.community }).from(videos).where(eq2(videos.id, cm.videoId));
+        allowed = !!v && (v.communityId === communityId || v.community === community.name);
+      }
+    }
+    if (!allowed) return res.status(403).json({ error: "\u3053\u306E\u901A\u5831\u306F\u3053\u306E\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u306B\u5C5E\u3057\u3066\u3044\u307E\u305B\u3093" });
+    await db.update(reports).set({ status: "reviewed" }).where(eq2(reports.id, reportId));
+    res.json({ ok: true });
+  });
+  app2.get("/api/communities/:id/polls", async (req, res) => {
+    const user = await getAuthUser(req);
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const polls = await db.select().from(communityPolls).where(eq2(communityPolls.communityId, communityId)).orderBy(desc(communityPolls.createdAt));
+    const result = await Promise.all(
+      polls.map(async (p) => {
+        const opts = await db.select().from(communityPollOptions).where(eq2(communityPollOptions.pollId, p.id)).orderBy(asc(communityPollOptions.order));
+        const votes = await db.select().from(communityPollVotes).where(eq2(communityPollVotes.pollId, p.id));
+        const voteCounts = opts.map((o) => ({ optionId: o.id, text: o.text, count: votes.filter((v) => v.optionId === o.id).length }));
+        let myVoteOptionId = null;
+        if (user) {
+          const myVote = votes.find((v) => v.userId === user.id);
+          if (myVote) myVoteOptionId = myVote.optionId;
+        }
+        return { ...p, options: voteCounts, myVoteOptionId };
+      })
+    );
+    res.json(result);
+  });
+  app2.post("/api/communities/:id/polls", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq2(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const memberRows = await db.select().from(communityMembers).where(and2(eq2(communityMembers.communityId, communityId), eq2(communityMembers.userId, user.id)));
+    if (memberRows.length === 0) return res.status(403).json({ error: "\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u306B\u53C2\u52A0\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const { question, options } = req.body;
+    if (!question || !question.trim()) return res.status(400).json({ error: "\u8CEA\u554F\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    if (!options || !Array.isArray(options) || options.length < 2) return res.status(400).json({ error: "\u9078\u629E\u80A2\u30922\u3064\u4EE5\u4E0A\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const validOpts = options.filter((o) => o && String(o).trim()).slice(0, 10);
+    if (validOpts.length < 2) return res.status(400).json({ error: "\u9078\u629E\u80A2\u30922\u3064\u4EE5\u4E0A\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const [poll] = await db.insert(communityPolls).values({
+      communityId,
+      authorUserId: user.id,
+      question: question.trim()
+    }).returning();
+    for (let i = 0; i < validOpts.length; i++) {
+      await db.insert(communityPollOptions).values({
+        pollId: poll.id,
+        text: validOpts[i].trim(),
+        order: i
+      });
+    }
+    res.status(201).json(poll);
+  });
+  app2.post("/api/communities/:id/polls/:pollId/vote", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const communityId = paramNum(req, "id");
+    const pollId = paramNum(req, "pollId");
+    const { optionId } = req.body;
+    if (!optionId) return res.status(400).json({ error: "optionId \u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const [poll] = await db.select().from(communityPolls).where(and2(eq2(communityPolls.communityId, communityId), eq2(communityPolls.id, pollId)));
+    if (!poll) return res.status(404).json({ message: "Not found" });
+    const [opt] = await db.select().from(communityPollOptions).where(and2(eq2(communityPollOptions.pollId, pollId), eq2(communityPollOptions.id, optionId)));
+    if (!opt) return res.status(404).json({ message: "\u9078\u629E\u80A2\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    const memberRows = await db.select().from(communityMembers).where(and2(eq2(communityMembers.communityId, communityId), eq2(communityMembers.userId, user.id)));
+    if (memberRows.length === 0) return res.status(403).json({ error: "\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u306B\u53C2\u52A0\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const existing = await db.select().from(communityPollVotes).where(and2(eq2(communityPollVotes.pollId, pollId), eq2(communityPollVotes.userId, user.id)));
+    if (existing.length > 0) return res.status(400).json({ error: "\u3059\u3067\u306B\u6295\u7968\u6E08\u307F\u3067\u3059" });
+    await db.insert(communityPollVotes).values({
+      pollId,
+      optionId,
+      userId: user.id
+    });
+    res.json({ ok: true });
+  });
   app2.get("/api/editors/:id", async (req, res) => {
     const id = paramNum(req, "id");
     const [editor] = await db.select().from(videoEditors).where(eq2(videoEditors.id, id));
@@ -1165,17 +1839,19 @@ async function registerRoutes(app2) {
     res.status(201).json(requestRow);
   });
   app2.post("/api/communities", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
     const { name, description, bannerUrl, iconUrl, categories } = req.body;
     const trimmedName = (name ?? "").trim();
     const trimmedDescription = (description ?? "").trim();
-    const banner = (bannerUrl ?? "").trim();
-    const icon = (iconUrl ?? "").trim();
+    const banner = (bannerUrl ?? "").trim() || "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=450&fit=crop";
+    const icon = (iconUrl ?? "").trim() || "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=160&h=160&fit=crop";
     const categoryList = Array.isArray(categories) ? categories.map((c) => String(c).trim()).filter(Boolean) : typeof categories === "string" ? categories.split(/[,\s]+/).map((c) => c.trim()).filter(Boolean) : [];
-    if (!trimmedName || !trimmedDescription || !banner || !icon || categoryList.length === 0) {
-      return res.status(400).json({ error: "\u5FC5\u9808\u9805\u76EE\u3092\u3059\u3079\u3066\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    if (!trimmedName || !trimmedDescription || categoryList.length === 0) {
+      return res.status(400).json({ error: "\u540D\u524D\u30FB\u8AAC\u660E\u30FB\u30AB\u30C6\u30B4\u30EA\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
     }
-    if (trimmedDescription.length < 100) {
-      return res.status(400).json({ error: "\u8AAC\u660E\u6587\u306F100\u6587\u5B57\u4EE5\u4E0A\u3067\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    if (trimmedDescription.length < 10) {
+      return res.status(400).json({ error: "\u8AAC\u660E\u6587\u306F10\u6587\u5B57\u4EE5\u4E0A\u3067\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
     }
     try {
       const primaryCategory = categoryList[0];
@@ -1184,7 +1860,9 @@ async function registerRoutes(app2) {
         members: 0,
         thumbnail: banner,
         online: false,
-        category: primaryCategory
+        category: primaryCategory,
+        adminId: user.id,
+        ownerId: user.id
       }).returning();
       res.status(201).json({
         ...row,
@@ -1198,25 +1876,487 @@ async function registerRoutes(app2) {
       res.status(500).json({ error: "\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u306E\u4F5C\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
     }
   });
-  app2.get("/api/videos", async (_req, res) => {
-    const rows = await db.select().from(videos).where(eq2(videos.isRanked, false)).orderBy(desc(videos.createdAt));
+  const MIN_AD_AMOUNT = 1e4;
+  const DAILY_RATE_PER_MEMBER = 10;
+  const MAX_MONTHS_AHEAD = 3;
+  app2.post("/api/community-ads", async (req, res) => {
+    const { communityId: bodyCommunityId, companyName, contactName, email, bannerUrl, startDate, endDate } = req.body;
+    const cid = Number(bodyCommunityId) || 0;
+    const [community] = await db.select().from(communities).where(eq2(communities.id, cid));
+    if (!community) return res.status(404).json({ error: "\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    const company = (companyName ?? "").trim();
+    const contact = (contactName ?? "").trim();
+    const em = (email ?? "").trim();
+    const banner = (bannerUrl ?? "").trim();
+    const start = (startDate ?? "").trim();
+    const end = (endDate ?? "").trim();
+    if (!company || !contact || !em || !banner || !start || !end) {
+      return res.status(400).json({ error: "\u4F1A\u793E\u540D\u30FB\u62C5\u5F53\u8005\u540D\u30FB\u30E1\u30FC\u30EB\u30FB\u30D0\u30CA\u30FCURL\u30FB\u63B2\u8F09\u671F\u9593\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    }
+    const dailyRate = community.members * DAILY_RATE_PER_MEMBER;
+    const startD = new Date(start);
+    const endD = new Date(end);
+    if (isNaN(startD.getTime()) || isNaN(endD.getTime()) || endD < startD) {
+      return res.status(400).json({ error: "\u63B2\u8F09\u671F\u9593\u306E\u65E5\u4ED8\u304C\u4E0D\u6B63\u3067\u3059" });
+    }
+    const days = Math.ceil((endD.getTime() - startD.getTime()) / (24 * 60 * 60 * 1e3)) + 1;
+    const totalAmount = days * dailyRate;
+    if (totalAmount < MIN_AD_AMOUNT) {
+      return res.status(400).json({ error: `\u6700\u4F4E\u51FA\u7A3F\u91D1\u984D\u306F${MIN_AD_AMOUNT.toLocaleString()}\u5186\u4EE5\u4E0A\u3067\u3059\u3002\u65E5\u6570\u307E\u305F\u306F\u30E1\u30F3\u30D0\u30FC\u6570\u3092\u3054\u78BA\u8A8D\u304F\u3060\u3055\u3044\u3002` });
+    }
+    const maxEnd = /* @__PURE__ */ new Date();
+    maxEnd.setMonth(maxEnd.getMonth() + MAX_MONTHS_AHEAD);
+    if (endD > maxEnd) {
+      return res.status(400).json({ error: `\u63B2\u8F09\u7D42\u4E86\u65E5\u306F${MAX_MONTHS_AHEAD}\u30F6\u6708\u4EE5\u5185\u3067\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044` });
+    }
+    const [row] = await db.insert(communityAds).values({
+      communityId: cid,
+      companyName: company,
+      contactName: contact,
+      email: em,
+      bannerUrl: banner,
+      startDate: start,
+      endDate: end,
+      dailyRate,
+      totalAmount,
+      status: "pending"
+    }).returning();
+    res.status(201).json(row);
+  });
+  app2.get("/api/community-ads/review", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const ownedRows = await db.select({ id: communities.id }).from(communities).where(eq2(communities.adminId, user.id));
+    const modRows = await db.select({ communityId: communityModerators.communityId }).from(communityModerators).where(eq2(communityModerators.userId, user.id));
+    const communityIds = /* @__PURE__ */ new Set();
+    ownedRows.forEach((r) => communityIds.add(r.id));
+    modRows.forEach((r) => communityIds.add(r.communityId));
+    if (communityIds.size === 0) {
+      return res.json([]);
+    }
+    const ids = Array.from(communityIds);
+    const ads = await db.select().from(communityAds).where(and2(inArray(communityAds.communityId, ids), inArray(communityAds.status, ["pending", "moderator_approved"]))).orderBy(desc(communityAds.createdAt));
+    const commList = await db.select({ id: communities.id, name: communities.name, adminId: communities.adminId }).from(communities).where(inArray(communities.id, ids));
+    const commMap = new Map(commList.map((c) => [c.id, c]));
+    const result = ads.map((ad) => ({
+      ...ad,
+      communityName: commMap.get(ad.communityId)?.name ?? "",
+      isOwner: commMap.get(ad.communityId)?.adminId === user.id
+    }));
+    res.json(result);
+  });
+  app2.patch("/api/community-ads/:id/moderator-approve", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const id = paramNum(req, "id");
+    const [ad] = await db.select().from(communityAds).where(eq2(communityAds.id, id));
+    if (!ad) return res.status(404).json({ error: "\u7533\u3057\u8FBC\u307F\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    if (ad.status !== "pending") return res.status(400).json({ error: "\u3053\u306E\u7533\u3057\u8FBC\u307F\u306F\u65E2\u306B\u51E6\u7406\u6E08\u307F\u3067\u3059" });
+    const [mod] = await db.select().from(communityModerators).where(and2(eq2(communityModerators.communityId, ad.communityId), eq2(communityModerators.userId, user.id)));
+    if (!mod) return res.status(403).json({ error: "\u3053\u306E\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u306E\u30E2\u30C7\u30EC\u30FC\u30BF\u30FC\u306E\u307F\u627F\u8A8D\u3067\u304D\u307E\u3059" });
+    await db.update(communityAds).set({ status: "moderator_approved", approvedByModerator: user.id }).where(eq2(communityAds.id, id));
+    res.json({ ok: true });
+  });
+  app2.patch("/api/community-ads/:id/approve", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const id = paramNum(req, "id");
+    const [ad] = await db.select().from(communityAds).where(eq2(communityAds.id, id));
+    if (!ad) return res.status(404).json({ error: "\u7533\u3057\u8FBC\u307F\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    if (ad.status !== "moderator_approved") return res.status(400).json({ error: "\u30E2\u30C7\u30EC\u30FC\u30BF\u30FC\u627F\u8A8D\u5F8C\u306B\u7BA1\u7406\u4EBA\u304C\u627F\u8A8D\u3067\u304D\u307E\u3059" });
+    const [community] = await db.select().from(communities).where(eq2(communities.id, ad.communityId));
+    if (!community || community.adminId !== user.id) return res.status(403).json({ error: "\u7BA1\u7406\u4EBA\u306E\u307F\u6700\u7D42\u627F\u8A8D\u3067\u304D\u307E\u3059" });
+    await db.update(communityAds).set({ status: "approved", approvedByOwner: user.id }).where(eq2(communityAds.id, id));
+    res.json({ ok: true });
+  });
+  app2.patch("/api/community-ads/:id/reject", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const id = paramNum(req, "id");
+    const [ad] = await db.select().from(communityAds).where(eq2(communityAds.id, id));
+    if (!ad) return res.status(404).json({ error: "\u7533\u3057\u8FBC\u307F\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    if (ad.status === "approved" || ad.status === "rejected") return res.status(400).json({ error: "\u65E2\u306B\u51E6\u7406\u6E08\u307F\u3067\u3059" });
+    const [community] = await db.select().from(communities).where(eq2(communities.id, ad.communityId));
+    const [mod] = await db.select().from(communityModerators).where(and2(eq2(communityModerators.communityId, ad.communityId), eq2(communityModerators.userId, user.id)));
+    const isOwner = community?.adminId === user.id;
+    const isMod = !!mod;
+    if (!isOwner && !isMod) return res.status(403).json({ error: "\u7BA1\u7406\u4EBA\u307E\u305F\u306F\u30E2\u30C7\u30EC\u30FC\u30BF\u30FC\u306E\u307F\u5374\u4E0B\u3067\u304D\u307E\u3059" });
+    await db.update(communityAds).set({ status: "rejected" }).where(eq2(communityAds.id, id));
+    res.json({ ok: true });
+  });
+  const REPORT_REASONS = ["spam", "harassment", "inappropriate", "other"];
+  app2.post("/api/reports", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const { contentType, contentId, reason } = req.body;
+    const cid = Number(contentId) || 0;
+    const type = contentType === "comment" ? "comment" : contentType === "video" ? "video" : null;
+    if (!type || !cid || !reason || !REPORT_REASONS.includes(reason)) {
+      return res.status(400).json({ error: "contentType(video/comment), contentId, reason(spam/harassment/inappropriate/other)\u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044" });
+    }
+    let contentText;
+    if (type === "video") {
+      const [video] = await db.select().from(videos).where(eq2(videos.id, cid));
+      if (!video) return res.status(404).json({ error: "\u5BFE\u8C61\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+      contentText = video.title ?? "";
+    } else {
+      const [comment] = await db.select().from(videoComments).where(eq2(videoComments.id, cid));
+      if (!comment) return res.status(404).json({ error: "\u5BFE\u8C61\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+      contentText = comment.text ?? "";
+    }
+    const { verdict, reason: aiReason } = await judgeReportContent(contentText, reason);
+    const [report] = await db.insert(reports).values({
+      reporterId: user.id,
+      contentType: type,
+      contentId: cid,
+      reason,
+      aiVerdict: verdict,
+      aiReason: aiReason ?? "",
+      status: verdict === "clear_violation" ? "hidden" : verdict === "gray_zone" ? "pending" : "reviewed"
+    }).returning();
+    if (verdict === "clear_violation") {
+      if (type === "video") {
+        await db.update(videos).set({ hidden: true }).where(eq2(videos.id, cid));
+      } else {
+        await db.update(videoComments).set({ hidden: true }).where(eq2(videoComments.id, cid));
+      }
+    }
+    res.status(201).json(report);
+  });
+  app2.post("/api/concerts", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const {
+      title,
+      venueName,
+      venueAddress,
+      concertDate,
+      ticketUrl,
+      shootingAllowed,
+      shootingNotes,
+      artistShare,
+      photographerShare,
+      editorShare,
+      venueShare,
+      status
+    } = req.body;
+    if (!title || !venueName || !venueAddress || !concertDate) {
+      return res.status(400).json({ error: "\u5FC5\u9808\u9805\u76EE\u304C\u4E0D\u8DB3\u3057\u3066\u3044\u307E\u3059" });
+    }
+    const shares = [
+      Number(artistShare ?? 0),
+      Number(photographerShare ?? 0),
+      Number(editorShare ?? 0),
+      Number(venueShare ?? 0)
+    ];
+    if (shares.some((s) => s < 0)) {
+      return res.status(400).json({ error: "\u5206\u914D\u6BD4\u7387\u306F0\u4EE5\u4E0A\u3067\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044" });
+    }
+    const sum = shares.reduce((a, b) => a + b, 0);
+    if (sum !== 100) {
+      return res.status(400).json({ error: "\u5206\u914D\u6BD4\u7387\u306E\u5408\u8A08\u306F100%\u306B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    }
+    const [row] = await db.insert(concerts).values({
+      artistUserId: user.id,
+      title,
+      venueName,
+      venueAddress,
+      concertDate,
+      ticketUrl: ticketUrl ?? null,
+      shootingAllowed: shootingAllowed ?? false,
+      shootingNotes: shootingNotes ?? null,
+      artistShare: shares[0],
+      photographerShare: shares[1],
+      editorShare: shares[2],
+      venueShare: shares[3],
+      status: status ?? "draft"
+    }).returning();
+    res.status(201).json(row);
+  });
+  app2.get("/api/concerts", async (_req, res) => {
+    const rows = await db.select().from(concerts).where(eq2(concerts.status, "published")).orderBy(desc(concerts.concertDate), desc(concerts.createdAt));
     res.json(rows);
+  });
+  app2.get("/api/concerts/:id", async (req, res) => {
+    const id = paramNum(req, "id");
+    const [row] = await db.select().from(concerts).where(eq2(concerts.id, id));
+    if (!row) return res.status(404).json({ error: "\u516C\u6F14\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    res.json(row);
+  });
+  app2.post("/api/concerts/:id/staff-request", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const concertId = paramNum(req, "id");
+    const [concert] = await db.select().from(concerts).where(eq2(concerts.id, concertId));
+    if (!concert) return res.status(404).json({ error: "\u516C\u6F14\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    const existing = await db.select().from(concertStaff).where(and2(eq2(concertStaff.concertId, concertId), eq2(concertStaff.staffUserId, user.id)));
+    if (existing.length > 0) {
+      return res.status(400).json({ error: "\u3059\u3067\u306B\u7533\u8ACB\u6E08\u307F\u3067\u3059" });
+    }
+    const [row] = await db.insert(concertStaff).values({
+      concertId,
+      artistUserId: concert.artistUserId,
+      staffUserId: user.id,
+      status: "pending"
+    }).returning();
+    res.status(201).json(row);
+  });
+  app2.get("/api/concerts/:id/staff-requests", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const concertId = paramNum(req, "id");
+    const [concert] = await db.select().from(concerts).where(eq2(concerts.id, concertId));
+    if (!concert) return res.status(404).json({ error: "\u516C\u6F14\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    if (concert.artistUserId !== user.id) {
+      return res.status(403).json({ error: "\u30A2\u30FC\u30C6\u30A3\u30B9\u30C8\u306E\u307F\u7533\u8ACB\u4E00\u89A7\u3092\u95B2\u89A7\u3067\u304D\u307E\u3059" });
+    }
+    const rows = await db.select().from(concertStaff).where(eq2(concertStaff.concertId, concertId)).orderBy(desc(concertStaff.createdAt));
+    res.json(rows);
+  });
+  app2.get("/api/concerts/:id/staff-req", async (req, res) => {
+    return app2._router.handle(
+      { ...req, url: `/api/concerts/${paramNum(req, "id")}/staff-requests`, params: req.params },
+      res,
+      () => {
+      }
+    );
+  });
+  app2.patch("/api/concerts/:id/staff/:staffId/approve", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const concertId = paramNum(req, "id");
+    const staffId = paramNum(req, "staffId");
+    const [concert] = await db.select().from(concerts).where(eq2(concerts.id, concertId));
+    if (!concert) return res.status(404).json({ error: "\u516C\u6F14\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    if (concert.artistUserId !== user.id) {
+      return res.status(403).json({ error: "\u30A2\u30FC\u30C6\u30A3\u30B9\u30C8\u306E\u307F\u627F\u8A8D\u3067\u304D\u307E\u3059" });
+    }
+    const [staff] = await db.select().from(concertStaff).where(and2(eq2(concertStaff.id, staffId), eq2(concertStaff.concertId, concertId)));
+    if (!staff) return res.status(404).json({ error: "\u7533\u8ACB\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    const [updated] = await db.update(concertStaff).set({ status: "approved" }).where(eq2(concertStaff.id, staffId)).returning();
+    res.json(updated);
+  });
+  app2.patch("/api/concerts/:id/staff/:staffId/reject", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const concertId = paramNum(req, "id");
+    const staffId = paramNum(req, "staffId");
+    const [concert] = await db.select().from(concerts).where(eq2(concerts.id, concertId));
+    if (!concert) return res.status(404).json({ error: "\u516C\u6F14\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    if (concert.artistUserId !== user.id) {
+      return res.status(403).json({ error: "\u30A2\u30FC\u30C6\u30A3\u30B9\u30C8\u306E\u307F\u5374\u4E0B\u3067\u304D\u307E\u3059" });
+    }
+    const [staff] = await db.select().from(concertStaff).where(and2(eq2(concertStaff.id, staffId), eq2(concertStaff.concertId, concertId)));
+    if (!staff) return res.status(404).json({ error: "\u7533\u8ACB\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    const [updated] = await db.update(concertStaff).set({ status: "rejected" }).where(eq2(concertStaff.id, staffId)).returning();
+    res.json(updated);
+  });
+  const GENRE_DAILY_RATE_PER_MEMBER = 5;
+  const GENRE_MIN_AMOUNT = 1e4;
+  const GENRE_MAX_MONTHS_AHEAD = 3;
+  app2.post("/api/genre-ads", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const { genreId, companyName, contactName, email, bannerUrl, startDate, endDate } = req.body;
+    const gid = (genreId ?? "").trim();
+    if (!gid || !GENRE_TO_CATEGORY[gid]) {
+      return res.status(400).json({ error: "genreId \u304C\u4E0D\u6B63\u3067\u3059" });
+    }
+    if (!companyName || !contactName || !email || !bannerUrl || !startDate || !endDate) {
+      return res.status(400).json({ error: "\u5FC5\u9808\u9805\u76EE\u304C\u4E0D\u8DB3\u3057\u3066\u3044\u307E\u3059" });
+    }
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return res.status(400).json({ error: "\u65E5\u4ED8\u306E\u5F62\u5F0F\u304C\u4E0D\u6B63\u3067\u3059\uFF08YYYY-MM-DD\uFF09" });
+    }
+    if (end < start) {
+      return res.status(400).json({ error: "\u7D42\u4E86\u65E5\u306F\u958B\u59CB\u65E5\u4EE5\u964D\u306B\u3057\u3066\u304F\u3060\u3055\u3044" });
+    }
+    const now = /* @__PURE__ */ new Date();
+    const maxEnd = new Date(now);
+    maxEnd.setMonth(maxEnd.getMonth() + GENRE_MAX_MONTHS_AHEAD);
+    if (end > maxEnd) {
+      return res.status(400).json({ error: `\u63B2\u8F09\u7D42\u4E86\u65E5\u306F${GENRE_MAX_MONTHS_AHEAD}\u30F6\u6708\u4EE5\u5185\u3067\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044` });
+    }
+    const cats = GENRE_TO_CATEGORY[gid];
+    const communityRows = await db.select({ members: communities.members }).from(communities).where(
+      or(
+        ...cats.map(
+          (c) => sql2`${communities.category} ILIKE ${"%" + c + "%"}`
+        )
+      )
+    );
+    const totalMembers = communityRows.reduce((sum, r) => sum + (r.members ?? 0), 0);
+    const dailyRate = totalMembers * GENRE_DAILY_RATE_PER_MEMBER;
+    const days = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1e3)) + 1;
+    const totalAmount = dailyRate * days;
+    if (totalAmount < GENRE_MIN_AMOUNT) {
+      return res.status(400).json({ error: `\u6700\u4F4E\u51FA\u7A3F\u91D1\u984D\u306F${GENRE_MIN_AMOUNT.toLocaleString()}\u5186\u4EE5\u4E0A\u3067\u3059` });
+    }
+    const [row] = await db.insert(genreAds).values({
+      genreId: gid,
+      companyName,
+      contactName,
+      email,
+      bannerUrl,
+      startDate,
+      endDate,
+      dailyRate,
+      totalAmount
+    }).returning();
+    res.status(201).json(row);
+  });
+  app2.get("/api/genre-ads/review", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const ownerRows = await db.select().from(genreOwners).where(eq2(genreOwners.ownerUserId, user.id));
+    if (ownerRows.length === 0) return res.json([]);
+    const genreIds = ownerRows.map((o) => o.genreId);
+    const rows = await db.select().from(genreAds).where(and2(inArray(genreAds.genreId, genreIds), eq2(genreAds.status, "pending"))).orderBy(desc(genreAds.createdAt));
+    res.json(rows);
+  });
+  app2.patch("/api/genre-ads/:id/approve", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const id = paramNum(req, "id");
+    const [ad] = await db.select().from(genreAds).where(eq2(genreAds.id, id));
+    if (!ad) return res.status(404).json({ error: "\u7533\u3057\u8FBC\u307F\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    const [owner] = await db.select().from(genreOwners).where(and2(eq2(genreOwners.genreId, ad.genreId), eq2(genreOwners.ownerUserId, user.id)));
+    if (!owner) return res.status(403).json({ error: "\u3053\u306E\u30B8\u30E3\u30F3\u30EB\u306E\u7BA1\u7406\u4EBA\u3067\u306F\u3042\u308A\u307E\u305B\u3093" });
+    await db.update(genreAds).set({ status: "approved" }).where(eq2(genreAds.id, id));
+    res.json({ ok: true });
+  });
+  app2.patch("/api/genre-ads/:id/reject", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const id = paramNum(req, "id");
+    const [ad] = await db.select().from(genreAds).where(eq2(genreAds.id, id));
+    if (!ad) return res.status(404).json({ error: "\u7533\u3057\u8FBC\u307F\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    const [owner] = await db.select().from(genreOwners).where(and2(eq2(genreOwners.genreId, ad.genreId), eq2(genreOwners.ownerUserId, user.id)));
+    if (!owner) return res.status(403).json({ error: "\u3053\u306E\u30B8\u30E3\u30F3\u30EB\u306E\u7BA1\u7406\u4EBA\u3067\u306F\u3042\u308A\u307E\u305B\u3093" });
+    await db.update(genreAds).set({ status: "rejected" }).where(eq2(genreAds.id, id));
+    res.json({ ok: true });
+  });
+  app2.post("/api/cron/update-genre-owners", async (_req, res) => {
+    for (const [gid, cats] of Object.entries(GENRE_TO_CATEGORY)) {
+      const rows = await db.select({ id: communities.id, members: communities.members, adminId: communities.adminId }).from(communities).where(
+        or(
+          ...cats.map(
+            (c) => sql2`${communities.category} ILIKE ${"%" + c + "%"}`
+          )
+        )
+      ).orderBy(desc(communities.members)).limit(1);
+      const top = rows[0];
+      if (!top || !top.adminId) continue;
+      const existing = await db.select().from(genreOwners).where(eq2(genreOwners.genreId, gid)).limit(1);
+      if (existing.length > 0) {
+        await db.update(genreOwners).set({ ownerUserId: top.adminId, updatedAt: sql2`now()` }).where(eq2(genreOwners.genreId, gid));
+      } else {
+        await db.insert(genreOwners).values({ genreId: gid, ownerUserId: top.adminId });
+      }
+    }
+    res.json({ ok: true });
+  });
+  app2.get("/api/admin/reports", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    if (user.role !== "ADMIN") return res.status(403).json({ error: "\u7BA1\u7406\u8005\u306E\u307F\u30A2\u30AF\u30BB\u30B9\u53EF\u80FD\u3067\u3059" });
+    const rows = await db.select().from(reports).orderBy(desc(reports.createdAt));
+    res.json(rows);
+  });
+  app2.patch("/api/admin/reports/:id/hide", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    if (user.role !== "ADMIN") return res.status(403).json({ error: "\u7BA1\u7406\u8005\u306E\u307F\u64CD\u4F5C\u53EF\u80FD\u3067\u3059" });
+    const id = paramNum(req, "id");
+    const [report] = await db.select().from(reports).where(eq2(reports.id, id));
+    if (!report) return res.status(404).json({ error: "\u901A\u5831\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    if (report.contentType === "video") {
+      await db.update(videos).set({ hidden: true }).where(eq2(videos.id, report.contentId));
+    } else if (report.contentType === "comment") {
+      await db.update(videoComments).set({ hidden: true }).where(eq2(videoComments.id, report.contentId));
+    }
+    await db.update(reports).set({ status: "hidden" }).where(eq2(reports.id, id));
+    res.json({ ok: true });
+  });
+  app2.patch("/api/admin/reports/:id/dismiss", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    if (user.role !== "ADMIN") return res.status(403).json({ error: "\u7BA1\u7406\u8005\u306E\u307F\u64CD\u4F5C\u53EF\u80FD\u3067\u3059" });
+    const id = paramNum(req, "id");
+    const [report] = await db.select().from(reports).where(eq2(reports.id, id));
+    if (!report) return res.status(404).json({ error: "\u901A\u5831\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093" });
+    await db.update(reports).set({ status: "reviewed" }).where(eq2(reports.id, id));
+    res.json({ ok: true });
+  });
+  app2.post("/api/upload-url", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const { fileName, contentType } = req.body;
+    if (!fileName || !contentType) {
+      return res.status(400).json({ error: "fileName \u3068 contentType \u306F\u5FC5\u9808\u3067\u3059" });
+    }
+    const safeName = String(fileName).replace(/[^a-zA-Z0-9_.-]/g, "_");
+    const key = `rawstock_${Date.now()}_${safeName}`;
+    try {
+      const { uploadUrl, publicUrl } = await createSignedUploadUrl(key, contentType);
+      res.json({ uploadUrl, key, url: publicUrl });
+    } catch (e) {
+      console.error("Create signed upload URL error:", e);
+      res.status(500).json({ error: "\u7F72\u540D\u4ED8\u304DURL\u306E\u767A\u884C\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
+    }
+  });
+  app2.get("/api/videos", async (req, res) => {
+    const genreId = req.query?.genre;
+    const communityIdParam = req.query?.communityId;
+    let rows = await db.select().from(videos).where(and2(eq2(videos.isRanked, false), eq2(videos.hidden, false))).orderBy(desc(videos.createdAt));
+    rows = rows.filter((r) => r.visibility !== "draft" && r.visibility !== "my_page_only");
+    const names = [...new Set(rows.map((r) => r.creator))];
+    const userMap = /* @__PURE__ */ new Map();
+    const creatorMap = /* @__PURE__ */ new Map();
+    if (names.length > 0) {
+      const userRows = await db.select({ id: users.id, displayName: users.displayName }).from(users).where(inArray(users.displayName, names));
+      userRows.forEach((u) => userMap.set(u.displayName, u.id));
+      const notFoundUsers = names.filter((n) => !userMap.has(n));
+      if (notFoundUsers.length > 0) {
+        const creatorRows = await db.select({ id: creators.id, name: creators.name }).from(creators).where(inArray(creators.name, notFoundUsers));
+        creatorRows.forEach((c) => creatorMap.set(c.name, c.id));
+      }
+    }
+    const withCreator = rows.map((r) => {
+      const uid = userMap.get(r.creator);
+      const cid = creatorMap.get(r.creator);
+      return { ...r, creatorType: uid ? "user" : cid ? "liver" : null, creatorId: uid ?? cid ?? null };
+    });
+    res.json(withCreator);
   });
   app2.get("/api/videos/my", async (req, res) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
-    const rows = await db.select().from(videos).where(eq2(videos.creator, user.displayName)).orderBy(desc(videos.createdAt));
-    res.json(rows);
+    const rows = await db.select().from(videos).where(or(eq2(videos.creator, user.displayName), eq2(videos.userId, user.id))).orderBy(desc(videos.createdAt));
+    const filtered = rows.filter((r) => !r.hidden);
+    res.json(filtered);
   });
   app2.get("/api/videos/ranked", async (_req, res) => {
-    const rows = await db.select().from(videos).where(eq2(videos.isRanked, true)).orderBy(asc(videos.rank));
+    const rows = await db.select().from(videos).where(and2(eq2(videos.isRanked, true), eq2(videos.hidden, false))).orderBy(asc(videos.rank));
     res.json(rows);
   });
   app2.get("/api/videos/:id", async (req, res) => {
     const id = paramNum(req, "id");
+    const authUser = await getAuthUser(req);
     const [row] = await db.select().from(videos).where(eq2(videos.id, id));
-    if (!row) return res.status(404).json({ message: "Not found" });
-    res.json(row);
+    if (!row || row.hidden) return res.status(404).json({ message: "Not found" });
+    const vis = row.visibility;
+    const isOwner = authUser && (row.userId === authUser.id || row.creator === authUser.displayName);
+    if (vis === "draft" && !isOwner) return res.status(404).json({ message: "Not found" });
+    if (vis === "my_page_only" && !isOwner) return res.status(404).json({ message: "Not found" });
+    const timeAgo = row.createdAt ? formatTimeAgo(row.createdAt) : row.timeAgo;
+    const [creatorUser] = await db.select({ id: users.id }).from(users).where(eq2(users.displayName, row.creator));
+    const [creatorLiver] = !creatorUser ? await db.select({ id: creators.id }).from(creators).where(eq2(creators.name, row.creator)) : [];
+    const creatorType = creatorUser ? "user" : creatorLiver ? "liver" : null;
+    const creatorId = row.userId ?? creatorUser?.id ?? creatorLiver?.id ?? null;
+    res.json({ ...row, timeAgo, creatorType, creatorId });
   });
   app2.get("/api/videos/:id/comments", async (req, res) => {
     const videoId = paramNum(req, "id");
@@ -1228,7 +2368,7 @@ async function registerRoutes(app2) {
       createdAt: videoComments.createdAt,
       displayName: users.displayName,
       profileImageUrl: users.profileImageUrl
-    }).from(videoComments).leftJoin(users, eq2(users.id, videoComments.userId)).where(eq2(videoComments.videoId, videoId)).orderBy(asc(videoComments.createdAt));
+    }).from(videoComments).leftJoin(users, eq2(users.id, videoComments.userId)).where(and2(eq2(videoComments.videoId, videoId), eq2(videoComments.hidden, false))).orderBy(asc(videoComments.createdAt));
     res.json(rows);
   });
   app2.post("/api/videos/:id/comments", async (req, res) => {
@@ -1243,21 +2383,30 @@ async function registerRoutes(app2) {
   app2.post("/api/videos", async (req, res) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
-    const { title, community, duration, price, thumbnail } = req.body;
-    if (!title || !community || !duration || !thumbnail) {
+    const { title, community, communityId, duration, price, thumbnail, description, concertId, visibility } = req.body;
+    if (!title || !duration || !thumbnail) {
       return res.status(400).json({ message: "\u5FC5\u9808\u30D5\u30A3\u30FC\u30EB\u30C9\u304C\u4E0D\u8DB3\u3057\u3066\u3044\u307E\u3059" });
+    }
+    const vis = visibility === "draft" ? "draft" : visibility === "my_page_only" ? "my_page_only" : "community";
+    if (vis === "community" && (!community || !community.trim())) {
+      return res.status(400).json({ message: "\u30B3\u30DF\u30E5\u30CB\u30C6\u30A3\u516C\u958B\u6642\u306F community \u3092\u6307\u5B9A\u3057\u3066\u304F\u3060\u3055\u3044" });
     }
     const [row] = await db.insert(videos).values({
       title,
       creator: user.displayName,
-      community,
+      community: community?.trim() ?? "",
       views: 0,
       timeAgo: "\u305F\u3063\u305F\u4ECA",
       duration,
       price: price ?? null,
       thumbnail,
+      description: description?.trim() || null,
       avatar: user.profileImageUrl ?? user.avatar ?? "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop",
-      isRanked: false
+      isRanked: false,
+      concertId: concertId ?? null,
+      userId: user.id,
+      visibility: vis,
+      communityId: vis === "community" ? communityId ?? null : null
     }).returning();
     res.status(201).json(row);
   });
@@ -1267,13 +2416,24 @@ async function registerRoutes(app2) {
     const id = paramNum(req, "id");
     const [video] = await db.select().from(videos).where(eq2(videos.id, id));
     if (!video) return res.status(404).json({ message: "Not found" });
-    if (video.creator !== user.displayName) {
-      return res.status(403).json({ error: "\u7DE8\u96C6\u6A29\u9650\u304C\u3042\u308A\u307E\u305B\u3093" });
+    const isOwner = video.userId === user.id || video.creator === user.displayName;
+    if (!isOwner) return res.status(403).json({ error: "\u7DE8\u96C6\u6A29\u9650\u304C\u3042\u308A\u307E\u305B\u3093" });
+    const { title, visibility, communityId, community } = req.body;
+    const updates = {};
+    if (title !== void 0) {
+      const newTitle = title?.trim();
+      if (!newTitle) return res.status(400).json({ error: "\u30BF\u30A4\u30C8\u30EB\u306F\u5FC5\u9808\u3067\u3059" });
+      updates.title = newTitle;
     }
-    const { title } = req.body;
-    const newTitle = title?.trim();
-    if (!newTitle) return res.status(400).json({ error: "\u30BF\u30A4\u30C8\u30EB\u306F\u5FC5\u9808\u3067\u3059" });
-    const [updated] = await db.update(videos).set({ title: newTitle }).where(eq2(videos.id, id)).returning();
+    if (visibility !== void 0) {
+      const vis = ["draft", "my_page_only", "community"].includes(visibility) ? visibility : video.visibility;
+      updates.visibility = vis;
+      if (vis === "community" && communityId != null) updates.communityId = communityId;
+      if (vis === "community" && community?.trim()) updates.community = community.trim();
+      if (vis !== "community") updates.communityId = null;
+    }
+    if (Object.keys(updates).length === 0) return res.json(video);
+    const [updated] = await db.update(videos).set(updates).where(eq2(videos.id, id)).returning();
     res.json(updated);
   });
   app2.delete("/api/videos/:id", async (req, res) => {
@@ -1282,12 +2442,27 @@ async function registerRoutes(app2) {
     const id = paramNum(req, "id");
     const [video] = await db.select().from(videos).where(eq2(videos.id, id));
     if (!video) return res.status(404).json({ message: "Not found" });
-    if (video.creator !== user.displayName) {
-      return res.status(403).json({ error: "\u524A\u9664\u6A29\u9650\u304C\u3042\u308A\u307E\u305B\u3093" });
-    }
+    const isOwner = video.userId === user.id || video.creator === user.displayName;
+    if (!isOwner) return res.status(403).json({ error: "\u524A\u9664\u6A29\u9650\u304C\u3042\u308A\u307E\u305B\u3093" });
     await db.delete(videoComments).where(eq2(videoComments.videoId, id));
     await db.delete(videos).where(eq2(videos.id, id));
     res.json({ ok: true });
+  });
+  app2.get("/api/users/:id/posts", async (req, res) => {
+    const userId = paramNum(req, "id");
+    const [targetUser] = await db.select({ id: users.id, displayName: users.displayName }).from(users).where(eq2(users.id, userId));
+    if (!targetUser) return res.status(404).json({ message: "Not found" });
+    const rows = await db.select().from(videos).where(
+      and2(
+        or(eq2(videos.userId, userId), eq2(videos.creator, targetUser.displayName)),
+        eq2(videos.hidden, false)
+      )
+    ).orderBy(desc(videos.createdAt));
+    const filtered = rows.filter((r) => {
+      const v = r.visibility;
+      return v !== "draft";
+    });
+    res.json(filtered);
   });
   app2.get("/api/live-streams", async (_req, res) => {
     const rows = await db.select().from(liveStreams).where(eq2(liveStreams.isLive, true)).orderBy(desc(liveStreams.viewers));
@@ -1384,11 +2559,15 @@ async function registerRoutes(app2) {
     if (state && state.currentVideoDurationSecs && state.currentVideoDurationSecs > 0 && state.startedAt) {
       const elapsedSecs2 = (now.getTime() - new Date(state.startedAt).getTime()) / 1e3;
       if (elapsedSecs2 >= state.currentVideoDurationSecs) {
-        const next = queue.find((q) => !q.isPlayed);
+        const currentItem = queue.find(
+          (q) => state.currentVideoYoutubeId && q.youtubeId === state.currentVideoYoutubeId || state.currentVideoId != null && q.videoId === state.currentVideoId
+        );
+        if (currentItem) {
+          await db.update(jukeboxQueue).set({ isPlayed: true }).where(eq2(jukeboxQueue.id, currentItem.id));
+          queueModified = true;
+        }
+        const next = queue.find((q) => !q.isPlayed && q.id !== currentItem?.id);
         if (next) {
-          await db.update(jukeboxQueue).set({
-            isPlayed: true
-          }).where(eq2(jukeboxQueue.id, next.id));
           queueModified = true;
           const watchers = Math.floor(Math.random() * 80) + 20;
           const [updated] = await db.insert(jukeboxState).values({
@@ -1468,7 +2647,7 @@ async function registerRoutes(app2) {
           },
           body: JSON.stringify({
             meta: {
-              name: name || `LiveStage Stream by ${user.displayName}`
+              name: name || `RawStock Stream by ${user.displayName}`
             }
           })
         }
@@ -1520,8 +2699,10 @@ async function registerRoutes(app2) {
       position: nextPos,
       isPlayed: false
     }).returning();
+    const [stateRow] = await db.select().from(jukeboxState).where(eq2(jukeboxState.communityId, communityId));
+    const isCurrentlyPlaying = !!(stateRow?.isPlaying && (stateRow.currentVideoId != null || stateRow.currentVideoYoutubeId));
     const hasUnplayed = existing.some((q) => !q.isPlayed);
-    if (!hasUnplayed) {
+    if (!hasUnplayed && !isCurrentlyPlaying) {
       const watchers = Math.floor(Math.random() * 80) + 20;
       await db.insert(jukeboxState).values({
         communityId,
@@ -1551,10 +2732,20 @@ async function registerRoutes(app2) {
   });
   app2.post("/api/jukebox/:communityId/next", async (req, res) => {
     const communityId = paramNum(req, "communityId");
+    const [stateRaw] = await db.select().from(jukeboxState).where(eq2(jukeboxState.communityId, communityId));
     const queue = await db.select().from(jukeboxQueue).where(eq2(jukeboxQueue.communityId, communityId)).orderBy(asc(jukeboxQueue.position));
-    const next = queue.find((q) => !q.isPlayed);
+    let currentItemId = null;
+    if (stateRaw?.currentVideoId != null || stateRaw?.currentVideoYoutubeId) {
+      const currentItem = queue.find(
+        (q) => stateRaw.currentVideoYoutubeId && q.youtubeId === stateRaw.currentVideoYoutubeId || stateRaw.currentVideoId != null && q.videoId === stateRaw.currentVideoId
+      );
+      if (currentItem) {
+        currentItemId = currentItem.id;
+        await db.update(jukeboxQueue).set({ isPlayed: true }).where(eq2(jukeboxQueue.id, currentItem.id));
+      }
+    }
+    const next = queue.find((q) => !q.isPlayed && q.id !== currentItemId);
     if (next) {
-      await db.update(jukeboxQueue).set({ isPlayed: true }).where(eq2(jukeboxQueue.id, next.id));
       const watchers = Math.floor(Math.random() * 80) + 20;
       await db.insert(jukeboxState).values({
         communityId,
@@ -1940,6 +3131,45 @@ async function registerRoutes(app2) {
     res.json({ ok: true });
   });
   app2.post("/api/seed", async (_req, res) => {
+    const existingDm = await db.select().from(dmMessages);
+    if (existingDm.length === 0) {
+      await db.insert(dmMessages).values([
+        { name: "\u685C\u82B1\u30A2\u30EA\u30B9", avatar: "https://images.unsplash.com/photo-1521119989659-a83eee488004?w=100&h=100&fit=crop", lastMessage: "\u3042\u308A\u304C\u3068\u3046\u3054\u3056\u3044\u307E\u3059\uFF01\u6B21\u306E\u914D\u4FE1\u3082\u3088\u308D\u3057\u304F\u304A\u9858\u3044\u3057\u307E\u3059", time: "\u305F\u3063\u305F\u4ECA", unread: 2, online: true, sortOrder: 1 },
+        { name: "\u30A8\u30DF\u30EA\u30FC\u5148\u751F", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop", lastMessage: "\u6B21\u306E\u30EC\u30C3\u30B9\u30F3\u306F3/2\u306E19:00\u304B\u3089\u3067\u3059\u3002\u304A\u697D\u3057\u307F\u306B\uFF01", time: "5\u5206\u524D", unread: 1, online: true, sortOrder: 2 },
+        { name: "\u661F\u7A7A\u308A\u3093", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=100&h=100&fit=crop", lastMessage: "\u9451\u5B9A\u306E\u7D50\u679C\u3092DM\u3067\u304A\u9001\u308A\u3057\u307E\u3059\u306D", time: "12\u5206\u524D", unread: 0, online: false, sortOrder: 3 },
+        { name: "\u5FC3\u7406\u58EB \u307F\u304F", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop", lastMessage: "\u304A\u6C17\u6301\u3061\u3092\u805E\u304B\u305B\u3066\u3044\u305F\u3060\u3044\u3066\u3042\u308A\u304C\u3068\u3046\u3054\u3056\u3044\u307E\u3059", time: "1\u6642\u9593\u524D", unread: 0, online: true, sortOrder: 4 },
+        { name: "\u6599\u7406\u5BB6 \u306F\u308B\u304B", avatar: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=100&h=100&fit=crop", lastMessage: "\u30EC\u30B7\u30D4\u3092\u9001\u308A\u307E\u3057\u305F\uFF01\u305C\u3072\u4F5C\u3063\u3066\u307F\u3066\u304F\u3060\u3055\u3044\u{1F373}", time: "3\u6642\u9593\u524D", unread: 0, online: false, sortOrder: 5 },
+        { name: "\u30E9\u30A4\u30D5\u30B3\u30FC\u30C1 \u3051\u3093\u3058", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop", lastMessage: "\u76EE\u6A19\u8A2D\u5B9A\u30B7\u30FC\u30C8\u3092\u78BA\u8A8D\u3057\u307E\u3057\u305F\u3002\u7D20\u6674\u3089\u3057\u3044\u9032\u6357\u3067\u3059\uFF01", time: "\u6628\u65E5", unread: 0, online: false, sortOrder: 6 },
+        { name: "\u30E8\u30AC\u8B1B\u5E2B \u306A\u306A", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop", lastMessage: "\u660E\u65E5\u306E\u30AF\u30E9\u30B9\u3082\u304A\u5F85\u3061\u3057\u3066\u3044\u307E\u3059", time: "\u6628\u65E5", unread: 0, online: false, sortOrder: 7 },
+        { name: "\u5730\u4E0B\u30A2\u30A4\u30C9\u30EB\u754C\u9688", avatar: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=100&h=100&fit=crop", lastMessage: "\u3010\u304A\u77E5\u3089\u305B\u3011\u672C\u65E521:00\u304B\u3089\u30E9\u30A4\u30D6\u914D\u4FE1\u304C\u3042\u308A\u307E\u3059", time: "2\u65E5\u524D", unread: 0, online: false, sortOrder: 8 }
+      ]);
+    }
+    const communityData = [
+      { name: "\u5730\u4E0B\u30A2\u30A4\u30C9\u30EB\u754C\u9688", category: "idol" },
+      { name: "\u304A\u7B11\u3044\u82B8\u4EBA\u754C\u9688", category: "idol" },
+      { name: "\u30AD\u30E3\u30D0\u5B22\u30FB\u30DB\u30B9\u30C8\u754C\u9688", category: "idol" },
+      { name: "JK\u65E5\u5E38\u754C\u9688", category: "idol" },
+      { name: "\u30A2\u30A4\u30C9\u30EB\u90E8", category: "idol" },
+      { name: "\u82F1\u4F1A\u8A71\u30AF\u30E9\u30D6", category: "english" },
+      { name: "\u5360\u3044\u30B5\u30ED\u30F3", category: "fortune" },
+      { name: "\u30D5\u30A3\u30C3\u30C8\u30CD\u30B9\u90E8", category: "coaching" },
+      { name: "\u30AB\u30A6\u30F3\u30BB\u30EA\u30F3\u30B0\u30EB\u30FC\u30E0", category: "counselor" },
+      { name: "\u6599\u7406\u6559\u5BA4", category: "cooking" }
+    ];
+    const existingComm = await db.select().from(communities);
+    const existingCommNames = new Set(existingComm.map((c) => c.name));
+    for (const { name, category } of communityData) {
+      if (!existingCommNames.has(name)) {
+        await db.insert(communities).values({
+          name,
+          members: 0,
+          thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=250&fit=crop",
+          online: false,
+          category
+        });
+        existingCommNames.add(name);
+      }
+    }
     const existingCreators = await db.select().from(creators);
     if (existingCreators.length >= 10) {
       return res.json({ ok: true, message: "Already seeded" });
@@ -2193,6 +3423,15 @@ async function registerRoutes(app2) {
       });
       await db.insert(bookingSessions).values(bookingData);
     }
+    const existingLive = await db.select().from(liveStreams);
+    if (existingLive.length === 0) {
+      await db.insert(liveStreams).values([
+        { title: "\u661F\u7A7A\u307F\u3086\u266A \u6B4C\u3068\u30C0\u30F3\u30B9\u3067\u304A\u5C4A\u3051\uFF01", creator: "\u661F\u7A7A\u307F\u3086", community: "\u5730\u4E0B\u30A2\u30A4\u30C9\u30EB\u754C\u9688", viewers: 1240, thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", timeAgo: "\u914D\u4FE1\u4E88\u5B9A", isLive: true },
+        { title: "\u9E97\u83EF\u306E\u591C\u30C8\u30FC\u30AF\u3010\u672C\u97F3\u3067\u8A9E\u308B\u3088\u3011", creator: "\u9E97\u83EF -REIKA-", community: "\u30AD\u30E3\u30D0\u5B22\u30FB\u30DB\u30B9\u30C8\u754C\u9688", viewers: 890, thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop", timeAgo: "\u914D\u4FE1\u4E88\u5B9A", isLive: true },
+        { title: "\u671D\u6D3B\uFF01\u4E00\u7DD2\u306B\u30E8\u30AC\u3057\u3088\u3046", creator: "\u677E\u672C \u3053\u3046\u305F", community: "\u30D5\u30A3\u30C3\u30C8\u30CD\u30B9\u90E8", viewers: 420, thumbnail: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop", timeAgo: "\u914D\u4FE1\u4E88\u5B9A", isLive: true },
+        { title: "\u795E\u5D0E\u30EA\u30CA\u3010\u6DF1\u591C\u306E\u5360\u3044\u30BF\u30A4\u30E0\u3011", creator: "\u795E\u5D0E \u30EA\u30CA", community: "\u5360\u3044\u30B5\u30ED\u30F3", viewers: 312, thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=200&fit=crop", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop", timeAgo: "\u914D\u4FE1\u4E88\u5B9A", isLive: true }
+      ]);
+    }
     res.json({ ok: true, created: insertedCreators.length });
   });
   app2.post("/api/seed-editors", async (_req, res) => {
@@ -2200,12 +3439,14 @@ async function registerRoutes(app2) {
     if (existing.length >= 5) {
       return res.json({ ok: true, message: "Already seeded" });
     }
+    const [idolCommunity] = await db.select({ id: communities.id }).from(communities).where(eq2(communities.name, "\u5730\u4E0B\u30A2\u30A4\u30C9\u30EB\u754C\u9688"));
+    const defaultCommunityId = idolCommunity?.id ?? 1;
     const demoEditors = [
       {
         name: "\u6620\u50CF\u7DE8\u96C6\u30DE\u30F3",
         avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop",
         bio: "\u30C6\u30ED\u30C3\u30D7\u30FB\u30AB\u30C3\u30C8\u30FB\u30B5\u30E0\u30CD\u307E\u3067\u30EF\u30F3\u30B9\u30C8\u30C3\u30D7\u3067\u5BFE\u5FDC\u3059\u308B\u52D5\u753B\u7DE8\u96C6\u30AF\u30EA\u30A8\u30A4\u30BF\u30FC\u3002",
-        communityId: 1,
+        communityId: defaultCommunityId,
         genres: "YouTube,\u30D0\u30E9\u30A8\u30C6\u30A3,\u30B2\u30FC\u30E0",
         deliveryDays: 3,
         priceType: "per_minute",
@@ -2219,7 +3460,7 @@ async function registerRoutes(app2) {
         name: "\u30B7\u30CD\u30DE\u7DE8\u96C6\u30B9\u30BF\u30B8\u30AA",
         avatar: "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=150&h=150&fit=crop",
         bio: "\u6620\u753B\u98A8\u306E\u30B7\u30CD\u30DE\u30C6\u30A3\u30C3\u30AF\u306AMV\u5236\u4F5C\u304C\u5F97\u610F\u3067\u3059\u3002",
-        communityId: 1,
+        communityId: defaultCommunityId,
         genres: "MV,\u30A2\u30FC\u30C6\u30A3\u30B9\u30C8,\u30B7\u30CD\u30DE\u30C6\u30A3\u30C3\u30AF",
         deliveryDays: 7,
         priceType: "revenue_share",
@@ -2233,7 +3474,7 @@ async function registerRoutes(app2) {
         name: "\u30B7\u30E7\u30FC\u30C8\u52D5\u753B\u8077\u4EBA",
         avatar: "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=150&h=150&fit=crop",
         bio: "TikTok\u30FBYouTube\u30B7\u30E7\u30FC\u30C8\u306E\u4F38\u3073\u308B\u69CB\u6210\u3092\u63D0\u6848\u3057\u307E\u3059\u3002",
-        communityId: 1,
+        communityId: defaultCommunityId,
         genres: "\u30B7\u30E7\u30FC\u30C8\u52D5\u753B,\u7E26\u578B,SNS\u904B\u7528",
         deliveryDays: 2,
         priceType: "per_minute",
@@ -2247,7 +3488,7 @@ async function registerRoutes(app2) {
         name: "\u30B2\u30FC\u30E0\u5B9F\u6CC1\u30A8\u30C7\u30A3\u30BF\u30FC",
         avatar: "https://images.unsplash.com/photo-1533236897111-3e94666b2dde?w=150&h=150&fit=crop",
         bio: "APEX/VALORANT\u306A\u3069FPS\u7CFB\u5B9F\u6CC1\u306E\u7DE8\u96C6\u304C\u4E2D\u5FC3\u3067\u3059\u3002",
-        communityId: 1,
+        communityId: defaultCommunityId,
         genres: "\u30B2\u30FC\u30E0\u5B9F\u6CC1,FPS,\u5207\u308A\u629C\u304D",
         deliveryDays: 4,
         priceType: "per_minute",
@@ -2261,7 +3502,7 @@ async function registerRoutes(app2) {
         name: "\u6559\u80B2\u30C1\u30E3\u30F3\u30CD\u30EB\u7DE8\u96C6\u5BA4",
         avatar: "https://images.unsplash.com/photo-1525134479668-1bee5c7c6845?w=150&h=150&fit=crop",
         bio: "\u30D3\u30B8\u30CD\u30B9\u30FB\u6559\u80B2\u7CFB\u306E\u5206\u304B\u308A\u3084\u3059\u3044\u56F3\u89E3\u52D5\u753B\u3092\u5236\u4F5C\u3057\u307E\u3059\u3002",
-        communityId: 1,
+        communityId: defaultCommunityId,
         genres: "\u30D3\u30B8\u30CD\u30B9,\u6559\u80B2,\u30BB\u30DF\u30CA\u30FC",
         deliveryDays: 5,
         priceType: "revenue_share",

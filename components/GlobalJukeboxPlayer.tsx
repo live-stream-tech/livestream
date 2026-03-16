@@ -82,7 +82,7 @@ export function GlobalJukeboxPlayer() {
     parseCommunityId(pathname)
   );
   const [minimized, setMinimized] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(true); // デフォルト非表示、タップで表示
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [elapsedDisplay, setElapsedDisplay] = useState(0);
   const posRef = useRef({ x: 0, y: 0 });
@@ -102,7 +102,6 @@ export function GlobalJukeboxPlayer() {
     const next = parseCommunityId(pathname);
     if (next !== null) {
       setCommunityId(next);
-      setDismissed(false);
     }
   }, [pathname]);
 
@@ -144,7 +143,7 @@ export function GlobalJukeboxPlayer() {
     queryKey: communityId ? [`/api/jukebox/${communityId}`] : ["jukebox:none"],
     enabled: !!communityId,
     refetchInterval: (query) =>
-      (query.state.data as JukeboxData)?.state?.isPlaying ? 8000 : false,
+      (query.state.data as JukeboxData)?.state?.isPlaying ? 15000 : false,
   });
 
   const nextMutation = useMutation({
@@ -183,6 +182,8 @@ export function GlobalJukeboxPlayer() {
   const handleNext = useCallback(() => {
     nextMutation.mutate();
   }, [nextMutation]);
+  const handleNextRef = useRef(handleNext);
+  handleNextRef.current = handleNext;
 
   // YouTube IFrame プレイヤー（Webのみ）
   useEffect(() => {
@@ -276,7 +277,7 @@ export function GlobalJukeboxPlayer() {
                 try {
                   const w = window as any;
                   if (event.data === w.YT?.PlayerState?.ENDED) {
-                    handleNext();
+                    handleNextRef.current();
                   }
                 } catch {
                   // ignore
@@ -301,11 +302,29 @@ export function GlobalJukeboxPlayer() {
         youtubePlayerRef.current = null;
       }
     };
-  // 依存は currentVideoYoutubeId のみ。elapsedSecs/startedAt を入れると3秒ポーリングのたびに
-  // プレイヤーが破棄・再作成され、再生が不安定になる
-  }, [communityId, state?.currentVideoYoutubeId, handleNext]);
+  // 依存は currentVideoYoutubeId のみ。handleNext を入れるとポーリングのたびにプレイヤー再作成→カクつき
+  }, [communityId, state?.currentVideoYoutubeId]);
 
-  if (!communityId || !state || dismissed) return null;
+  // コミュニティ/jukebox ページ以外では何も表示しない
+  if (!communityId) return null;
+
+  // 再生中でない場合は何も表示しない（jukebox ページで直接視聴）
+  if (!state) return null;
+
+  // デフォルト非表示: タップでポップアップを表示
+  if (dismissed) {
+    return (
+      <View pointerEvents="box-none" style={[styles.root, { left: 0, right: 0, top: 0, bottom: 0 }]}>
+        <Pressable
+          style={[styles.fab, { right: 16, bottom: 80 }]}
+          onPress={() => setDismissed(false)}
+        >
+          <Ionicons name="musical-notes" size={20} color="#fff" />
+          <Text style={styles.fabText}>Jukebox</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   const fallbackElapsed =
     typeof state.elapsedSecs === "number"
@@ -332,7 +351,14 @@ export function GlobalJukeboxPlayer() {
       >
         <Pressable
           style={styles.mainRow}
-          onPress={() => setMinimized((v) => !v)}
+          onPress={() => {
+            try {
+              youtubePlayerRef.current?.unMute?.();
+            } catch {
+              // ignore
+            }
+            setMinimized((v) => !v);
+          }}
         >
           <View style={styles.thumbWrap}>
             {Platform.OS === "web" && state.currentVideoYoutubeId ? (
@@ -492,6 +518,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 4,
+  },
+  fab: {
+    position: "absolute",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(7,15,24,0.95)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 6,
+  },
+  fabText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });
 

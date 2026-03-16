@@ -33,18 +33,16 @@ export default function TermsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={true}
       >
-        <Text style={styles.docTitle}>SANCTUM HAVEN 利用規約</Text>
+        <Text style={styles.docTitle}>RawStock 利用規約</Text>
         <Text style={styles.effectiveDate}>制定日：2026年3月18日</Text>
 
         <Text style={styles.intro}>
-          本利用規約（以下「本規約」）は、株式会社　（以下「当社」）が提供するサービス「SANCTUM
-          HAVEN」（以下「本サービス」）の利用条件を定めるものです。本サービスを利用するすべてのユーザーは、本規約に同意したうえでご利用ください。
+          本利用規約（以下「本規約」）は、株式会社　（以下「当社」）が提供するサービス「RawStock」（以下「本サービス」）の利用条件を定めるものです。本サービスを利用するすべてのユーザーは、本規約に同意したうえでご利用ください。
         </Text>
 
         <Article title="第1条（定義）">
           本規約において使用する用語の意味は、以下のとおりとします。{"\n\n"}
-          （1）「本サービス」とは、当社が提供するライブ配信・動画投稿・コミュニティ・収益分配等を含むプラットフォームサービス「SANCTUM
-          HAVEN」をいいます。{"\n\n"}
+          （1）「本サービス」とは、当社が提供するライブ配信・動画投稿・コミュニティ・収益分配等を含むプラットフォームサービス「RawStock」をいいます。{"\n\n"}
           （2）「ユーザー」とは、本規約に同意のうえ、本サービスに登録した個人または法人をいいます。{"\n\n"}
           （3）「配信者」とは、本サービス上でライブ配信・動画・写真・テキスト等のコンテンツを発信するユーザーをいいます。{"\n\n"}
           （4）「視聴者」とは、配信者のコンテンツを視聴・購入・支援するユーザーをいいます。{"\n\n"}

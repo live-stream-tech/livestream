@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Pressable,
   Platform,
+  Dimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,8 +15,13 @@ import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
 import { getTabTopInset, getTabBottomInset } from "@/constants/layout";
+import { getApiUrl } from "@/lib/query-client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MetallicLine } from "@/components/MetallicLine";
 import { AppLogo } from "@/components/AppLogo";
+import { useAuth } from "@/lib/auth";
+
+type FeedTab = "all" | "following" | "recommended";
 
 type Notif = { id: number; isRead: boolean };
 
@@ -29,21 +35,20 @@ function formatNumber(n: number): string {
   return n.toLocaleString();
 }
 
-function VideoCard({ item, isDemo }: { item: any; isDemo: boolean }) {
+function VideoCard({ item, isDemo, panelWidth }: { item: any; isDemo: boolean; panelWidth: number }) {
   const isPhotoPost = !item.duration || item.duration === "00:00";
-  const href = isDemo ? `/video/${item.id}?demo=1` : `/video/${item.id}`;
   return (
     <Pressable
-      style={styles.videoCard}
+      style={[styles.panelCard, { width: panelWidth }]}
       onPress={() =>
         router.push(isDemo ? (`/video/${item.id}?demo=1` as any) : (`/video/${item.id}` as any))
       }
     >
-      <View style={styles.videoThumbContainer}>
+      <View style={[styles.panelThumbWrap, { width: panelWidth }]}>
         {item.thumbnail ? (
-          <Image source={{ uri: item.thumbnail }} style={styles.videoThumb} contentFit="cover" />
+          <Image source={{ uri: item.thumbnail }} style={[styles.panelThumb, { width: panelWidth }]} contentFit="cover" />
         ) : (
-          <View style={[styles.videoThumb, styles.noThumbPlaceholder]}>
+          <View style={[styles.panelThumb, styles.noThumbPlaceholder, { width: panelWidth }]}>
             <Ionicons name="document-text-outline" size={28} color={C.textMuted} />
           </View>
         )}
@@ -58,7 +63,7 @@ function VideoCard({ item, isDemo }: { item: any; isDemo: boolean }) {
           </View>
         )}
       </View>
-      <View style={styles.videoInfo}>
+      <View style={styles.panelInfo}>
         <View style={styles.creatorRow}>
           <Image source={{ uri: item.avatar }} style={styles.smallAvatar} contentFit="cover" />
           <Text style={styles.communityText} numberOfLines={1}>{item.community}</Text>
@@ -70,7 +75,7 @@ function VideoCard({ item, isDemo }: { item: any; isDemo: boolean }) {
           <Ionicons name="time-outline" size={11} color={C.textMuted} />
           <Text style={styles.metaText}>{item.timeAgo}</Text>
         </View>
-        {item.price !== null ? (
+        {item.price != null && item.price > 0 ? (
           <Text style={styles.priceText}>¥{item.price.toLocaleString()}</Text>
         ) : (
           <View style={styles.freeBadge}>
@@ -82,26 +87,27 @@ function VideoCard({ item, isDemo }: { item: any; isDemo: boolean }) {
   );
 }
 
-function LiveCard({ item }: { item: any }) {
+function LiveCard({ item, panelWidth }: { item: any; panelWidth: number }) {
   return (
-    <Pressable style={styles.liveCard} onPress={() => router.push(`/live/${item.id}`)}>
-      <View style={styles.liveThumbContainer}>
-        <Image source={{ uri: item.thumbnail }} style={styles.liveThumb} contentFit="cover" />
-        {item.isDemo && (
+    <Pressable style={[styles.panelCard, { width: panelWidth }]} onPress={() => router.push(`/live/${item.id}`)}>
+      <View style={[styles.panelThumbWrap, { width: panelWidth }]}>
+        <Image source={{ uri: item.thumbnail }} style={[styles.panelThumb, { width: panelWidth }]} contentFit="cover" />
+        {item.isDemo ? (
           <View style={styles.comingSoonRibbon}>
             <Text style={styles.comingSoonText}>COMING SOON</Text>
           </View>
+        ) : (
+          <View style={styles.liveBadge}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>LIVE</Text>
+          </View>
         )}
-        <View style={styles.liveBadge}>
-          <View style={styles.liveDot} />
-          <Text style={styles.liveText}>LIVE</Text>
-        </View>
         <View style={styles.viewerBadge}>
           <Ionicons name="eye-outline" size={11} color="#fff" />
           <Text style={styles.viewerText}>{formatNumber(item.viewers)}</Text>
         </View>
       </View>
-      <View style={styles.liveInfo}>
+      <View style={styles.panelInfo}>
         <View style={styles.creatorRow}>
           <Image source={{ uri: item.avatar }} style={styles.smallAvatar} contentFit="cover" />
           <Text style={styles.communityText} numberOfLines={1}>{item.community}</Text>
@@ -289,17 +295,70 @@ const DUMMY_CREATORS: Record<string, any[]> = {
   ],
 };
 
+const SCREEN_WIDTH = Dimensions.get("window").width;
+/** 1.5枚分が画面に収まる幅（1枚目が大きく、右端に次のパネルが半分見える） */
+const PANEL_WIDTH = Math.floor(SCREEN_WIDTH * (2 / 3));
+
+function FeedTabRow({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: FeedTab;
+  onTabChange: (t: FeedTab) => void;
+}) {
+  const tabs: { key: FeedTab; label: string }[] = [
+    { key: "all", label: "すべて" },
+    { key: "following", label: "フォロー中" },
+    { key: "recommended", label: "おすすめ" },
+  ];
+  return (
+    <View style={styles.feedTabRow}>
+      {tabs.map((t) => (
+        <Pressable
+          key={t.key}
+          style={[styles.feedTab, activeTab === t.key && styles.feedTabActive]}
+          onPress={() => onTabChange(t.key)}
+        >
+          <Text style={[styles.feedTabText, activeTab === t.key && styles.feedTabTextActive]}>
+            {t.label}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const [rankFilter, setRankFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("ALL");
   const [creatorFilter, setCreatorFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("MONTHLY");
   const [creatorTab, setCreatorTab] = useState<"ranking" | "twoshot">("ranking");
+  const [videoFeedTab, setVideoFeedTab] = useState<FeedTab>("all");
+  const [liveFeedTab, setLiveFeedTab] = useState<FeedTab>("all");
 
   const { data: apiVideos = [] } = useQuery<any[]>({ queryKey: ["/api/videos"] });
   const { data: apiLive = [] } = useQuery<any[]>({ queryKey: ["/api/live-streams"] });
+  const { data: myCommunities = [] } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["/api/communities/me"],
+    enabled: !!user,
+    retry: false,
+    queryFn: async () => {
+      try {
+        const base = getApiUrl();
+        const token = await AsyncStorage.getItem("auth_token");
+        const res = await fetch(new URL("/api/communities/me", base).toString(), {
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) return [];
+        return res.json();
+      } catch {
+        return [];
+      }
+    },
+  });
   const { data: apiRanked = [] } = useQuery<any[]>({ queryKey: ["/api/videos/ranked"] });
-  const { data: apiCommunities = [] } = useQuery<{ id: number }[]>({ queryKey: ["/api/communities"] });
-  const firstCommunityId = apiCommunities[0]?.id;
   type BookingSession = {
     id: number;
     creator: string;
@@ -322,18 +381,6 @@ export default function HomeScreen() {
     queryKey: ["/api/booking-sessions"],
   });
   const unreadCount = useUnreadCount();
-  type JukeState = {
-    communityId: number;
-    currentVideoTitle: string | null;
-    currentVideoThumbnail: string | null;
-    currentVideoDurationSecs: number;
-    watchersCount: number;
-  };
-  type JukeData = { state: JukeState | null; queue: any[]; chat: any[] };
-  const { data: jukeData } = useQuery<JukeData>({
-    queryKey: firstCommunityId ? ["/api/jukebox", firstCommunityId] : ["jukebox:none"],
-    enabled: !!firstCommunityId,
-  });
   type Announcement = { id: number; title: string; body: string; type: string; isPinned: boolean; createdAt: string };
   const { data: announcements = [] } = useQuery<Announcement[]>({ queryKey: ["/api/announcements"] });
 
@@ -350,12 +397,54 @@ export default function HomeScreen() {
   const displayAnnouncements = announcements.length > 0 ? announcements : DUMMY_ANNOUNCEMENT;
 
   const usingDemoVideos = apiVideos.length === 0;
-  const videos = usingDemoVideos ? DUMMY_VIDEOS : apiVideos;
-  const liveStreams = apiLive.length > 0 ? apiLive : DUMMY_LIVE;
+  const allVideos = usingDemoVideos ? DUMMY_VIDEOS : apiVideos;
+  const allLiveStreams = apiLive.length > 0 ? apiLive : DUMMY_LIVE;
+
+  const communityIds = useMemo(() => new Set(myCommunities.map((c) => c.id)), [myCommunities]);
+  const communityNames = useMemo(() => new Set(myCommunities.map((c) => c.name)), [myCommunities]);
+
+  const randomCommunity = useMemo(() => {
+    if (myCommunities.length === 0) return null;
+    const idx = Math.floor(Math.random() * myCommunities.length);
+    return myCommunities[idx];
+  }, [myCommunities]);
+  const randomCommunityId = randomCommunity?.id ?? null;
+
+  type JukeboxData = {
+    state: { currentVideoTitle: string | null; isPlaying: boolean } | null;
+    queue: unknown[];
+  };
+  const { data: jukeboxData } = useQuery<JukeboxData>({
+    queryKey: randomCommunityId ? [`/api/jukebox/${randomCommunityId}`] : ["jukebox:none"],
+    enabled: !!randomCommunityId && !!user,
+  });
+
+  const videos = useMemo(() => {
+    let list = [...allVideos];
+    if (videoFeedTab === "following" && user) {
+      list = list.filter(
+        (v) =>
+          (v.communityId && communityIds.has(v.communityId)) ||
+          (v.community && communityNames.has(v.community))
+      );
+    } else if (videoFeedTab === "recommended") {
+      list = [...list].sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
+    }
+    return list;
+  }, [allVideos, videoFeedTab, user, communityIds, communityNames]);
+
+  const liveStreams = useMemo(() => {
+    let list = [...allLiveStreams];
+    if (liveFeedTab === "following" && user) {
+      list = list.filter((s) => s.community && communityNames.has(s.community));
+    } else if (liveFeedTab === "recommended") {
+      list = [...list].sort((a, b) => (b.viewers ?? 0) - (a.viewers ?? 0));
+    }
+    return list;
+  }, [allLiveStreams, liveFeedTab, user, communityNames]);
   const usingDemoRanked = apiRanked.length === 0;
   const rankedVideos = usingDemoRanked ? DUMMY_RANKED[rankFilter] : apiRanked;
   const creators = DUMMY_CREATORS[creatorFilter];
-  const nowJuke = jukeData?.state ?? null;
 
   const topInset = getTabTopInset(insets);
   const bottomInset = getTabBottomInset();
@@ -377,41 +466,6 @@ export default function HomeScreen() {
       </View>
       <MetallicLine thickness={1} style={{ marginHorizontal: 16 }} />
 
-      {/* Mini Jukebox widget */}
-      {nowJuke && (
-        <Pressable
-          style={styles.miniJukebox}
-          onPress={() => router.push(`/jukebox/${nowJuke.communityId}`)}
-        >
-          <View style={styles.miniThumbWrap}>
-            {nowJuke.currentVideoThumbnail ? (
-              <Image
-                source={{ uri: nowJuke.currentVideoThumbnail }}
-                style={styles.miniThumb}
-                contentFit="cover"
-              />
-            ) : (
-              <View style={[styles.miniThumb, styles.miniThumbPlaceholder]}>
-                <Ionicons name="musical-notes-outline" size={18} color={C.textMuted} />
-              </View>
-            )}
-          </View>
-          <View style={styles.miniBody}>
-            <View style={styles.miniLabelRow}>
-              <Ionicons name="musical-notes" size={12} color={C.accent} />
-              <Text style={styles.miniLabel}>参加コミュニティのJukebox</Text>
-            </View>
-            <Text style={styles.miniTitle} numberOfLines={1}>
-              {nowJuke.currentVideoTitle ?? "再生中の動画なし"}
-            </Text>
-            <Text style={styles.miniMeta}>
-              {nowJuke.watchersCount}人が同時視聴中
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={C.textMuted} />
-        </Pressable>
-      )}
-
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -424,7 +478,7 @@ export default function HomeScreen() {
             </View>
             <View>
               <Text style={styles.premiumTitle}>RawStock Premium</Text>
-              <Text style={styles.premiumSub}>30日間の無料トライアル実施中。すべての機能を解放。</Text>
+              <Text style={styles.premiumSub} numberOfLines={2}>30日間の無料トライアル実施中。すべての機能を解放。</Text>
             </View>
           </View>
           <Pressable style={styles.detailButton}>
@@ -458,27 +512,65 @@ export default function HomeScreen() {
           )}
         </View>
 
+        {/* Juke bot - 参加コミュニティからランダムに1つのjukeboxを表示 */}
+        {user && randomCommunityId && randomCommunity && (
+          <Pressable
+            style={styles.jukeBotCard}
+            onPress={() => router.push(`/jukebox/${randomCommunityId}`)}
+          >
+            <View style={styles.jukeBotLeft}>
+              <View style={styles.jukeBotIcon}>
+                <Ionicons name="musical-notes" size={18} color={C.accent} />
+              </View>
+              <View>
+                <Text style={styles.jukeBotLabel}>Juke bot</Text>
+                <Text style={styles.jukeBotCommunity} numberOfLines={1}>
+                  {randomCommunity.name}
+                </Text>
+                <Text style={styles.jukeBotNowPlaying} numberOfLines={2}>
+                  {jukeboxData?.state?.isPlaying && jukeboxData?.state?.currentVideoTitle
+                    ? `再生中: ${jukeboxData.state.currentVideoTitle}`
+                    : "キューを開く"}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
+          </Pressable>
+        )}
+
         {/* 新着動画 */}
         <View style={styles.sectionHeader}>
           <Ionicons name="sparkles" size={16} color={C.accent} />
           <Text style={styles.sectionTitle}>新着動画</Text>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+        <FeedTabRow activeTab={videoFeedTab} onTabChange={setVideoFeedTab} />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.panelScroll}
+        >
           {videos.map((v) => (
-            <VideoCard key={v.id} item={v} isDemo={usingDemoVideos} />
+            <VideoCard key={v.id} item={v} isDemo={usingDemoVideos} panelWidth={PANEL_WIDTH} />
           ))}
         </ScrollView>
 
         {/* 現在ライブ中 */}
-        <View style={styles.sectionHeader}>
+        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
           <View style={styles.liveDotInline} />
           <Text style={styles.sectionTitle}>現在ライブ中</Text>
           <Pressable style={styles.viewAllBtn}>
             <Text style={styles.viewAllText}>VIEW ALL</Text>
           </Pressable>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-          {liveStreams.map((s) => <LiveCard key={s.id} item={s} />)}
+        <FeedTabRow activeTab={liveFeedTab} onTabChange={setLiveFeedTab} />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.panelScroll}
+        >
+          {liveStreams.map((s) => (
+            <LiveCard key={s.id} item={s} panelWidth={PANEL_WIDTH} />
+          ))}
         </ScrollView>
 
         {/* 有料動画ランキング */}
@@ -754,6 +846,48 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 18,
   },
+  jukeBotCard: {
+    marginHorizontal: 16,
+    marginBottom: 20,
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  jukeBotLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  jukeBotIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: C.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  jukeBotLabel: {
+    color: C.accent,
+    fontSize: 11,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  jukeBotCommunity: {
+    color: C.text,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  jukeBotNowPlaying: {
+    color: C.textMuted,
+    fontSize: 12,
+    marginTop: 2,
+  },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -792,57 +926,6 @@ const styles = StyleSheet.create({
     color: C.accent,
     fontSize: 11,
     fontWeight: "700",
-  },
-  miniJukebox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    backgroundColor: C.surface,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  miniThumbWrap: {
-    width: 64,
-    height: 40,
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: C.surface2,
-  },
-  miniThumb: {
-    width: "100%",
-    height: "100%",
-  },
-  miniThumbPlaceholder: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  miniBody: {
-    flex: 1,
-    gap: 2,
-  },
-  miniLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  miniLabel: {
-    color: C.accent,
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  miniTitle: {
-    color: C.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  miniMeta: {
-    color: C.textMuted,
-    fontSize: 11,
   },
   filterPills: {
     flexDirection: "row",
@@ -893,6 +976,55 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 16,
     gap: 12,
+  },
+  feedTabRow: {
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  feedTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  feedTabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: C.accent,
+  },
+  feedTabText: {
+    color: C.textMuted,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  feedTabTextActive: {
+    color: C.accent,
+    fontWeight: "700",
+  },
+  panelScroll: {
+    paddingBottom: 16,
+    gap: 0,
+  },
+  panelCard: {
+    marginRight: 0,
+    borderRadius: 0,
+    overflow: "hidden",
+  },
+  panelThumbWrap: {
+    position: "relative",
+    overflow: "hidden",
+    aspectRatio: 16 / 9,
+    borderRadius: 0,
+  },
+  panelThumb: {
+    aspectRatio: 16 / 9,
+    borderRadius: 0,
+  },
+  panelInfo: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: C.surface,
+    gap: 3,
+    borderRadius: 0,
   },
   twoshotCard: {
     width: 220,
@@ -962,7 +1094,7 @@ const styles = StyleSheet.create({
     bottom: 6,
     right: 6,
     backgroundColor: "rgba(0,0,0,0.75)",
-    borderRadius: 4,
+    borderRadius: 0,
     paddingHorizontal: 5,
     paddingVertical: 2,
   },
@@ -976,7 +1108,7 @@ const styles = StyleSheet.create({
     bottom: 6,
     right: 6,
     backgroundColor: "rgba(41,182,207,0.85)",
-    borderRadius: 4,
+    borderRadius: 0,
     paddingHorizontal: 5,
     paddingVertical: 2,
     flexDirection: "row",
@@ -1085,7 +1217,7 @@ const styles = StyleSheet.create({
     top: 6,
     left: 6,
     backgroundColor: C.live,
-    borderRadius: 4,
+    borderRadius: 0,
     paddingHorizontal: 6,
     paddingVertical: 3,
     flexDirection: "row",
@@ -1108,7 +1240,7 @@ const styles = StyleSheet.create({
     bottom: 6,
     right: 6,
     backgroundColor: "rgba(0,0,0,0.65)",
-    borderRadius: 4,
+    borderRadius: 0,
     paddingHorizontal: 5,
     paddingVertical: 2,
     flexDirection: "row",

@@ -30,6 +30,12 @@ import {
   phoneVerifications,
   streams,
   communityAds,
+  communityThreads,
+  communityThreadPosts,
+  communityPolls,
+  communityVotes,
+  communityPollOptions,
+  communityPollVotes,
   reports,
   genreAds,
   genreOwners,
@@ -165,6 +171,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       spotifyUrl: (user as any).spotifyUrl ?? null,
       appleMusicUrl: (user as any).appleMusicUrl ?? null,
       bandcampUrl: (user as any).bandcampUrl ?? null,
+      instagramUrl: (user as any).instagramUrl ?? null,
+      youtubeUrl: (user as any).youtubeUrl ?? null,
+      xUrl: (user as any).xUrl ?? null,
+      phoneNumber: (user as any).phoneNumber ?? null,
     });
   });
 
@@ -359,7 +369,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.put("/api/auth/profile", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
-    const { name, displayName, bio, avatar, profileImageUrl, spotifyUrl, appleMusicUrl, bandcampUrl } = req.body as {
+    const { name, displayName, bio, avatar, profileImageUrl, spotifyUrl, appleMusicUrl, bandcampUrl, instagramUrl, youtubeUrl, xUrl, phoneNumber } = req.body as {
       name?: string;
       displayName?: string;
       bio?: string;
@@ -368,19 +378,28 @@ export async function registerRoutes(app: Express): Promise<void> {
       spotifyUrl?: string | null;
       appleMusicUrl?: string | null;
       bandcampUrl?: string | null;
+      instagramUrl?: string | null;
+      youtubeUrl?: string | null;
+      xUrl?: string | null;
+      phoneNumber?: string | null;
     };
     const newName = name ?? displayName ?? user.displayName;
     const newBio = bio ?? user.bio;
     const newAvatar = avatar ?? profileImageUrl ?? user.profileImageUrl;
+    const newPhone = phoneNumber !== undefined ? (phoneNumber?.trim() || null) : undefined;
     const [updated] = await db
       .update(users)
       .set({
         displayName: newName,
         bio: newBio,
         profileImageUrl: newAvatar !== undefined ? newAvatar : undefined,
-        spotifyUrl: spotifyUrl ?? (user as any).spotifyUrl ?? null,
-        appleMusicUrl: appleMusicUrl ?? (user as any).appleMusicUrl ?? null,
-        bandcampUrl: bandcampUrl ?? (user as any).bandcampUrl ?? null,
+        spotifyUrl: spotifyUrl !== undefined ? spotifyUrl : (user as any).spotifyUrl ?? null,
+        appleMusicUrl: appleMusicUrl !== undefined ? appleMusicUrl : (user as any).appleMusicUrl ?? null,
+        bandcampUrl: bandcampUrl !== undefined ? bandcampUrl : (user as any).bandcampUrl ?? null,
+        ...(instagramUrl !== undefined ? { instagramUrl: instagramUrl?.trim() || null } : {}),
+        ...(youtubeUrl !== undefined ? { youtubeUrl: youtubeUrl?.trim() || null } : {}),
+        ...(xUrl !== undefined ? { xUrl: xUrl?.trim() || null } : {}),
+        ...(newPhone !== undefined && { phoneNumber: newPhone }),
         updatedAt: new Date(),
       } as Partial<typeof users.$inferInsert>)
       .where(eq(users.id, user.id))
@@ -396,7 +415,35 @@ export async function registerRoutes(app: Express): Promise<void> {
       spotifyUrl: updated.spotifyUrl ?? null,
       appleMusicUrl: updated.appleMusicUrl ?? null,
       bandcampUrl: updated.bandcampUrl ?? null,
+      instagramUrl: (updated as any).instagramUrl ?? null,
+      youtubeUrl: (updated as any).youtubeUrl ?? null,
+      xUrl: (updated as any).xUrl ?? null,
     });
+  });
+
+  /** アカウント削除（コミュニティを管理している場合は不可） */
+  app.delete("/api/auth/account", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const [owned] = await db.select().from(communities).where(eq(communities.ownerId, user.id)).limit(1);
+    if (owned) {
+      return res.status(400).json({ error: "管理しているコミュニティがあるため削除できません。先にコミュニティを削除してください。" });
+    }
+
+    try {
+      await db.delete(communityMembers).where(eq(communityMembers.userId, user.id));
+      await db.delete(communityModerators).where(eq(communityModerators.userId, user.id));
+      await db.delete(communityPollVotes).where(eq(communityPollVotes.userId, user.id));
+      await db.delete(communityVotes).where(eq(communityVotes.userId, user.id));
+      await db.update(videos).set({ userId: null }).where(eq(videos.userId, user.id));
+      await db.delete(videoComments).where(eq(videoComments.userId, user.id));
+      await db.delete(users).where(eq(users.id, user.id));
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("Account deletion error:", e);
+      res.status(500).json({ error: "アカウントの削除に失敗しました" });
+    }
   });
 
   /** 投稿者名からユーザー or ライバーのプロフィールIDを取得（認証不要） */
@@ -418,6 +465,12 @@ export async function registerRoutes(app: Express): Promise<void> {
       displayName: users.displayName,
       profileImageUrl: users.profileImageUrl,
       bio: users.bio,
+      instagramUrl: users.instagramUrl,
+      youtubeUrl: users.youtubeUrl,
+      xUrl: users.xUrl,
+      spotifyUrl: users.spotifyUrl,
+      appleMusicUrl: users.appleMusicUrl,
+      bandcampUrl: users.bandcampUrl,
     }).from(users).where(eq(users.id, id));
     if (!u) return res.status(404).json({ error: "Not found" });
     res.json({
@@ -427,6 +480,12 @@ export async function registerRoutes(app: Express): Promise<void> {
       avatar: u.profileImageUrl,
       profileImageUrl: u.profileImageUrl,
       bio: u.bio ?? "",
+      instagramUrl: (u as any).instagramUrl ?? null,
+      youtubeUrl: (u as any).youtubeUrl ?? null,
+      xUrl: (u as any).xUrl ?? null,
+      spotifyUrl: (u as any).spotifyUrl ?? null,
+      appleMusicUrl: (u as any).appleMusicUrl ?? null,
+      bandcampUrl: (u as any).bandcampUrl ?? null,
     });
   });
 
@@ -825,6 +884,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
     res.json({
       adminId: community.adminId,
+      ownerId: community.ownerId,
       admin: admin ? { id: admin.id, displayName: admin.displayName, profileImageUrl: admin.profileImageUrl } : null,
       moderatorIds: modRows.map((r) => r.userId),
       moderators: moderatorUsers.map((u) => ({ id: u.id, displayName: u.displayName, profileImageUrl: u.profileImageUrl })),
@@ -936,6 +996,404 @@ export async function registerRoutes(app: Express): Promise<void> {
         .where(eq(communities.id, communityId));
     }
     res.status(201).json({ ok: true });
+  });
+
+  // ── コミュニティ掲示板（スレッド形式） ─────────────────────────────────
+  app.get("/api/communities/:id/threads", async (req: Request, res: Response) => {
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const rows = await db
+      .select({
+        id: communityThreads.id,
+        communityId: communityThreads.communityId,
+        authorUserId: communityThreads.authorUserId,
+        title: communityThreads.title,
+        body: communityThreads.body,
+        createdAt: communityThreads.createdAt,
+        pinned: communityThreads.pinned,
+      })
+      .from(communityThreads)
+      .where(eq(communityThreads.communityId, communityId))
+      .orderBy(desc(communityThreads.pinned), desc(communityThreads.createdAt));
+    const postCounts = await Promise.all(
+      rows.map(async (t) => {
+        const [c] = await db.select({ n: count() }).from(communityThreadPosts).where(eq(communityThreadPosts.threadId, t.id));
+        return c?.n ?? 0;
+      })
+    );
+    const authorIds = [...new Set(rows.map((r) => r.authorUserId))];
+    const authorRows = authorIds.length > 0
+      ? await db.select({ id: users.id, displayName: users.displayName, profileImageUrl: users.profileImageUrl }).from(users).where(inArray(users.id, authorIds))
+      : [];
+    const authorMap = new Map(authorRows.map((a) => [a.id, a]));
+    res.json(
+      rows.map((r, i) => ({
+        ...r,
+        postCount: postCounts[i],
+        author: authorMap.get(r.authorUserId) ?? { displayName: "不明", profileImageUrl: null },
+      }))
+    );
+  });
+
+  app.post("/api/communities/:id/threads", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const memberRows = await db
+      .select()
+      .from(communityMembers)
+      .where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.userId, user.id)));
+    if (memberRows.length === 0) return res.status(403).json({ error: "コミュニティに参加してください" });
+    const { title, body } = req.body as { title?: string; body?: string };
+    if (!title || !title.trim()) return res.status(400).json({ error: "タイトルを入力してください" });
+    const [row] = await db
+      .insert(communityThreads)
+      .values({
+        communityId,
+        authorUserId: user.id,
+        title: title.trim(),
+        body: (body ?? "").trim(),
+      } as typeof communityThreads.$inferInsert)
+      .returning();
+    res.status(201).json(row);
+  });
+
+  app.get("/api/communities/:id/threads/:threadId", async (req: Request, res: Response) => {
+    const communityId = paramNum(req, "id");
+    const threadId = paramNum(req, "threadId");
+    const [thread] = await db
+      .select()
+      .from(communityThreads)
+      .where(and(eq(communityThreads.communityId, communityId), eq(communityThreads.id, threadId)));
+    if (!thread) return res.status(404).json({ message: "Not found" });
+    const posts = await db
+      .select()
+      .from(communityThreadPosts)
+      .where(eq(communityThreadPosts.threadId, threadId))
+      .orderBy(asc(communityThreadPosts.createdAt));
+    const authorIds = [thread.authorUserId, ...posts.map((p) => p.authorUserId)];
+    const authorRows = await db.select({ id: users.id, displayName: users.displayName, profileImageUrl: users.profileImageUrl }).from(users).where(inArray(users.id, authorIds));
+    const authorMap = new Map(authorRows.map((a) => [a.id, a]));
+    res.json({
+      ...thread,
+      author: authorMap.get(thread.authorUserId) ?? { displayName: "不明", profileImageUrl: null },
+      posts: posts.map((p) => ({
+        ...p,
+        author: authorMap.get(p.authorUserId) ?? { displayName: "不明", profileImageUrl: null },
+      })),
+    });
+  });
+
+  /** スレッド削除（管理人・モデレーター） */
+  app.delete("/api/communities/:id/threads/:threadId", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const communityId = paramNum(req, "id");
+    const threadId = paramNum(req, "threadId");
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and(eq(communityModerators.communityId, communityId), eq(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "管理人またはモデレーターのみ削除できます" });
+    const [thread] = await db.select().from(communityThreads).where(and(eq(communityThreads.communityId, communityId), eq(communityThreads.id, threadId)));
+    if (!thread) return res.status(404).json({ message: "Not found" });
+    await db.delete(communityThreadPosts).where(eq(communityThreadPosts.threadId, threadId));
+    await db.delete(communityThreads).where(eq(communityThreads.id, threadId));
+    res.json({ ok: true });
+  });
+
+  /** スレッド返信削除（管理人・モデレーター） */
+  app.delete("/api/communities/:id/threads/:threadId/posts/:postId", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const communityId = paramNum(req, "id");
+    const threadId = paramNum(req, "threadId");
+    const postId = paramNum(req, "postId");
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and(eq(communityModerators.communityId, communityId), eq(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "管理人またはモデレーターのみ削除できます" });
+    const [thread] = await db.select().from(communityThreads).where(and(eq(communityThreads.communityId, communityId), eq(communityThreads.id, threadId)));
+    if (!thread) return res.status(404).json({ message: "Not found" });
+    await db.delete(communityThreadPosts).where(and(eq(communityThreadPosts.threadId, threadId), eq(communityThreadPosts.id, postId)));
+    res.json({ ok: true });
+  });
+
+  app.post("/api/communities/:id/threads/:threadId/posts", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const communityId = paramNum(req, "id");
+    const threadId = paramNum(req, "threadId");
+    const [thread] = await db
+      .select()
+      .from(communityThreads)
+      .where(and(eq(communityThreads.communityId, communityId), eq(communityThreads.id, threadId)));
+    if (!thread) return res.status(404).json({ message: "Not found" });
+    const memberRows = await db
+      .select()
+      .from(communityMembers)
+      .where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.userId, user.id)));
+    if (memberRows.length === 0) return res.status(403).json({ error: "コミュニティに参加してください" });
+    const { body } = req.body as { body?: string };
+    if (!body || !body.trim()) return res.status(400).json({ error: "本文を入力してください" });
+    const [row] = await db
+      .insert(communityThreadPosts)
+      .values({
+        threadId,
+        authorUserId: user.id,
+        body: body.trim(),
+      } as typeof communityThreadPosts.$inferInsert)
+      .returning();
+    res.status(201).json(row);
+  });
+
+  /** コミュニティ管理者: ジュークボックスキュー一覧・削除 */
+  app.get("/api/communities/:id/admin/jukebox-queue", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and(eq(communityModerators.communityId, communityId), eq(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "管理人またはモデレーターのみアクセス可能です" });
+    const rows = await db.select().from(jukeboxQueue).where(eq(jukeboxQueue.communityId, communityId)).orderBy(asc(jukeboxQueue.position));
+    res.json(rows);
+  });
+
+  app.delete("/api/communities/:id/admin/jukebox-queue/:itemId", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const communityId = paramNum(req, "id");
+    const itemId = paramNum(req, "itemId");
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and(eq(communityModerators.communityId, communityId), eq(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "管理人またはモデレーターのみ操作可能です" });
+    const [item] = await db.select().from(jukeboxQueue).where(and(eq(jukeboxQueue.communityId, communityId), eq(jukeboxQueue.id, itemId)));
+    if (!item) return res.status(404).json({ message: "Not found" });
+    await db.delete(jukeboxQueue).where(eq(jukeboxQueue.id, itemId));
+    res.json({ ok: true });
+  });
+
+  /** コミュニティ管理者: 承認済み広告一覧（スケジュール用） */
+  app.get("/api/communities/:id/admin/ads", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and(eq(communityModerators.communityId, communityId), eq(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "管理人またはモデレーターのみアクセス可能です" });
+
+    const rows = await db
+      .select()
+      .from(communityAds)
+      .where(and(eq(communityAds.communityId, communityId), eq(communityAds.status, "approved")))
+      .orderBy(asc(communityAds.startDate));
+    res.json(rows);
+  });
+
+  /** コミュニティ管理者: 該当コミュニティの通報一覧 */
+  app.get("/api/communities/:id/admin/reports", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and(eq(communityModerators.communityId, communityId), eq(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "管理人またはモデレーターのみアクセス可能です" });
+
+    const videoIdsInCommunity = await db.select({ id: videos.id }).from(videos).where(eq(videos.communityId, communityId));
+    const vidSet = new Set(videoIdsInCommunity.map((v) => v.id));
+    const byName = await db.select({ id: videos.id }).from(videos).where(eq(videos.community, community.name));
+    byName.forEach((v) => vidSet.add(v.id));
+
+    const allReports = await db.select().from(reports).orderBy(desc(reports.createdAt));
+    const filtered: typeof allReports = [];
+    for (const r of allReports) {
+      if (r.contentType === "video") {
+        if (vidSet.has(r.contentId)) filtered.push(r);
+      } else if (r.contentType === "comment") {
+        const [cm] = await db.select({ videoId: videoComments.videoId }).from(videoComments).where(eq(videoComments.id, r.contentId));
+        if (cm) {
+          const [v] = await db.select({ id: videos.id, communityId: videos.communityId, community: videos.community }).from(videos).where(eq(videos.id, cm.videoId));
+          if (v && (v.communityId === communityId || v.community === community.name)) filtered.push(r);
+        }
+      }
+    }
+    res.json(filtered);
+  });
+
+  /** コミュニティ管理者: 通報を非表示にする */
+  app.patch("/api/communities/:id/admin/reports/:reportId/hide", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const communityId = paramNum(req, "id");
+    const reportId = paramNum(req, "reportId");
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and(eq(communityModerators.communityId, communityId), eq(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "管理人またはモデレーターのみ操作可能です" });
+
+    const [report] = await db.select().from(reports).where(eq(reports.id, reportId));
+    if (!report) return res.status(404).json({ error: "通報が見つかりません" });
+    const vidSet = new Set((await db.select({ id: videos.id }).from(videos).where(eq(videos.communityId, communityId))).map((v) => v.id));
+    const byName = await db.select({ id: videos.id }).from(videos).where(eq(videos.community, community.name));
+    byName.forEach((v) => vidSet.add(v.id));
+    let allowed = false;
+    if (report.contentType === "video") allowed = vidSet.has(report.contentId);
+    else if (report.contentType === "comment") {
+      const [cm] = await db.select({ videoId: videoComments.videoId }).from(videoComments).where(eq(videoComments.id, report.contentId));
+      if (cm) {
+        const [v] = await db.select({ communityId: videos.communityId, community: videos.community }).from(videos).where(eq(videos.id, cm.videoId));
+        allowed = !!v && (v.communityId === communityId || v.community === community.name);
+      }
+    }
+    if (!allowed) return res.status(403).json({ error: "この通報はこのコミュニティに属していません" });
+
+    if (report.contentType === "video") {
+      await db.update(videos).set({ hidden: true } as Partial<typeof videos.$inferInsert>).where(eq(videos.id, report.contentId));
+    } else if (report.contentType === "comment") {
+      await db.update(videoComments).set({ hidden: true } as Partial<typeof videoComments.$inferInsert>).where(eq(videoComments.id, report.contentId));
+    }
+    await db.update(reports).set({ status: "hidden" } as Partial<typeof reports.$inferInsert>).where(eq(reports.id, reportId));
+    res.json({ ok: true });
+  });
+
+  /** コミュニティ管理者: 通報を問題なしとしてクローズ */
+  app.patch("/api/communities/:id/admin/reports/:reportId/dismiss", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const communityId = paramNum(req, "id");
+    const reportId = paramNum(req, "reportId");
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const isAdmin = community.adminId === user.id;
+    const [modRow] = await db.select().from(communityModerators).where(and(eq(communityModerators.communityId, communityId), eq(communityModerators.userId, user.id)));
+    const isMod = !!modRow;
+    if (!isAdmin && !isMod) return res.status(403).json({ error: "管理人またはモデレーターのみ操作可能です" });
+
+    const [report] = await db.select().from(reports).where(eq(reports.id, reportId));
+    if (!report) return res.status(404).json({ error: "通報が見つかりません" });
+    const vidSet = new Set((await db.select({ id: videos.id }).from(videos).where(eq(videos.communityId, communityId))).map((v) => v.id));
+    const byName = await db.select({ id: videos.id }).from(videos).where(eq(videos.community, community.name));
+    byName.forEach((v) => vidSet.add(v.id));
+    let allowed = false;
+    if (report.contentType === "video") allowed = vidSet.has(report.contentId);
+    else if (report.contentType === "comment") {
+      const [cm] = await db.select({ videoId: videoComments.videoId }).from(videoComments).where(eq(videoComments.id, report.contentId));
+      if (cm) {
+        const [v] = await db.select({ communityId: videos.communityId, community: videos.community }).from(videos).where(eq(videos.id, cm.videoId));
+        allowed = !!v && (v.communityId === communityId || v.community === community.name);
+      }
+    }
+    if (!allowed) return res.status(403).json({ error: "この通報はこのコミュニティに属していません" });
+
+    await db.update(reports).set({ status: "reviewed" } as Partial<typeof reports.$inferInsert>).where(eq(reports.id, reportId));
+    res.json({ ok: true });
+  });
+
+  // ── コミュニティアンケート ─────────────────────────────────────────────
+  app.get("/api/communities/:id/polls", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const polls = await db
+      .select()
+      .from(communityPolls)
+      .where(eq(communityPolls.communityId, communityId))
+      .orderBy(desc(communityPolls.createdAt));
+    const result = await Promise.all(
+      polls.map(async (p) => {
+        const opts = await db.select().from(communityPollOptions).where(eq(communityPollOptions.pollId, p.id)).orderBy(asc(communityPollOptions.order));
+        const votes = await db.select().from(communityPollVotes).where(eq(communityPollVotes.pollId, p.id));
+        const voteCounts = opts.map((o) => ({ optionId: o.id, text: o.text, count: votes.filter((v) => v.optionId === o.id).length }));
+        let myVoteOptionId: number | null = null;
+        if (user) {
+          const myVote = votes.find((v) => v.userId === user.id);
+          if (myVote) myVoteOptionId = myVote.optionId;
+        }
+        return { ...p, options: voteCounts, myVoteOptionId };
+      })
+    );
+    res.json(result);
+  });
+
+  app.post("/api/communities/:id/polls", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    const memberRows = await db
+      .select()
+      .from(communityMembers)
+      .where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.userId, user.id)));
+    if (memberRows.length === 0) return res.status(403).json({ error: "コミュニティに参加してください" });
+    const { question, options } = req.body as { question?: string; options?: string[] };
+    if (!question || !question.trim()) return res.status(400).json({ error: "質問を入力してください" });
+    if (!options || !Array.isArray(options) || options.length < 2) return res.status(400).json({ error: "選択肢を2つ以上入力してください" });
+    const validOpts = options.filter((o: string) => o && String(o).trim()).slice(0, 10);
+    if (validOpts.length < 2) return res.status(400).json({ error: "選択肢を2つ以上入力してください" });
+    const [poll] = await db
+      .insert(communityPolls)
+      .values({
+        communityId,
+        authorUserId: user.id,
+        question: question.trim(),
+      } as typeof communityPolls.$inferInsert)
+      .returning();
+    for (let i = 0; i < validOpts.length; i++) {
+      await db.insert(communityPollOptions).values({
+        pollId: poll.id,
+        text: validOpts[i].trim(),
+        order: i,
+      } as typeof communityPollOptions.$inferInsert);
+    }
+    res.status(201).json(poll);
+  });
+
+  app.post("/api/communities/:id/polls/:pollId/vote", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const communityId = paramNum(req, "id");
+    const pollId = paramNum(req, "pollId");
+    const { optionId } = req.body as { optionId?: number };
+    if (!optionId) return res.status(400).json({ error: "optionId を指定してください" });
+    const [poll] = await db.select().from(communityPolls).where(and(eq(communityPolls.communityId, communityId), eq(communityPolls.id, pollId)));
+    if (!poll) return res.status(404).json({ message: "Not found" });
+    const [opt] = await db.select().from(communityPollOptions).where(and(eq(communityPollOptions.pollId, pollId), eq(communityPollOptions.id, optionId)));
+    if (!opt) return res.status(404).json({ message: "選択肢が見つかりません" });
+    const memberRows = await db
+      .select()
+      .from(communityMembers)
+      .where(and(eq(communityMembers.communityId, communityId), eq(communityMembers.userId, user.id)));
+    if (memberRows.length === 0) return res.status(403).json({ error: "コミュニティに参加してください" });
+    const existing = await db.select().from(communityPollVotes).where(and(eq(communityPollVotes.pollId, pollId), eq(communityPollVotes.userId, user.id)));
+    if (existing.length > 0) return res.status(400).json({ error: "すでに投票済みです" });
+    await db.insert(communityPollVotes).values({
+      pollId,
+      optionId,
+      userId: user.id,
+    } as typeof communityPollVotes.$inferInsert);
+    res.json({ ok: true });
   });
 
   app.get("/api/editors/:id", async (req: Request, res: Response) => {
@@ -1060,6 +1518,49 @@ export async function registerRoutes(app: Express): Promise<void> {
     } catch (e) {
       console.error("Create community error:", e);
       res.status(500).json({ error: "コミュニティの作成に失敗しました" });
+    }
+  });
+
+  /** コミュニティ削除（作成者のみ） */
+  app.delete("/api/communities/:id", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+
+    const communityId = paramNum(req, "id");
+    const [community] = await db.select().from(communities).where(eq(communities.id, communityId));
+    if (!community) return res.status(404).json({ message: "Not found" });
+    if (community.ownerId !== user.id) {
+      return res.status(403).json({ error: "コミュニティの削除は作成者のみ可能です" });
+    }
+
+    try {
+      const threadRows = await db.select({ id: communityThreads.id }).from(communityThreads).where(eq(communityThreads.communityId, communityId));
+      const threadIds = threadRows.map((t) => t.id);
+      if (threadIds.length > 0) {
+        await db.delete(communityThreadPosts).where(inArray(communityThreadPosts.threadId, threadIds));
+      }
+      await db.delete(communityThreads).where(eq(communityThreads.communityId, communityId));
+      const pollRows = await db.select({ id: communityPolls.id }).from(communityPolls).where(eq(communityPolls.communityId, communityId));
+      const pollIds = pollRows.map((p) => p.id);
+      if (pollIds.length > 0) {
+        await db.delete(communityPollVotes).where(inArray(communityPollVotes.pollId, pollIds));
+        await db.delete(communityPollOptions).where(inArray(communityPollOptions.pollId, pollIds));
+      }
+      await db.delete(communityPolls).where(eq(communityPolls.communityId, communityId));
+      await db.delete(communityVotes).where(eq(communityVotes.communityId, communityId));
+      await db.delete(communityAds).where(eq(communityAds.communityId, communityId));
+      await db.delete(communityModerators).where(eq(communityModerators.communityId, communityId));
+      await db.delete(communityMembers).where(eq(communityMembers.communityId, communityId));
+      await db.delete(jukeboxChat).where(eq(jukeboxChat.communityId, communityId));
+      await db.delete(jukeboxQueue).where(eq(jukeboxQueue.communityId, communityId));
+      await db.delete(jukeboxState).where(eq(jukeboxState.communityId, communityId));
+      await db.delete(videoEditors).where(eq(videoEditors.communityId, communityId));
+      await db.update(videos).set({ communityId: null }).where(eq(videos.communityId, communityId));
+      await db.delete(communities).where(eq(communities.id, communityId));
+      res.json({ ok: true });
+    } catch (e) {
+      console.error("Community deletion error:", e);
+      res.status(500).json({ error: "コミュニティの削除に失敗しました" });
     }
   });
 
@@ -1700,12 +2201,16 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // ── Videos ───────────────────────────────────────────────────────
-  app.get("/api/videos", async (_req: Request, res: Response) => {
-    const rows = await db
+  app.get("/api/videos", async (req: Request, res: Response) => {
+    const genreId = (req as any).query?.genre;
+    const communityIdParam = (req as any).query?.communityId;
+    let rows = await db
       .select()
       .from(videos)
       .where(and(eq(videos.isRanked, false), eq(videos.hidden, false)))
       .orderBy(desc(videos.createdAt));
+    // visibility=community の投稿のみ一覧に表示（既存データは visibility 未設定時も表示）
+    rows = rows.filter((r) => (r as any).visibility !== "draft" && (r as any).visibility !== "my_page_only");
     const names = [...new Set(rows.map((r) => r.creator))];
     const userMap = new Map<string, number>();
     const creatorMap = new Map<string, number>();
@@ -1729,8 +2234,13 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.get("/api/videos/my", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
-    const rows = await db.select().from(videos).where(and(eq(videos.creator, user.displayName), eq(videos.hidden, false))).orderBy(desc(videos.createdAt));
-    res.json(rows);
+    const rows = await db
+      .select()
+      .from(videos)
+      .where(or(eq(videos.creator, user.displayName), eq(videos.userId, user.id)))
+      .orderBy(desc(videos.createdAt));
+    const filtered = rows.filter((r) => !r.hidden);
+    res.json(filtered);
   });
 
   app.get("/api/videos/ranked", async (_req: Request, res: Response) => {
@@ -1744,13 +2254,18 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   app.get("/api/videos/:id", async (req: Request, res: Response) => {
     const id = paramNum(req, "id");
+    const authUser = await getAuthUser(req);
     const [row] = await db.select().from(videos).where(eq(videos.id, id));
     if (!row || row.hidden) return res.status(404).json({ message: "Not found" });
+    const vis = (row as any).visibility;
+    const isOwner = authUser && ((row as any).userId === authUser.id || row.creator === authUser.displayName);
+    if (vis === "draft" && !isOwner) return res.status(404).json({ message: "Not found" });
+    if (vis === "my_page_only" && !isOwner) return res.status(404).json({ message: "Not found" });
     const timeAgo = row.createdAt ? formatTimeAgo(row.createdAt) : row.timeAgo;
     const [creatorUser] = await db.select({ id: users.id }).from(users).where(eq(users.displayName, row.creator));
     const [creatorLiver] = !creatorUser ? await db.select({ id: creators.id }).from(creators).where(eq(creators.name, row.creator)) : [];
     const creatorType = creatorUser ? "user" : creatorLiver ? "liver" : null;
-    const creatorId = creatorUser?.id ?? creatorLiver?.id ?? null;
+    const creatorId = (row as any).userId ?? creatorUser?.id ?? creatorLiver?.id ?? null;
     res.json({ ...row, timeAgo, creatorType, creatorId });
   });
 
@@ -1794,18 +2309,25 @@ export async function registerRoutes(app: Express): Promise<void> {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
 
-    const { title, community, duration, price, thumbnail, description, concertId } = req.body as {
+    const { title, community, communityId, duration, price, thumbnail, description, concertId, visibility } = req.body as {
       title?: string;
       community?: string;
+      communityId?: number | null;
       duration?: string;
       price?: number | null;
       thumbnail?: string;
       description?: string | null;
       concertId?: number | null;
+      visibility?: "draft" | "my_page_only" | "community";
     };
 
-    if (!title || !community || !duration || !thumbnail) {
+    if (!title || !duration || !thumbnail) {
       return res.status(400).json({ message: "必須フィールドが不足しています" });
+    }
+
+    const vis = visibility === "draft" ? "draft" : visibility === "my_page_only" ? "my_page_only" : "community";
+    if (vis === "community" && (!community || !community.trim())) {
+      return res.status(400).json({ message: "コミュニティ公開時は community を指定してください" });
     }
 
     const [row] = await db
@@ -1813,7 +2335,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       .values({
         title,
         creator: user.displayName,
-        community,
+        community: community?.trim() ?? "",
         views: 0,
         timeAgo: "たった今",
         duration,
@@ -1826,12 +2348,15 @@ export async function registerRoutes(app: Express): Promise<void> {
           "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop",
         isRanked: false,
         concertId: concertId ?? null,
+        userId: user.id,
+        visibility: vis,
+        communityId: vis === "community" ? (communityId ?? null) : null,
       } as typeof videos.$inferInsert)
       .returning();
     res.status(201).json(row);
   });
 
-  /** 自分の投稿の編集（タイトルのみ） */
+  /** 自分の投稿の編集（タイトル・公開範囲） */
   app.patch("/api/videos/:id", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
@@ -1839,17 +2364,35 @@ export async function registerRoutes(app: Express): Promise<void> {
     const id = paramNum(req, "id");
     const [video] = await db.select().from(videos).where(eq(videos.id, id));
     if (!video) return res.status(404).json({ message: "Not found" });
-    if (video.creator !== user.displayName) {
-      return res.status(403).json({ error: "編集権限がありません" });
+    const isOwner = (video as any).userId === user.id || video.creator === user.displayName;
+    if (!isOwner) return res.status(403).json({ error: "編集権限がありません" });
+
+    const { title, visibility, communityId, community } = req.body as {
+      title?: string;
+      visibility?: "draft" | "my_page_only" | "community";
+      communityId?: number | null;
+      community?: string;
+    };
+
+    const updates: Record<string, unknown> = {};
+    if (title !== undefined) {
+      const newTitle = title?.trim();
+      if (!newTitle) return res.status(400).json({ error: "タイトルは必須です" });
+      updates.title = newTitle;
+    }
+    if (visibility !== undefined) {
+      const vis = ["draft", "my_page_only", "community"].includes(visibility) ? visibility : (video as any).visibility;
+      updates.visibility = vis;
+      if (vis === "community" && communityId != null) updates.communityId = communityId;
+      if (vis === "community" && community?.trim()) updates.community = community.trim();
+      if (vis !== "community") updates.communityId = null;
     }
 
-    const { title } = req.body as { title?: string };
-    const newTitle = title?.trim();
-    if (!newTitle) return res.status(400).json({ error: "タイトルは必須です" });
+    if (Object.keys(updates).length === 0) return res.json(video);
 
     const [updated] = await db
       .update(videos)
-      .set({ title: newTitle } as Partial<typeof videos.$inferInsert>)
+      .set(updates as Partial<typeof videos.$inferInsert>)
       .where(eq(videos.id, id))
       .returning();
     res.json(updated);
@@ -1863,13 +2406,34 @@ export async function registerRoutes(app: Express): Promise<void> {
     const id = paramNum(req, "id");
     const [video] = await db.select().from(videos).where(eq(videos.id, id));
     if (!video) return res.status(404).json({ message: "Not found" });
-    if (video.creator !== user.displayName) {
-      return res.status(403).json({ error: "削除権限がありません" });
-    }
+    const isOwner = (video as any).userId === user.id || video.creator === user.displayName;
+    if (!isOwner) return res.status(403).json({ error: "削除権限がありません" });
 
     await db.delete(videoComments).where(eq(videoComments.videoId, id));
     await db.delete(videos).where(eq(videos.id, id));
     res.json({ ok: true });
+  });
+
+  /** 公開プロフィール用: ユーザーの公開投稿一覧（my_page_only 以上） */
+  app.get("/api/users/:id/posts", async (req: Request, res: Response) => {
+    const userId = paramNum(req, "id");
+    const [targetUser] = await db.select({ id: users.id, displayName: users.displayName }).from(users).where(eq(users.id, userId));
+    if (!targetUser) return res.status(404).json({ message: "Not found" });
+    const rows = await db
+      .select()
+      .from(videos)
+      .where(
+        and(
+          or(eq(videos.userId, userId), eq(videos.creator, targetUser.displayName)),
+          eq(videos.hidden, false)
+        )
+      )
+      .orderBy(desc(videos.createdAt));
+    const filtered = rows.filter((r) => {
+      const v = (r as any).visibility;
+      return v !== "draft";
+    });
+    res.json(filtered);
   });
 
   // ── Live Streams ──────────────────────────────────────────────────
@@ -2025,15 +2589,19 @@ export async function registerRoutes(app: Express): Promise<void> {
       const elapsedSecs =
         (now.getTime() - new Date(state.startedAt as any).getTime()) / 1000;
       if (elapsedSecs >= state.currentVideoDurationSecs) {
-        // 次の曲へ繰り上げ
-        const next = queue.find((q) => !q.isPlayed);
+        // 再生中の曲を isPlayed にマークしてから次を探す
+        const currentItem = queue.find(
+          (q) =>
+            (state.currentVideoYoutubeId && (q as any).youtubeId === state.currentVideoYoutubeId) ||
+            (state.currentVideoId != null && q.videoId === state.currentVideoId)
+        );
+        if (currentItem) {
+          await db.update(jukeboxQueue).set({ isPlayed: true } as Partial<typeof jukeboxQueue.$inferInsert>).where(eq(jukeboxQueue.id, currentItem.id));
+          queueModified = true;
+        }
+        const next = queue.find((q) => !q.isPlayed && q.id !== currentItem?.id);
         if (next) {
-          await db
-            .update(jukeboxQueue)
-            .set({
-              isPlayed: true,
-            } as Partial<typeof jukeboxQueue.$inferInsert>)
-            .where(eq(jukeboxQueue.id, next.id));
+          // 次に再生する曲は isPlayed にしない（キュー表示で消えないようにする）
           queueModified = true;
 
           const watchers = Math.floor(Math.random() * 80) + 20;
@@ -2223,8 +2791,11 @@ export async function registerRoutes(app: Express): Promise<void> {
     } as typeof jukeboxQueue.$inferInsert).returning();
 
     // 未再生の曲が1つもない場合（新しいセッション）は自動で再生を開始する
+    // ただし、既に再生中の曲がある場合は割り込み再生しない（キュー末尾に追加するだけ）
+    const [stateRow] = await db.select().from(jukeboxState).where(eq(jukeboxState.communityId, communityId));
+    const isCurrentlyPlaying = !!(stateRow?.isPlaying && (stateRow.currentVideoId != null || stateRow.currentVideoYoutubeId));
     const hasUnplayed = existing.some((q) => !q.isPlayed);
-    if (!hasUnplayed) {
+    if (!hasUnplayed && !isCurrentlyPlaying) {
       const watchers = Math.floor(Math.random() * 80) + 20;
       await db
         .insert(jukeboxState)
@@ -2259,12 +2830,28 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   app.post("/api/jukebox/:communityId/next", async (req: Request, res: Response) => {
     const communityId = paramNum(req, "communityId");
+    const [stateRaw] = await db.select().from(jukeboxState).where(eq(jukeboxState.communityId, communityId));
     const queue = await db.select().from(jukeboxQueue)
       .where(eq(jukeboxQueue.communityId, communityId))
       .orderBy(asc(jukeboxQueue.position));
-    const next = queue.find((q) => !q.isPlayed);
+
+    // 再生中の曲を特定し isPlayed にマーク（同じ曲が「次」として選ばれるのを防ぐ）
+    let currentItemId: number | null = null;
+    if (stateRaw?.currentVideoId != null || stateRaw?.currentVideoYoutubeId) {
+      const currentItem = queue.find(
+        (q) =>
+          (stateRaw.currentVideoYoutubeId && (q as any).youtubeId === stateRaw.currentVideoYoutubeId) ||
+          (stateRaw.currentVideoId != null && q.videoId === stateRaw.currentVideoId)
+      );
+      if (currentItem) {
+        currentItemId = currentItem.id;
+        await db.update(jukeboxQueue).set({ isPlayed: true } as Partial<typeof jukeboxQueue.$inferInsert>).where(eq(jukeboxQueue.id, currentItem.id));
+      }
+    }
+
+    const next = queue.find((q) => !q.isPlayed && q.id !== currentItemId);
     if (next) {
-      await db.update(jukeboxQueue).set({ isPlayed: true } as Partial<typeof jukeboxQueue.$inferInsert>).where(eq(jukeboxQueue.id, next.id));
+      // 次に再生する曲は isPlayed にしない（再生完了時にマークする）。キュー表示で消えないようにする
       const watchers = Math.floor(Math.random() * 80) + 20;
       await db
         .insert(jukeboxState)

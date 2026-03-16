@@ -413,6 +413,9 @@ export default function VideoDetailScreen() {
             <Text style={styles.reportModalSub}>
               {reportTarget?.type === "video" ? "この投稿" : "このコメント"}を通報する理由を選んでください。
             </Text>
+            <Text style={styles.reportFlowNote}>
+              通報後、AIによる自動判定の結果、明らかな違反の場合は即時非表示、グレーゾーンの場合は管理者が確認します。違反なしと判定された場合はそのまま表示されます。
+            </Text>
             {REPORT_REASONS.map((r) => (
               <Pressable
                 key={r.value}
@@ -592,6 +595,12 @@ const styles = StyleSheet.create({
   reportModalSub: {
     color: C.textSec,
     fontSize: 13,
+    marginBottom: 8,
+  },
+  reportFlowNote: {
+    color: C.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
     marginBottom: 16,
   },
   reportReasonBtn: {

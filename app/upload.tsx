@@ -44,10 +44,19 @@ export default function UploadScreen() {
   const [text, setText] = useState("");
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [selectedCommunityId, setSelectedCommunityId] = useState<number | null>(null);
+  const [postTarget, setPostTarget] = useState<"my_page_only" | "community">("my_page_only");
+  const [publishFromExisting, setPublishFromExisting] = useState(false);
+  const [showPublishFromModal, setShowPublishFromModal] = useState(false);
   const [fee, setFee] = useState<FeeType>("free");
   const [price, setPrice] = useState<PriceOption>(500);
   const [addMenuVisible, setAddMenuVisible] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  const { data: myVideos = [] } = useQuery<any[]>({
+    queryKey: ["/api/videos/my"],
+    enabled: showPublishFromModal && !!user,
+  });
+  const myPageOnlyVideos = myVideos.filter((v) => (v as any).visibility === "my_page_only" || (v as any).visibility === "draft");
 
   const activeCommunityId = selectedCommunityId ?? communities[0]?.id ?? null;
   const selectedCommunity = communities.find((c) => c.id === activeCommunityId);
@@ -246,17 +255,41 @@ export default function UploadScreen() {
     return url as string;
   }
 
+  async function handlePublishFromExisting(videoId: number) {
+    if (!requireAuth("公開") || !selectedCommunity) return;
+    setUploading(true);
+    try {
+      await apiRequest("PATCH", `/api/videos/${videoId}`, {
+        visibility: "community",
+        communityId: selectedCommunity.id,
+        community: selectedCommunity.name,
+      });
+      setShowPublishFromModal(false);
+      router.replace("/(tabs)/profile");
+      queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/videos/my"] });
+    } catch (err: any) {
+      Alert.alert("エラー", err?.message ?? "公開に失敗しました");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handleSubmit() {
     const title = text.trim();
     if (!title.length) {
       Alert.alert("", "テキストを入力してください");
       return;
     }
+    if (postTarget === "community" && !selectedCommunity) {
+      Alert.alert("", "コミュニティを選択してください");
+      return;
+    }
     // 投稿はログイン必須
     if (!requireAuth("投稿")) return;
     setUploading(true);
     try {
-      const communityName = selectedCommunity?.name ?? "一般";
+      const communityName = selectedCommunity?.name ?? "";
       const creatorName = user?.name ?? user?.displayName ?? "ゲストライバー";
       const firstImage = mediaItems.find((m) => m.type === "image");
       let thumbUrl =
@@ -284,11 +317,13 @@ export default function UploadScreen() {
         description: title,
         creator: creatorName,
         community: communityName,
+        communityId: postTarget === "community" ? selectedCommunity?.id : null,
         duration: "00:00",
         price: fee === "paid" ? price : null,
         thumbnail: thumbUrl,
         avatar: avatarUrl,
         concertId,
+        visibility: postTarget === "my_page_only" ? "my_page_only" : "community",
       });
       const data = (await res.json()) as { id: number };
       // 遷移を先に実行（invalidate の完了を待たない）
@@ -367,22 +402,48 @@ export default function UploadScreen() {
           />
         </View>
 
-        {/* コミュニティ・公演紐付け・有料/無料（コンパクト） */}
+        {/* 投稿先・コミュニティ */}
         <View style={styles.optionsSection}>
-          <Text style={styles.optionsLabel}>コミュニティ</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityRow}>
-            {communities.map((c) => (
-              <Pressable
-                key={c.id}
-                style={[styles.communityPill, activeCommunityId === c.id && styles.communityPillActive]}
-                onPress={() => setSelectedCommunityId(c.id)}
-              >
-                <Text style={[styles.communityPillText, activeCommunityId === c.id && styles.communityPillTextActive]} numberOfLines={1}>
-                  {c.name}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
+          <Text style={styles.optionsLabel}>投稿先</Text>
+          <View style={styles.postTargetRow}>
+            <Pressable
+              style={[styles.postTargetBtn, postTarget === "my_page_only" && styles.postTargetBtnActive]}
+              onPress={() => setPostTarget("my_page_only")}
+            >
+              <Text style={[styles.postTargetText, postTarget === "my_page_only" && styles.postTargetTextActive]}>自分のページのみ</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.postTargetBtn, postTarget === "community" && styles.postTargetBtnActive]}
+              onPress={() => setPostTarget("community")}
+            >
+              <Text style={[styles.postTargetText, postTarget === "community" && styles.postTargetTextActive]}>コミュニティに公開</Text>
+            </Pressable>
+          </View>
+
+          {postTarget === "community" && (
+            <>
+              <Text style={styles.optionsLabel}>コミュニティ</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communityRow}>
+                {communities.map((c) => (
+                  <Pressable
+                    key={c.id}
+                    style={[styles.communityPill, activeCommunityId === c.id && styles.communityPillActive]}
+                    onPress={() => setSelectedCommunityId(c.id)}
+                  >
+                    <Text style={[styles.communityPillText, activeCommunityId === c.id && styles.communityPillTextActive]} numberOfLines={1}>
+                      {c.name}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              {myPageOnlyVideos.length > 0 && (
+                <Pressable style={styles.publishFromBtn} onPress={() => setShowPublishFromModal(true)}>
+                  <Ionicons name="document-outline" size={16} color={C.accent} />
+                  <Text style={styles.publishFromText}>自分の投稿から公開する</Text>
+                </Pressable>
+              )}
+            </>
+          )}
 
           {concertId && (
             <View style={[styles.communityChip, { marginTop: 8 }]}>
@@ -433,6 +494,32 @@ export default function UploadScreen() {
           )}
         </Pressable>
       </View>
+
+      {/* 自分の投稿から公開するモーダル */}
+      <Modal visible={showPublishFromModal} transparent animationType="slide">
+        <Pressable style={styles.menuOverlay} onPress={() => !uploading && setShowPublishFromModal(false)}>
+          <Pressable style={styles.publishFromModal} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.publishFromModalTitle}>公開する投稿を選択</Text>
+            <ScrollView style={styles.publishFromList} showsVerticalScrollIndicator={false}>
+              {myPageOnlyVideos.map((v) => (
+                <Pressable
+                  key={v.id}
+                  style={styles.publishFromItem}
+                  onPress={() => handlePublishFromExisting(v.id)}
+                  disabled={uploading}
+                >
+                  <Image source={{ uri: v.thumbnail }} style={styles.publishFromThumb} contentFit="cover" />
+                  <Text style={styles.publishFromItemTitle} numberOfLines={2}>{v.title}</Text>
+                  <Ionicons name="arrow-forward" size={16} color={C.accent} />
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Pressable style={styles.publishFromCancel} onPress={() => setShowPublishFromModal(false)} disabled={uploading}>
+              <Text style={styles.publishFromCancelText}>キャンセル</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Android/Web: + タップでメニューモーダル */}
       <Modal visible={addMenuVisible} transparent animationType="fade">
@@ -531,6 +618,51 @@ const styles = StyleSheet.create({
   communityPillActive: { borderColor: C.accent, backgroundColor: "rgba(41,182,207,0.15)" },
   communityPillText: { color: C.textSec, fontSize: 13, fontWeight: "600" },
   communityPillTextActive: { color: C.accent },
+  postTargetRow: { flexDirection: "row", gap: 8, marginBottom: 8 },
+  postTargetBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  postTargetBtnActive: { borderColor: C.accent, backgroundColor: "rgba(41,182,207,0.15)" },
+  postTargetText: { color: C.textSec, fontSize: 13, fontWeight: "600" },
+  postTargetTextActive: { color: C.accent },
+  publishFromBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 8,
+  },
+  publishFromText: { color: C.accent, fontSize: 13, fontWeight: "600" },
+  publishFromModal: {
+    backgroundColor: C.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: "70%",
+  },
+  publishFromModalTitle: { color: C.text, fontSize: 16, fontWeight: "800", marginBottom: 16 },
+  publishFromList: { maxHeight: 300 },
+  publishFromItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  publishFromThumb: { width: 56, height: 56, borderRadius: 8 },
+  publishFromItemTitle: { flex: 1, color: C.text, fontSize: 14 },
+  publishFromCancel: {
+    marginTop: 16,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  publishFromCancelText: { color: C.textMuted, fontSize: 14 },
   feeRow: { flexDirection: "row", gap: 10 },
   feeBtn: {
     paddingHorizontal: 18,

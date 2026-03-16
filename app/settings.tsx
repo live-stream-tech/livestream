@@ -11,7 +11,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth, AuthGuard } from "@/lib/auth";
+import { apiRequest } from "@/lib/query-client";
 import { C } from "@/constants/colors";
 
 function SettingRow({
@@ -54,6 +56,36 @@ export default function SettingsScreen() {
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const { user, logout } = useAuth();
 
+  async function handleDeleteAccount() {
+    const msg = "アカウントを削除すると、すべてのデータが削除され復元できません。管理中のコミュニティは先に削除してください。本当に削除しますか？";
+    const doDelete = async () => {
+      try {
+        await apiRequest("DELETE", "/api/auth/account");
+        await AsyncStorage.removeItem("auth_token");
+        logout();
+      } catch (e: any) {
+        let errMsg = "削除に失敗しました";
+        if (e?.body) {
+          try {
+            const j = JSON.parse(e.body);
+            if (j.error) errMsg = j.error;
+          } catch {
+            errMsg = e.message ?? errMsg;
+          }
+        } else if (e?.message) errMsg = e.message;
+        Alert.alert("エラー", errMsg);
+      }
+    };
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      if (window.confirm(msg)) doDelete();
+    } else {
+      Alert.alert("アカウント削除", msg, [
+        { text: "キャンセル", style: "cancel" },
+        { text: "削除する", style: "destructive", onPress: doDelete },
+      ]);
+    }
+  }
+
   function handleLogout() {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       const ok = window.confirm("ログアウトしますか？");
@@ -95,7 +127,7 @@ export default function SettingsScreen() {
             <SettingRow
               icon="person-outline"
               label="登録情報の編集"
-              sublabel="氏名・自己紹介・アイコン画像など"
+              sublabel="氏名・自己紹介・アイコン・音楽リンク・電話番号など詳細設定"
               onPress={() => router.push("/account")}
             />
           </View>
@@ -193,8 +225,17 @@ export default function SettingsScreen() {
           )}
         </View>
 
-        <SectionHeader title="" />
+        <SectionHeader title="危険な操作" />
         <View style={styles.section}>
+          <SettingRow
+            icon="trash-outline"
+            label="アカウントを削除"
+            sublabel="すべてのデータが削除され、復元できません。管理中のコミュニティは先に削除してください。"
+            destructive
+            chevron={false}
+            onPress={handleDeleteAccount}
+          />
+          <View style={styles.rowDivider} />
           <SettingRow
             icon="log-out-outline"
             label="ログアウト"

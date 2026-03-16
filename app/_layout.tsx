@@ -133,6 +133,29 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
+/** 初回ログイン時は設定（登録情報編集）を必須にする */
+const PROFILE_SETUP_REQUIRED_NAMES = ["LINEユーザー", "Googleユーザー", "ユーザー"];
+function needsProfileSetup(displayName: string | undefined): boolean {
+  const name = (displayName ?? "").trim();
+  return !name || PROFILE_SETUP_REQUIRED_NAMES.includes(name);
+}
+
+function ProfileSetupGuard({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (loading || !user) return;
+    if (pathname === "/account" || pathname === "/auth/login" || pathname === "/auth/register") return;
+    if (isPublicPath(pathname)) return;
+    if (needsProfileSetup(user.displayName ?? user.name)) {
+      router.replace("/account");
+    }
+  }, [user, loading, pathname]);
+
+  return <>{children}</>;
+}
+
 /** ルートレベルの認証ガード。指定のパス以外はすべてログイン必須にする。 */
 function GlobalAuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -213,6 +236,7 @@ export default function RootLayout() {
             <KeyboardProvider>
               <LineTokenHandler>
                 <GlobalAuthGate>
+                  <ProfileSetupGuard>
                   <DemoModeProvider>
                     <View style={{ flex: 1 }}>
                       <DemoModeBanner />
@@ -222,6 +246,7 @@ export default function RootLayout() {
                       </View>
                     </View>
                   </DemoModeProvider>
+                  </ProfileSetupGuard>
                 </GlobalAuthGate>
               </LineTokenHandler>
             </KeyboardProvider>

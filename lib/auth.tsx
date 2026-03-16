@@ -17,6 +17,10 @@ export type User = {
   spotifyUrl?: string | null;
   appleMusicUrl?: string | null;
   bandcampUrl?: string | null;
+  instagramUrl?: string | null;
+  youtubeUrl?: string | null;
+  xUrl?: string | null;
+  phoneNumber?: string | null;
 };
 
 type AuthCtx = {
@@ -25,7 +29,7 @@ type AuthCtx = {
   loading: boolean;
   loginWithToken: (token: string) => Promise<void>;
   logout: () => void;
-  updateProfile: (data: Partial<Pick<User, "name" | "bio" | "avatar">>) => Promise<void>;
+  updateProfile: (data: Partial<Pick<User, "name" | "bio" | "avatar" | "spotifyUrl" | "appleMusicUrl" | "bandcampUrl" | "instagramUrl" | "youtubeUrl" | "xUrl" | "phoneNumber">>) => Promise<void>;
   /** 未ログイン時にLINEログインへ誘導する。戻り値はログイン済みなら true */
   requireAuth: (actionLabel?: string) => boolean;
 };
@@ -66,6 +70,10 @@ function normalizeMe(me: Record<string, unknown>): User {
     spotifyUrl: (me.spotifyUrl ?? null) as string | null,
     appleMusicUrl: (me.appleMusicUrl ?? null) as string | null,
     bandcampUrl: (me.bandcampUrl ?? null) as string | null,
+    instagramUrl: (me.instagramUrl ?? null) as string | null,
+    youtubeUrl: (me.youtubeUrl ?? null) as string | null,
+    xUrl: (me.xUrl ?? null) as string | null,
+    phoneNumber: (me.phoneNumber ?? null) as string | null,
   };
 }
 
@@ -108,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace("/auth/login");
   }, []);
 
-  const updateProfile = useCallback(async (data: Partial<Pick<User, "name" | "bio" | "avatar" | "spotifyUrl" | "appleMusicUrl" | "bandcampUrl">>) => {
+  const updateProfile = useCallback(async (data: Partial<Pick<User, "name" | "bio" | "avatar" | "spotifyUrl" | "appleMusicUrl" | "bandcampUrl" | "instagramUrl" | "youtubeUrl" | "xUrl" | "phoneNumber">>) => {
     const t = await AsyncStorage.getItem(TOKEN_KEY);
     const payload: Record<string, string | null> = {};
     if (data.name !== undefined) payload.name = data.name;
@@ -117,6 +125,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (data.spotifyUrl !== undefined) payload.spotifyUrl = data.spotifyUrl;
     if (data.appleMusicUrl !== undefined) payload.appleMusicUrl = data.appleMusicUrl;
     if (data.bandcampUrl !== undefined) payload.bandcampUrl = data.bandcampUrl;
+    if (data.instagramUrl !== undefined) payload.instagramUrl = data.instagramUrl;
+    if (data.youtubeUrl !== undefined) payload.youtubeUrl = data.youtubeUrl;
+    if (data.xUrl !== undefined) payload.xUrl = data.xUrl;
+    if (data.phoneNumber !== undefined) payload.phoneNumber = data.phoneNumber;
     const updated = await apiFetch("/api/auth/profile", {
       method: "PUT",
       headers: { Authorization: `Bearer ${t}` },

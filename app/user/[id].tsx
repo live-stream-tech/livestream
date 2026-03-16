@@ -6,14 +6,16 @@ import {
   StyleSheet,
   Pressable,
   Platform,
-  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import { Linking } from "react-native";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/query-client";
 import { C } from "@/constants/colors";
+import { getTabTopInset } from "@/constants/layout";
 
 type UserProfile = {
   id: number;
@@ -22,6 +24,17 @@ type UserProfile = {
   avatar: string | null;
   profileImageUrl: string | null;
   bio: string;
+  instagramUrl?: string | null;
+  youtubeUrl?: string | null;
+  xUrl?: string | null;
+};
+
+type VideoItem = {
+  id: number;
+  title: string;
+  thumbnail: string;
+  community: string;
+  timeAgo?: string;
 };
 
 export default function UserProfileScreen() {
@@ -30,76 +43,59 @@ export default function UserProfileScreen() {
   const insets = useSafeAreaInsets();
   const topInset = Platform.OS === "web" ? 67 : insets.top;
 
-  const { data: user, isLoading, error } = useQuery<UserProfile>({
+  const { data: profile, isLoading, isError } = useQuery<UserProfile>({
     queryKey: [`/api/users/${userId}`],
-    enabled: !Number.isNaN(userId) && userId > 0,
+    enabled: userId > 0,
   });
 
-  if (Number.isNaN(userId) || userId <= 0) {
-    return (
-      <View style={[styles.container, { paddingTop: topInset }]}>
-        <View style={styles.header}>
-          <Pressable style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={22} color={C.text} />
-          </Pressable>
-          <Text style={styles.headerTitle}>ユーザー</Text>
-          <View style={{ width: 36 }} />
-        </View>
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>ユーザーが見つかりません</Text>
-        </View>
-      </View>
-    );
-  }
+  const { data: posts = [] } = useQuery<VideoItem[]>({
+    queryKey: [`/api/users/${userId}/posts`],
+    enabled: userId > 0,
+  });
 
   if (isLoading) {
     return (
       <View style={[styles.container, { paddingTop: topInset }]}>
         <View style={styles.header}>
           <Pressable style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={22} color={C.text} />
+            <Ionicons name="chevron-back" size={24} color={C.text} />
           </Pressable>
-          <Text style={styles.headerTitle}>ユーザー</Text>
-          <View style={{ width: 36 }} />
+          <Text style={styles.headerTitle}>プロフィール</Text>
+          <View style={{ width: 40 }} />
         </View>
         <View style={styles.loading}>
-          <ActivityIndicator size="large" color={C.accent} />
+          <Text style={styles.loadingText}>読み込み中...</Text>
         </View>
       </View>
     );
   }
-
-  if (error || !user) {
+  if (isError || !profile) {
     return (
       <View style={[styles.container, { paddingTop: topInset }]}>
         <View style={styles.header}>
           <Pressable style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={22} color={C.text} />
+            <Ionicons name="chevron-back" size={24} color={C.text} />
           </Pressable>
-          <Text style={styles.headerTitle}>ユーザー</Text>
-          <View style={{ width: 36 }} />
+          <Text style={styles.headerTitle}>プロフィール</Text>
+          <View style={{ width: 40 }} />
         </View>
-        <View style={styles.empty}>
-          <Ionicons name="person-outline" size={48} color={C.textMuted} />
-          <Text style={styles.emptyText}>ユーザーが見つかりません</Text>
+        <View style={styles.loading}>
+          <Text style={styles.loadingText}>ユーザーが見つかりません</Text>
         </View>
       </View>
     );
   }
 
-  const avatar = user.avatar ?? user.profileImageUrl;
-  const displayName = user.name ?? user.displayName ?? "ユーザー";
+  const avatar = profile.avatar ?? profile.profileImageUrl ?? null;
 
   return (
     <View style={[styles.container, { paddingTop: topInset }]}>
       <View style={styles.header}>
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={22} color={C.text} />
+          <Ionicons name="chevron-back" size={24} color={C.text} />
         </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {displayName}
-        </Text>
-        <View style={{ width: 36 }} />
+        <Text style={styles.headerTitle}>プロフィール</Text>
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -109,16 +105,57 @@ export default function UserProfileScreen() {
               <Image source={{ uri: avatar }} style={styles.avatar} contentFit="cover" />
             ) : (
               <View style={[styles.avatar, styles.avatarFallback]}>
-                <Text style={styles.avatarInitial}>{displayName[0]?.toUpperCase() ?? "?"}</Text>
+                <Text style={styles.avatarInitial}>{(profile.name ?? "?")[0].toUpperCase()}</Text>
               </View>
             )}
           </View>
-          <Text style={styles.userName}>{displayName}</Text>
-          {user.bio ? (
-            <Text style={styles.bio}>{user.bio}</Text>
+          <Text style={styles.name}>{profile.name}</Text>
+          {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+
+          {(profile.instagramUrl || profile.youtubeUrl || profile.xUrl) ? (
+            <View style={styles.socialRow}>
+              {profile.instagramUrl && (
+                <Pressable style={styles.socialBtn} onPress={() => profile.instagramUrl && Linking.openURL(profile.instagramUrl)}>
+                  <Ionicons name="logo-instagram" size={22} color="#E4405F" />
+                </Pressable>
+              )}
+              {profile.youtubeUrl && (
+                <Pressable style={styles.socialBtn} onPress={() => profile.youtubeUrl && Linking.openURL(profile.youtubeUrl)}>
+                  <Ionicons name="logo-youtube" size={22} color="#FF0000" />
+                </Pressable>
+              )}
+              {profile.xUrl && (
+                <Pressable style={styles.socialBtn} onPress={() => profile.xUrl && Linking.openURL(profile.xUrl)}>
+                  <Ionicons name="logo-twitter" size={22} color="#1DA1F2" />
+                </Pressable>
+              )}
+            </View>
           ) : null}
         </View>
-        <View style={{ height: 80 }} />
+
+        <View style={styles.postsSection}>
+          <Text style={styles.postsTitle}>投稿</Text>
+          {posts.length === 0 ? (
+            <Text style={styles.emptyText}>まだ投稿がありません</Text>
+          ) : (
+            posts.map((v) => (
+              <Pressable
+                key={v.id}
+                style={styles.postItem}
+                onPress={() => router.push(`/video/${v.id}`)}
+              >
+                <Image source={{ uri: v.thumbnail }} style={styles.postThumb} contentFit="cover" />
+                <View style={styles.postBody}>
+                  <Text style={styles.postTitle} numberOfLines={2}>{v.title}</Text>
+                  <Text style={styles.postMeta} numberOfLines={1}>
+                    {v.community || "自分のページ"} ・ {v.timeAgo ?? ""}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
+              </Pressable>
+            ))
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -130,48 +167,46 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-  headerTitle: { flex: 1, color: C.text, fontSize: 17, fontWeight: "700", textAlign: "center" },
-
-  loading: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 48 },
-  empty: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 48,
-    gap: 12,
-  },
-  emptyText: { color: C.textMuted, fontSize: 15 },
-
+  backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  headerTitle: { color: C.text, fontSize: 17, fontWeight: "700" },
+  loading: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingText: { color: C.textMuted, fontSize: 14 },
   scroll: { flex: 1 },
   profileCard: {
     alignItems: "center",
-    paddingVertical: 32,
-    paddingHorizontal: 24,
+    paddingVertical: 24,
+    paddingHorizontal: 16,
   },
-  avatarWrap: { marginBottom: 16 },
-  avatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-  },
+  avatarWrap: { marginBottom: 12 },
+  avatar: { width: 80, height: 80, borderRadius: 40 },
   avatarFallback: {
     backgroundColor: C.surface2,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarInitial: { color: C.textMuted, fontSize: 36, fontWeight: "700" },
-  userName: { color: C.text, fontSize: 20, fontWeight: "800", marginBottom: 8 },
-  bio: {
-    color: C.textSec,
-    fontSize: 14,
-    lineHeight: 22,
-    textAlign: "center",
-    maxWidth: 320,
+  avatarInitial: { color: C.textMuted, fontSize: 28, fontWeight: "700" },
+  name: { color: C.text, fontSize: 18, fontWeight: "800", marginBottom: 8 },
+  bio: { color: C.textSec, fontSize: 14, lineHeight: 20, textAlign: "center", maxWidth: "100%" },
+  socialRow: { flexDirection: "row", gap: 12, marginTop: 12 },
+  socialBtn: { padding: 8 },
+  postsSection: { paddingHorizontal: 16, paddingBottom: 32 },
+  postsTitle: { color: C.text, fontSize: 16, fontWeight: "700", marginBottom: 12 },
+  emptyText: { color: C.textMuted, fontSize: 14, paddingVertical: 24 },
+  postItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
   },
+  postThumb: { width: 64, height: 48, borderRadius: 8 },
+  postBody: { flex: 1 },
+  postTitle: { color: C.text, fontSize: 14, fontWeight: "600" },
+  postMeta: { color: C.textMuted, fontSize: 12, marginTop: 2 },
 });

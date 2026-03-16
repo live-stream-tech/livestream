@@ -19,6 +19,7 @@
     "serve": "npm run build:prod && npm run server:prod",
     "deploy": "npx vercel --prod",
     "db:push": "drizzle-kit push",
+    "db:wipe-demo": "npx tsx server/scripts/wipe-communities-genres-videos.ts",
     "start": "npx expo start",
     "lint": "npx expo lint",
     "lint:fix": "npx expo lint --fix"

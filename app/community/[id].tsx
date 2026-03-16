@@ -82,69 +82,28 @@ function getAd(name: string): AdData {
   return key ? COMMUNITY_ADS[key] : DEFAULT_AD;
 }
 
-type BoardPost = {
-  id: string;
-  type: "event" | "live" | "notice";
-  tag: string;
+type ThreadItem = {
+  id: number;
+  communityId: number;
+  authorUserId: number;
   title: string;
-  detail: string;
-  date: string;
-  icon: string;
-  color: string;
+  body: string;
+  createdAt: string;
+  pinned: boolean;
+  postCount: number;
+  author: { displayName: string; profileImageUrl: string | null };
 };
 
-const BOARD_POSTS: BoardPost[] = [
-  {
-    id: "bd1",
-    type: "live",
-    tag: "ライブ告知",
-    title: "ワンマンライブ 先行チケット開始",
-    detail: "4/20（土）Zepp Tokyo • OPEN 17:00 / START 18:00",
-    date: "3/3",
-    icon: "musical-notes",
-    color: C.accent,
-  },
-  {
-    id: "bd2",
-    type: "event",
-    tag: "イベント",
-    title: "チェキ＆握手会 参加者募集",
-    detail: "3/22（土）渋谷WWW • 定員50名 先着順",
-    date: "3/2",
-    icon: "camera",
-    color: "#FF4081",
-  },
-  {
-    id: "bd3",
-    type: "notice",
-    tag: "お知らせ",
-    title: "コミュニティメンバー限定 配信スケジュール",
-    detail: "毎週木曜 22:00〜 メンバー向けトーク配信を予定",
-    date: "3/1",
-    icon: "megaphone",
-    color: C.orange,
-  },
-  {
-    id: "bd4",
-    type: "live",
-    tag: "生配信",
-    title: "アニバーサリーライブ配信",
-    detail: "3/30（日）21:00〜 コミュニティ限定アーカイブあり",
-    date: "2/28",
-    icon: "radio",
-    color: "#29B6CF",
-  },
-  {
-    id: "bd5",
-    type: "event",
-    tag: "オフ会",
-    title: "春のオフ会 企画中！参加者募集",
-    detail: "4/5（土）新宿 • 参加費無料",
-    date: "2/26",
-    icon: "people",
-    color: C.green,
-  },
-];
+type ThreadDetail = ThreadItem & {
+  posts: Array<{
+    id: number;
+    threadId: number;
+    authorUserId: number;
+    body: string;
+    createdAt: string;
+    author: { displayName: string; profileImageUrl: string | null };
+  }>;
+};
 
 type JukeboxState = {
   communityId: number;
@@ -209,6 +168,18 @@ function fmtSecs(s: number): string {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
+function formatThreadDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "";
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDay = Math.floor(diffMs / 86400000);
+  if (diffDay === 0) return "今日";
+  if (diffDay === 1) return "昨日";
+  if (diffDay < 7) return `${diffDay}日前`;
+  return d.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" });
+}
+
 function EmbeddedJukebox({ communityId }: { communityId: number }) {
   const qc = useQueryClient();
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -218,13 +189,27 @@ function EmbeddedJukebox({ communityId }: { communityId: number }) {
   const { data } = useQuery<JukeboxData>({
     queryKey: [`/api/jukebox/${communityId}`],
     refetchInterval: (query) =>
-      (query.state.data as JukeboxData)?.state?.isPlaying ? 8000 : false,
+      (query.state.data as JukeboxData)?.state?.isPlaying ? 15000 : false,
   });
 
   const state = data?.state ?? null;
   const queue = data?.queue ?? [];
   const chat = (data?.chat ?? []).slice(-3);
-  const upcoming = queue.filter((q) => !q.isPlayed);
+  // 再生中の曲を除外した「次に再生される」キュー（Now Playing と重複しないように）
+  const upcoming = queue.filter(
+    (q) =>
+      !q.isPlayed &&
+      !(state?.currentVideoId != null && q.videoId === state.currentVideoId) &&
+      !(state?.currentVideoYoutubeId && (q as any).youtubeId === state.currentVideoYoutubeId)
+  );
+  // 再生中の曲の「誰が選んだか」表示用
+  const addedByItem =
+    state &&
+    queue.find(
+      (q) =>
+        (state.currentVideoId != null && q.videoId === state.currentVideoId) ||
+        (state.currentVideoYoutubeId && (q as any).youtubeId === state.currentVideoYoutubeId)
+    );
 
   useEffect(() => {
     if (!state?.isPlaying) return;
@@ -261,8 +246,6 @@ function EmbeddedJukebox({ communityId }: { communityId: number }) {
     setComment("");
     chatMutation.mutate(msg);
   }, [comment]);
-
-  const addedByItem = upcoming[0];
 
   return (
     <View style={jukeStyles.container}>
@@ -351,7 +334,305 @@ function EmbeddedJukebox({ communityId }: { communityId: number }) {
   );
 }
 
-const TABS = ["新着順", "クリエイター", "掲示板"] as const;
+type PollItem = {
+  id: number;
+  question: string;
+  createdAt: string;
+  options: Array<{ optionId: number; text: string; count: number }>;
+  myVoteOptionId?: number | null;
+};
+
+function PollsTab({
+  communityId,
+  following,
+  requireAuth,
+}: {
+  communityId: number;
+  following: boolean;
+  requireAuth: (label: string) => boolean;
+}) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [newQuestion, setNewQuestion] = useState("");
+  const [newOptions, setNewOptions] = useState(["", ""]);
+  const [creating, setCreating] = useState(false);
+  const [votingPollId, setVotingPollId] = useState<number | null>(null);
+  const qc = useQueryClient();
+
+  const { data: polls = [], refetch } = useQuery<PollItem[]>({
+    queryKey: [`/api/communities/${communityId}/polls`],
+    enabled: communityId > 0,
+  });
+
+  async function handleCreate() {
+    const q = newQuestion.trim();
+    const opts = newOptions.map((o) => o.trim()).filter(Boolean);
+    if (!q) {
+      Alert.alert("", "質問を入力してください");
+      return;
+    }
+    if (opts.length < 2) {
+      Alert.alert("", "選択肢を2つ以上入力してください");
+      return;
+    }
+    if (!requireAuth("アンケート作成")) return;
+    setCreating(true);
+    try {
+      await apiRequest("POST", `/api/communities/${communityId}/polls`, { question: q, options: opts });
+      setShowCreate(false);
+      setNewQuestion("");
+      setNewOptions(["", ""]);
+      refetch();
+    } catch (e: any) {
+      Alert.alert("エラー", e?.message ?? "作成に失敗しました");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleVote(pollId: number, optionId: number) {
+    if (!requireAuth("投票")) return;
+    setVotingPollId(pollId);
+    try {
+      await apiRequest("POST", `/api/communities/${communityId}/polls/${pollId}/vote`, { optionId });
+      refetch();
+    } catch (e: any) {
+      Alert.alert("エラー", e?.message ?? "投票に失敗しました");
+    } finally {
+      setVotingPollId(null);
+    }
+  }
+
+  const totalVotes = (poll: PollItem) => poll.options.reduce((s, o) => s + o.count, 0);
+
+  return (
+    <View style={styles.boardList}>
+      <View style={styles.boardHeader}>
+        <Text style={styles.boardSectionTitle}>アンケート</Text>
+        {following && (
+          <Pressable
+            style={styles.createThreadBtn}
+            onPress={() => {
+              if (!requireAuth("アンケート作成")) return;
+              setShowCreate(true);
+            }}
+          >
+            <Ionicons name="add" size={16} color="#fff" />
+            <Text style={styles.createThreadBtnText}>新規作成</Text>
+          </Pressable>
+        )}
+      </View>
+      {polls.length === 0 ? (
+        <Text style={styles.boardEmpty}>まだアンケートがありません</Text>
+      ) : (
+        polls.map((poll) => {
+          const total = totalVotes(poll);
+          return (
+            <View key={poll.id} style={styles.pollCard}>
+              <Text style={styles.pollQuestion}>{poll.question}</Text>
+              {poll.options.map((opt) => {
+                const voted = poll.myVoteOptionId === opt.optionId;
+                return (
+                  <Pressable
+                    key={opt.optionId}
+                    style={[styles.pollOption, voted && styles.pollOptionVoted]}
+                    onPress={() => !voted && handleVote(poll.id, opt.optionId)}
+                    disabled={votingPollId === poll.id || !!voted}
+                  >
+                    <View style={[styles.pollOptionBar, { width: `${total > 0 ? (opt.count / total) * 100 : 0}%` as any }]} />
+                    <Text style={styles.pollOptionText}>{opt.text}</Text>
+                    <Text style={styles.pollOptionCount}>{opt.count}票</Text>
+                    {voted && <Ionicons name="checkmark-circle" size={16} color={C.accent} />}
+                  </Pressable>
+                );
+              })}
+            </View>
+          );
+        })
+      )}
+
+      <Modal visible={showCreate} transparent animationType="slide">
+        <View style={styles.requestModalOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowCreate(false)} />
+          <View style={styles.requestModalSheet}>
+            <View style={styles.requestModalHandle} />
+            <View style={styles.requestModalHeader}>
+              <Text style={styles.requestModalTitle}>新規アンケート</Text>
+              <Pressable onPress={() => setShowCreate(false)} hitSlop={8}>
+                <Ionicons name="close" size={24} color={C.textMuted} />
+              </Pressable>
+            </View>
+            <Text style={styles.requestLabel}>質問</Text>
+            <TextInput
+              style={styles.requestInput}
+              placeholder="アンケートの質問"
+              placeholderTextColor={C.textMuted}
+              value={newQuestion}
+              onChangeText={setNewQuestion}
+            />
+            <Text style={styles.requestLabel}>選択肢</Text>
+            {newOptions.map((o, i) => (
+              <TextInput
+                key={i}
+                style={[styles.requestInput, { marginBottom: 8 }]}
+                placeholder={`選択肢 ${i + 1}`}
+                placeholderTextColor={C.textMuted}
+                value={o}
+                onChangeText={(t) => {
+                  const next = [...newOptions];
+                  next[i] = t;
+                  setNewOptions(next);
+                }}
+              />
+            ))}
+            {newOptions.length < 10 && (
+              <Pressable
+                style={styles.pollAddOption}
+                onPress={() => setNewOptions([...newOptions, ""])}
+              >
+                <Ionicons name="add" size={16} color={C.accent} />
+                <Text style={styles.pollAddOptionText}>選択肢を追加</Text>
+              </Pressable>
+            )}
+            <Pressable
+              style={[styles.requestSubmitBtn, creating && styles.requestSubmitBtnDisabled]}
+              onPress={handleCreate}
+              disabled={creating}
+            >
+              {creating ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.requestSubmitBtnText}>作成する</Text>}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function ThreadDetailContent({
+  thread,
+  communityId,
+  onClose,
+  onReply,
+  requireAuth,
+  canModerate,
+  onDeleteThread,
+  onDeletePost,
+}: {
+  thread: ThreadDetail;
+  communityId: number;
+  onClose: () => void;
+  onReply: () => void;
+  requireAuth: (label: string) => boolean;
+  canModerate: boolean;
+  onDeleteThread: () => void;
+  onDeletePost: (postId: number) => void;
+}) {
+  const [replyText, setReplyText] = useState("");
+  const [posting, setPosting] = useState(false);
+  const qc = useQueryClient();
+
+  async function handlePostReply() {
+    const text = replyText.trim();
+    if (!text) return;
+    if (!requireAuth("返信")) return;
+    setPosting(true);
+    try {
+      await apiRequest("POST", `/api/communities/${communityId}/threads/${thread.id}/posts`, { body: text });
+      setReplyText("");
+      qc.invalidateQueries({ queryKey: [`/api/communities/${communityId}/threads`] });
+      qc.invalidateQueries({ queryKey: [`/api/communities/${communityId}/threads/${thread.id}`] });
+      onReply();
+    } catch (e: any) {
+      Alert.alert("エラー", e?.message ?? "返信に失敗しました");
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  return (
+    <>
+      <View style={styles.threadDetailHeader}>
+        <View style={styles.threadDetailTitleRow}>
+          <Text style={styles.threadDetailTitle} numberOfLines={2}>{thread.title}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {canModerate && (
+              <Pressable
+                onPress={() => Alert.alert("スレッド削除", "このスレッドを削除しますか？", [
+                  { text: "キャンセル", style: "cancel" },
+                  { text: "削除", style: "destructive", onPress: onDeleteThread },
+                ])}
+              >
+                <Ionicons name="trash-outline" size={20} color={C.textMuted} />
+              </Pressable>
+            )}
+            <Pressable onPress={onClose} hitSlop={8}>
+              <Ionicons name="close" size={24} color={C.textMuted} />
+            </Pressable>
+          </View>
+        </View>
+        <View style={styles.threadDetailMeta}>
+          {thread.author.profileImageUrl ? (
+            <Image source={{ uri: thread.author.profileImageUrl }} style={styles.threadDetailAvatar} contentFit="cover" />
+          ) : (
+            <View style={[styles.threadDetailAvatar, styles.threadAvatarFallback]}>
+              <Text style={styles.threadAvatarInitial}>{(thread.author.displayName ?? "?")[0]}</Text>
+            </View>
+          )}
+          <Text style={styles.threadDetailAuthor}>{thread.author.displayName}</Text>
+          <Text style={styles.threadDetailDate}>{formatThreadDate(thread.createdAt)}</Text>
+        </View>
+        {thread.body ? <Text style={styles.threadDetailBody}>{thread.body}</Text> : null}
+      </View>
+      <ScrollView style={styles.threadDetailPosts} showsVerticalScrollIndicator={false}>
+        {thread.posts.map((p) => (
+          <View key={p.id} style={styles.threadPostRow}>
+            {p.author.profileImageUrl ? (
+              <Image source={{ uri: p.author.profileImageUrl }} style={styles.threadPostAvatar} contentFit="cover" />
+            ) : (
+              <View style={[styles.threadPostAvatar, styles.threadAvatarFallback]}>
+                <Text style={styles.threadAvatarInitial}>{(p.author.displayName ?? "?")[0]}</Text>
+              </View>
+            )}
+            <View style={styles.threadPostBody}>
+              <Text style={styles.threadPostAuthor}>{p.author.displayName}</Text>
+              <Text style={styles.threadPostDate}>{formatThreadDate(p.createdAt)}</Text>
+              <Text style={styles.threadPostText}>{p.body}</Text>
+            </View>
+            {canModerate && (
+              <Pressable
+                style={styles.threadPostDelete}
+                onPress={() => Alert.alert("削除", "この返信を削除しますか？", [
+                  { text: "キャンセル", style: "cancel" },
+                  { text: "削除", style: "destructive", onPress: () => onDeletePost(p.id) },
+                ])}
+              >
+                <Ionicons name="trash-outline" size={16} color={C.textMuted} />
+              </Pressable>
+            )}
+          </View>
+        ))}
+      </ScrollView>
+      <View style={styles.threadReplyRow}>
+        <TextInput
+          style={styles.threadReplyInput}
+          placeholder="返信を入力..."
+          placeholderTextColor={C.textMuted}
+          value={replyText}
+          onChangeText={setReplyText}
+          multiline
+        />
+        <Pressable
+          style={[styles.threadReplyBtn, (!replyText.trim() || posting) && styles.threadReplyBtnDisabled]}
+          onPress={handlePostReply}
+          disabled={!replyText.trim() || posting}
+        >
+          {posting ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="send" size={18} color="#fff" />}
+        </Pressable>
+      </View>
+    </>
+  );
+}
+
+const TABS = ["新着順", "クリエイター", "掲示板", "アンケート"] as const;
 type Tab = typeof TABS[number];
 
 type CommunityCreatorsResponse = {
@@ -397,6 +678,11 @@ export default function CommunityDetailScreen() {
     if (meMemberData?.isMember !== undefined) setFollowing(meMemberData.isMember);
   }, [meMemberData?.isMember]);
   const [requestEditor, setRequestEditor] = useState<VideoEditor | null>(null);
+  const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
+  const [showCreateThread, setShowCreateThread] = useState(false);
+  const [newThreadTitle, setNewThreadTitle] = useState("");
+  const [newThreadBody, setNewThreadBody] = useState("");
+  const [creatingThread, setCreatingThread] = useState(false);
   const [requestTitle, setRequestTitle] = useState("");
   const [requestDescription, setRequestDescription] = useState("");
   const [requestPriceType, setRequestPriceType] = useState<"per_minute" | "revenue_share">("per_minute");
@@ -417,6 +703,7 @@ export default function CommunityDetailScreen() {
   const [savingStaff, setSavingStaff] = useState(false);
   const qc = useQueryClient();
   const isCommunityAdmin = !!staffData?.adminId && user?.id === staffData.adminId;
+  const isModerator = staffData?.moderatorIds?.includes(user?.id ?? 0) ?? false;
 
   const { data: editors = [], isLoading: editorsLoading } = useQuery<VideoEditor[]>({
     queryKey: [`/api/communities/${communityId}/editors`],
@@ -434,10 +721,52 @@ export default function CommunityDetailScreen() {
     queryKey: ["/api/videos"],
   });
 
+  const { data: threads = [], refetch: refetchThreads } = useQuery<ThreadItem[]>({
+    queryKey: [`/api/communities/${communityId}/threads`],
+    enabled: activeTab === "掲示板" && communityId > 0,
+  });
+  const { data: threadDetail, refetch: refetchThreadDetail } = useQuery<ThreadDetail>({
+    queryKey: [`/api/communities/${communityId}/threads/${selectedThreadId}`],
+    enabled: !!selectedThreadId && communityId > 0,
+  });
+
   const usingDemoVideos = apiVideos.length === 0;
   const timelineVideos = usingDemoVideos
     ? VIDEOS.slice(0, 4)
     : (apiVideos as any[]).filter((v) => v.community === community.name);
+
+  const createThreadMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/communities/${communityId}/threads`, {
+        title: newThreadTitle.trim(),
+        body: newThreadBody.trim(),
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setShowCreateThread(false);
+      setNewThreadTitle("");
+      setNewThreadBody("");
+      refetchThreads();
+      setSelectedThreadId(data.id);
+    },
+  });
+
+  async function handleCreateThread() {
+    if (!newThreadTitle.trim()) {
+      Alert.alert("", "タイトルを入力してください");
+      return;
+    }
+    if (!requireAuth("スレッド作成")) return;
+    setCreatingThread(true);
+    try {
+      await createThreadMutation.mutateAsync();
+    } catch (e: any) {
+      Alert.alert("エラー", e?.message ?? "スレッドの作成に失敗しました");
+    } finally {
+      setCreatingThread(false);
+    }
+  }
 
   const openRequestModal = (editor: VideoEditor) => {
     setRequestEditor(editor);
@@ -629,21 +958,26 @@ export default function CommunityDetailScreen() {
             <View style={styles.staffSection}>
               <View style={styles.staffSectionHeader}>
                 <Text style={styles.staffSectionTitle}>管理人・モデレーター</Text>
-                {isCommunityAdmin && (
+                {(isCommunityAdmin || isModerator) && (
                   <View style={styles.staffAdminLinks}>
-                    <Pressable
-                      onPress={() => {
-                        setSelectedAdminId(staffData?.adminId ?? null);
-                        setSelectedModeratorIds(staffData?.moderatorIds ?? []);
-                        setStaffModalVisible(true);
-                      }}
-                    >
-                      <Text style={styles.staffEditLink}>編集</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => router.push("/community/ad-review")}
-                    >
-                      <Text style={styles.staffEditLink}>広告審査</Text>
+                    {isCommunityAdmin && (
+                      <>
+                        <Pressable
+                          onPress={() => {
+                            setSelectedAdminId(staffData?.adminId ?? null);
+                            setSelectedModeratorIds(staffData?.moderatorIds ?? []);
+                            setStaffModalVisible(true);
+                          }}
+                        >
+                          <Text style={styles.staffEditLink}>編集</Text>
+                        </Pressable>
+                        <Pressable onPress={() => router.push("/community/ad-review")}>
+                          <Text style={styles.staffEditLink}>広告審査</Text>
+                        </Pressable>
+                      </>
+                    )}
+                    <Pressable onPress={() => router.push(`/community/${communityId}/admin`)}>
+                      <Text style={styles.staffEditLink}>管理画面</Text>
                     </Pressable>
                   </View>
                 )}
@@ -882,29 +1216,155 @@ export default function CommunityDetailScreen() {
 
         {activeTab === "掲示板" && (
           <View style={styles.boardList}>
-            {BOARD_POSTS.map((post) => (
-              <Pressable key={post.id} style={styles.boardCard}>
-                <View style={[styles.boardIconWrap, { backgroundColor: post.color + "22" }]}>
-                  <Ionicons name={post.icon as any} size={20} color={post.color} />
-                </View>
-                <View style={styles.boardBody}>
-                  <View style={styles.boardTagRow}>
-                    <View style={[styles.boardTag, { backgroundColor: post.color + "33" }]}>
-                      <Text style={[styles.boardTagText, { color: post.color }]}>{post.tag}</Text>
+            <View style={styles.boardHeader}>
+              <Text style={styles.boardSectionTitle}>スレッド</Text>
+              {following && (
+                <Pressable
+                  style={styles.createThreadBtn}
+                  onPress={() => {
+                    if (!requireAuth("スレッド作成")) return;
+                    setShowCreateThread(true);
+                  }}
+                >
+                  <Ionicons name="add" size={16} color="#fff" />
+                  <Text style={styles.createThreadBtnText}>新規スレッド</Text>
+                </Pressable>
+              )}
+            </View>
+            {threads.length === 0 ? (
+              <Text style={styles.boardEmpty}>まだスレッドがありません</Text>
+            ) : (
+              threads.map((t) => (
+                <Pressable
+                  key={t.id}
+                  style={styles.boardCard}
+                  onPress={() => setSelectedThreadId(t.id)}
+                >
+                  <View style={styles.boardBody}>
+                    <View style={styles.boardTagRow}>
+                      {t.pinned && (
+                        <View style={[styles.boardTag, { backgroundColor: C.orange + "33" }]}>
+                          <Text style={[styles.boardTagText, { color: C.orange }]}>固定</Text>
+                        </View>
+                      )}
+                      <Text style={styles.boardDate}>
+                        {t.author.displayName} ・ {formatThreadDate(t.createdAt)}
+                      </Text>
                     </View>
-                    <Text style={styles.boardDate}>{post.date}</Text>
+                    <Text style={styles.boardTitle}>{t.title}</Text>
+                    {t.body ? <Text style={styles.boardDetail} numberOfLines={1}>{t.body}</Text> : null}
+                    <Text style={styles.boardPostCount}>{t.postCount}件の返信</Text>
                   </View>
-                  <Text style={styles.boardTitle}>{post.title}</Text>
-                  <Text style={styles.boardDetail} numberOfLines={1}>{post.detail}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
-              </Pressable>
-            ))}
+                  <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
+                </Pressable>
+              ))
+            )}
           </View>
+        )}
+
+        {activeTab === "アンケート" && (
+          <PollsTab communityId={communityId} following={following} requireAuth={requireAuth} />
         )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* スレッド詳細モーダル */}
+      <Modal
+        visible={!!selectedThreadId}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedThreadId(null)}
+      >
+        <View style={styles.requestModalOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setSelectedThreadId(null)} />
+          <View style={[styles.requestModalSheet, { maxHeight: "85%" }]}>
+            <View style={styles.requestModalHandle} />
+            {threadDetail ? (
+              <ThreadDetailContent
+                thread={threadDetail}
+                communityId={communityId}
+                onClose={() => setSelectedThreadId(null)}
+                onReply={() => refetchThreadDetail()}
+                requireAuth={requireAuth}
+                canModerate={isCommunityAdmin || isModerator}
+                onDeleteThread={async () => {
+                  try {
+                    await apiRequest("DELETE", `/api/communities/${communityId}/threads/${threadDetail.id}`);
+                    setSelectedThreadId(null);
+                    refetchThreads();
+                  } catch (e: any) {
+                    Alert.alert("エラー", e?.message ?? "削除に失敗しました");
+                  }
+                }}
+                onDeletePost={async (postId) => {
+                  try {
+                    await apiRequest("DELETE", `/api/communities/${communityId}/threads/${threadDetail.id}/posts/${postId}`);
+                    refetchThreadDetail();
+                    refetchThreads();
+                  } catch (e: any) {
+                    Alert.alert("エラー", e?.message ?? "削除に失敗しました");
+                  }
+                }}
+              />
+            ) : (
+              <View style={{ padding: 24, alignItems: "center" }}>
+                <ActivityIndicator color={C.accent} />
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* 新規スレッド作成モーダル */}
+      <Modal
+        visible={showCreateThread}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCreateThread(false)}
+      >
+        <View style={styles.requestModalOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowCreateThread(false)} />
+          <View style={styles.requestModalSheet}>
+            <View style={styles.requestModalHandle} />
+            <View style={styles.requestModalHeader}>
+              <Text style={styles.requestModalTitle}>新規スレッド</Text>
+              <Pressable onPress={() => setShowCreateThread(false)} hitSlop={8}>
+                <Ionicons name="close" size={24} color={C.textMuted} />
+              </Pressable>
+            </View>
+            <Text style={styles.requestLabel}>タイトル</Text>
+            <TextInput
+              style={styles.requestInput}
+              placeholder="スレッドのタイトル"
+              placeholderTextColor={C.textMuted}
+              value={newThreadTitle}
+              onChangeText={setNewThreadTitle}
+            />
+            <Text style={styles.requestLabel}>本文（任意）</Text>
+            <TextInput
+              style={[styles.requestInput, styles.requestInputMultiline]}
+              placeholder="最初の投稿内容"
+              placeholderTextColor={C.textMuted}
+              value={newThreadBody}
+              onChangeText={setNewThreadBody}
+              multiline
+              textAlignVertical="top"
+            />
+            <Pressable
+              style={[styles.requestSubmitBtn, creatingThread && styles.requestSubmitBtnDisabled]}
+              onPress={handleCreateThread}
+              disabled={creatingThread}
+            >
+              {creatingThread ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.requestSubmitBtnText}>作成する</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       {/* 編集依頼モーダル */}
       <Modal
@@ -1762,6 +2222,101 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   boardList: { padding: 16, gap: 10 },
+  boardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  boardSectionTitle: { color: C.text, fontSize: 15, fontWeight: "800" },
+  createThreadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: C.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  createThreadBtnText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  boardEmpty: { color: C.textMuted, fontSize: 14, paddingVertical: 24, textAlign: "center" },
+  boardPostCount: { color: C.textMuted, fontSize: 10, marginTop: 2 },
+  threadDetailHeader: { padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
+  threadDetailTitleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, gap: 8 },
+  threadDetailTitle: { color: C.text, fontSize: 16, fontWeight: "800", flex: 1 },
+  threadDetailMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  threadDetailAvatar: { width: 28, height: 28, borderRadius: 14 },
+  threadAvatarFallback: { backgroundColor: C.surface2, alignItems: "center", justifyContent: "center" },
+  threadAvatarInitial: { color: C.textMuted, fontSize: 12, fontWeight: "700" },
+  threadDetailAuthor: { color: C.textSec, fontSize: 12, fontWeight: "600" },
+  threadDetailDate: { color: C.textMuted, fontSize: 11 },
+  threadDetailBody: { color: C.textSec, fontSize: 13, lineHeight: 20 },
+  threadDetailPosts: { maxHeight: 280, padding: 16 },
+  threadPostRow: { flexDirection: "row", gap: 10, marginBottom: 14 },
+  threadPostAvatar: { width: 32, height: 32, borderRadius: 16 },
+  threadPostBody: { flex: 1 },
+  threadPostAuthor: { color: C.text, fontSize: 12, fontWeight: "700" },
+  threadPostDate: { color: C.textMuted, fontSize: 10, marginTop: 1 },
+  threadPostText: { color: C.textSec, fontSize: 13, marginTop: 4 },
+  threadPostDelete: { padding: 4 },
+  threadReplyRow: { flexDirection: "row", gap: 8, padding: 16, borderTopWidth: 1, borderTopColor: C.border },
+  threadReplyInput: {
+    flex: 1,
+    backgroundColor: C.surface2,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: C.text,
+    fontSize: 14,
+    maxHeight: 80,
+  },
+  threadReplyBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: C.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  threadReplyBtnDisabled: { opacity: 0.5 },
+  pollCard: {
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  pollQuestion: { color: C.text, fontSize: 14, fontWeight: "700", marginBottom: 12 },
+  pollOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: C.surface2,
+    borderWidth: 1,
+    borderColor: C.border,
+    position: "relative",
+  },
+  pollOptionBar: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: C.accent + "44",
+  },
+  pollOptionText: { color: C.text, fontSize: 13, flex: 1, paddingVertical: 10, paddingHorizontal: 12, zIndex: 1 },
+  pollOptionCount: { color: C.textMuted, fontSize: 12, paddingRight: 12, zIndex: 1 },
+  pollOptionVoted: { borderColor: C.accent, opacity: 0.9 },
+  pollAddOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  pollAddOptionText: { color: C.accent, fontSize: 13, fontWeight: "600" },
   boardCard: {
     flexDirection: "row",
     alignItems: "center",

@@ -40,6 +40,53 @@ export const communityMembers = pgTable("community_members", {
   joinedAt: timestamp("joined_at").defaultNow(),
 });
 
+/** コミュニティ掲示板スレッド */
+export const communityThreads = pgTable("community_threads", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  authorUserId: integer("author_user_id").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  createdAt: timestamp("created_at").defaultNow(),
+  pinned: boolean("pinned").notNull().default(false),
+});
+
+/** スレッドへの返信 */
+export const communityThreadPosts = pgTable("community_thread_posts", {
+  id: serial("id").primaryKey(),
+  threadId: integer("thread_id").notNull(),
+  authorUserId: integer("author_user_id").notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+/** コミュニティアンケート */
+export const communityPolls = pgTable("community_polls", {
+  id: serial("id").primaryKey(),
+  communityId: integer("community_id").notNull(),
+  authorUserId: integer("author_user_id").notNull(),
+  question: text("question").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  endAt: timestamp("end_at"),
+});
+
+/** アンケートの選択肢 */
+export const communityPollOptions = pgTable("community_poll_options", {
+  id: serial("id").primaryKey(),
+  pollId: integer("poll_id").notNull(),
+  text: text("text").notNull(),
+  order: integer("order").notNull().default(0),
+});
+
+/** アンケートの投票 */
+export const communityPollVotes = pgTable("community_poll_votes", {
+  id: serial("id").primaryKey(),
+  pollId: integer("poll_id").notNull(),
+  optionId: integer("option_id").notNull(),
+  userId: integer("user_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 /** 不信任投票等のコミュニティ投票 */
 export const communityVotes = pgTable("community_votes", {
   id: serial("id").primaryKey(),
@@ -120,6 +167,10 @@ export const concertStaff = pgTable("concert_staff", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+/** 投稿の公開範囲 */
+export const VIDEO_VISIBILITY = ["draft", "my_page_only", "community"] as const;
+export type VideoVisibility = (typeof VIDEO_VISIBILITY)[number];
+
 export const videos = pgTable("videos", {
   id: serial("id").primaryKey(),
   title: text("title").notNull(),
@@ -139,6 +190,12 @@ export const videos = pgTable("videos", {
   /** 通報で明らかな違反と判定された場合に非表示 */
   hidden: boolean("hidden").notNull().default(false),
   concertId: integer("concert_id"),
+  /** 投稿者（users.id）。既存データは null */
+  userId: integer("user_id"),
+  /** 公開範囲: draft=下書き, my_page_only=自分のページのみ, community=コミュニティ公開 */
+  visibility: text("visibility").notNull().default("community"),
+  /** コミュニティ公開時の communityId。visibility=community の場合に設定 */
+  communityId: integer("community_id"),
 });
 
 /** 投稿動画へのコメント */
@@ -320,9 +377,16 @@ export const users = pgTable("users", {
   // ALTER TABLE users ADD COLUMN IF NOT EXISTS spotify_url TEXT;
   // ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_music_url TEXT;
   // ALTER TABLE users ADD COLUMN IF NOT EXISTS bandcamp_url TEXT;
+  // ALTER TABLE users ADD COLUMN IF NOT EXISTS instagram_url TEXT;
+  // ALTER TABLE users ADD COLUMN IF NOT EXISTS youtube_url TEXT;
+  // ALTER TABLE users ADD COLUMN IF NOT EXISTS x_url TEXT;
   spotifyUrl: text("spotify_url"),
   appleMusicUrl: text("apple_music_url"),
   bandcampUrl: text("bandcamp_url"),
+  /** SNS・動画チャンネル（プロフィールにアイコン表示） */
+  instagramUrl: text("instagram_url"),
+  youtubeUrl: text("youtube_url"),
+  xUrl: text("x_url"),
   /** 紐付け済みの電話番号（1電話番号 = 1ユーザー）。NULL許可だが重複は禁止。 */
   phoneNumber: text("phone_number").unique(),
   /** 電話番号が本人確認済みになった日時 */

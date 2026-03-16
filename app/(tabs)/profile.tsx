@@ -11,6 +11,7 @@ import {
   Animated,
   Alert,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -65,6 +66,29 @@ const ENNEAGRAM_TYPES = [
 
 const STORAGE_KEY = "enneagram_scores";
 const DEFAULT_SCORES = [6, 5, 7, 4, 8, 5, 6, 4, 7];
+
+/** 公開プロフィール用の投稿一覧（プレビュー用） */
+function ProfilePreviewPosts({ userId }: { userId: number }) {
+  const { data: posts = [] } = useQuery<MyVideo[]>({
+    queryKey: [`/api/users/${userId}/posts`],
+    enabled: userId > 0,
+  });
+  if (posts.length === 0) return <Text style={styles.timelineEmptyText}>まだ投稿がありません</Text>;
+  return (
+    <View style={styles.previewPostsList}>
+      {posts.slice(0, 6).map((v) => (
+        <Pressable key={v.id} style={styles.previewPostItem} onPress={() => router.push(`/video/${v.id}`)}>
+          <Image source={{ uri: v.thumbnail }} style={styles.timelineThumb} contentFit="cover" />
+          <View style={styles.timelineBody}>
+            <Text style={styles.timelineTitle} numberOfLines={2}>{v.title}</Text>
+            <Text style={styles.timelineMeta} numberOfLines={1}>{v.community} ・ {v.timeAgo ?? ""}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
 
 // v2: 旧フラグ（pwa_add_to_home_dismissed）は無視して再度表示できるようにする
 const PWA_DISMISSED_KEY = "pwa_add_to_home_dismissed_v2";
@@ -310,12 +334,10 @@ export default function ProfileScreen() {
 
   // Profile edit state
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [editName, setEditName] = useState("");
   const [editBio, setEditBio] = useState("");
   const [editAvatar, setEditAvatar] = useState("");
-  const [editGender, setEditGender] = useState("");
-  const [editAge, setEditAge] = useState("");
-  const [editLocation, setEditLocation] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
 
   // Role / creator registration state
@@ -420,7 +442,6 @@ export default function ProfileScreen() {
     setEditName(user?.name ?? user?.displayName ?? "");
     setEditBio(user?.bio ?? "");
     setEditAvatar(user?.avatar ?? user?.profileImageUrl ?? "");
-    // 性別・年齢・住まいは現状サーバー未保存のため、そのままのローカル値を維持
     setShowProfileModal(true);
   }
 
@@ -576,6 +597,15 @@ export default function ProfileScreen() {
                 styles.editBtn,
                 pressed && styles.headerBtnPressed,
               ]}
+              onPress={() => setShowPreviewModal(true)}
+            >
+              <Ionicons name="eye-outline" size={18} color={C.accent} />
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.editBtn,
+                pressed && styles.headerBtnPressed,
+              ]}
               onPress={openProfileEdit}
             >
               <Ionicons name="pencil-outline" size={18} color={C.accent} />
@@ -617,6 +647,35 @@ export default function ProfileScreen() {
         </View>
 
         {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
+
+        {(user?.instagramUrl || user?.youtubeUrl || user?.xUrl) ? (
+          <View style={styles.socialLinksRow}>
+            {user?.instagramUrl ? (
+              <Pressable
+                style={styles.socialIconBtn}
+                onPress={() => user.instagramUrl && Linking.openURL(user.instagramUrl)}
+              >
+                <Ionicons name="logo-instagram" size={22} color="#E4405F" />
+              </Pressable>
+            ) : null}
+            {user?.youtubeUrl ? (
+              <Pressable
+                style={styles.socialIconBtn}
+                onPress={() => user.youtubeUrl && Linking.openURL(user.youtubeUrl)}
+              >
+                <Ionicons name="logo-youtube" size={22} color="#FF0000" />
+              </Pressable>
+            ) : null}
+            {user?.xUrl ? (
+              <Pressable
+                style={styles.socialIconBtn}
+                onPress={() => user.xUrl && Linking.openURL(user.xUrl)}
+              >
+                <Ionicons name="logo-twitter" size={22} color="#1DA1F2" />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={styles.tagsRow}>
           <View style={[styles.tag, { borderColor: dominantType.color + "66" }]}>
@@ -909,6 +968,59 @@ export default function ProfileScreen() {
         </>
       )}
 
+      {/* プレビュー（公開プロフィール）モーダル */}
+      <Modal visible={showPreviewModal} transparent animationType="slide">
+        <View style={styles.modalBg}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowPreviewModal(false)} />
+          <View style={[styles.modalSheet, styles.previewModalSheet, { paddingBottom: getTabBottomInset(insets) + 16, maxHeight: "90%" }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.previewModalHeader}>
+              <Text style={styles.modalTitle}>公開プロフィールのプレビュー</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <Pressable
+                  style={styles.previewOpenPageBtn}
+                  onPress={() => {
+                    setShowPreviewModal(false);
+                    if (user?.id) router.push(`/user/${user.id}`);
+                  }}
+                >
+                  <Text style={styles.previewOpenPageText}>実際のページで見る</Text>
+                </Pressable>
+                <Pressable onPress={() => setShowPreviewModal(false)} hitSlop={8}>
+                  <Ionicons name="close" size={24} color={C.textMuted} />
+                </Pressable>
+              </View>
+            </View>
+            <ScrollView style={styles.previewScroll} showsVerticalScrollIndicator={false}>
+              <View style={styles.previewProfileCard}>
+                <View style={styles.previewAvatarWrap}>
+                  {(user?.avatar ?? user?.profileImageUrl) ? (
+                    <Image source={{ uri: (user.avatar ?? user.profileImageUrl) ?? "" }} style={styles.previewAvatar} contentFit="cover" />
+                  ) : (
+                    <View style={[styles.previewAvatar, styles.avatarFallback]}>
+                      <Text style={styles.avatarInitial}>{(user?.name ?? "?")[0].toUpperCase()}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.previewName}>{user?.name ?? user?.displayName ?? ""}</Text>
+                {user?.bio ? <Text style={styles.previewBio}>{user.bio}</Text> : null}
+                {(user?.instagramUrl || user?.youtubeUrl || user?.xUrl) ? (
+                  <View style={styles.socialLinksRow}>
+                    {user?.instagramUrl && <View style={styles.socialIconBtn}><Ionicons name="logo-instagram" size={22} color="#E4405F" /></View>}
+                    {user?.youtubeUrl && <View style={styles.socialIconBtn}><Ionicons name="logo-youtube" size={22} color="#FF0000" /></View>}
+                    {user?.xUrl && <View style={styles.socialIconBtn}><Ionicons name="logo-twitter" size={22} color="#1DA1F2" /></View>}
+                  </View>
+                ) : null}
+              </View>
+              <View style={styles.previewPostsSection}>
+                <Text style={styles.postsTitle}>投稿</Text>
+                <ProfilePreviewPosts userId={user?.id ?? 0} />
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* Profile Edit Modal */}
       <Modal visible={showProfileModal} transparent animationType="slide">
         <View style={styles.modalBg}>
@@ -919,6 +1031,7 @@ export default function ProfileScreen() {
               <Ionicons name="person-circle-outline" size={20} color={C.accent} />
               <Text style={styles.modalTitle}>プロフィール編集</Text>
             </View>
+            <Text style={styles.profileEditHint}>公開される表示名・自己紹介・アイコンを手軽に変更できます。Instagram・YouTube・X・音楽リンクなど詳細は設定の「登録情報の編集」から。</Text>
 
             <Text style={styles.profileFieldLabel}>ユーザー名</Text>
             <View style={styles.profileInputWrap}>
@@ -963,45 +1076,6 @@ export default function ProfileScreen() {
             {editAvatar ? (
               <Image source={{ uri: editAvatar }} style={styles.avatarPreview} contentFit="cover" />
             ) : null}
-
-            <Text style={styles.profileFieldLabel}>性別</Text>
-            <View style={styles.profileInputWrap}>
-              <Ionicons name="male-female-outline" size={16} color={C.textMuted} />
-              <TextInput
-                style={styles.profileInput}
-                value={editGender}
-                onChangeText={setEditGender}
-                placeholder="例）女性 / 男性 / その他 / 非公開"
-                placeholderTextColor={C.textMuted}
-                maxLength={20}
-              />
-            </View>
-
-            <Text style={styles.profileFieldLabel}>年齢</Text>
-            <View style={styles.profileInputWrap}>
-              <Ionicons name="hourglass-outline" size={16} color={C.textMuted} />
-              <TextInput
-                style={styles.profileInput}
-                value={editAge}
-                onChangeText={setEditAge}
-                placeholder="例）20代前半 / 30歳 など"
-                placeholderTextColor={C.textMuted}
-                maxLength={20}
-              />
-            </View>
-
-            <Text style={styles.profileFieldLabel}>住まい</Text>
-            <View style={styles.profileInputWrap}>
-              <Ionicons name="home-outline" size={16} color={C.textMuted} />
-              <TextInput
-                style={styles.profileInput}
-                value={editLocation}
-                onChangeText={setEditLocation}
-                placeholder="例）東京都 / 関西 / 海外 など"
-                placeholderTextColor={C.textMuted}
-                maxLength={40}
-              />
-            </View>
 
             <View style={styles.modalActions}>
               <Pressable style={styles.cancelBtn} onPress={() => setShowProfileModal(false)}>
@@ -1187,6 +1261,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   bio: { color: C.textSec, fontSize: 13, paddingHorizontal: 16, marginBottom: 10 },
+  socialLinksRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+  },
+  socialIconBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   tagsRow: { flexDirection: "row", gap: 8, paddingHorizontal: 16, marginBottom: 16, flexWrap: "wrap" },
   tag: {
     backgroundColor: C.surface,
@@ -1514,9 +1606,47 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 18,
   },
+  previewModalSheet: { paddingHorizontal: 16 },
+  previewModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  previewOpenPageBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: C.accent,
+    borderRadius: 10,
+  },
+  previewOpenPageText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  previewScroll: { maxHeight: 400 },
+  previewProfileCard: {
+    alignItems: "center",
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
+  previewAvatarWrap: { marginBottom: 12 },
+  previewAvatar: { width: 80, height: 80, borderRadius: 40 },
+  previewName: { color: C.text, fontSize: 18, fontWeight: "800", marginBottom: 8 },
+  previewBio: { color: C.textSec, fontSize: 14, lineHeight: 20, textAlign: "center", marginBottom: 12 },
+  previewPostsSection: { paddingBottom: 24 },
+  previewPostsList: { gap: 8 },
+  previewPostItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: C.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
   modalTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   modalTitle: { color: C.text, fontSize: 18, fontWeight: "800" },
   modalSub: { color: C.textMuted, fontSize: 12, marginBottom: 20 },
+  profileEditHint: { color: C.textMuted, fontSize: 11, lineHeight: 16, marginBottom: 16 },
   modalScroll: { maxHeight: 380 },
   editRow: {
     flexDirection: "row",

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -21,15 +21,34 @@ export default function AccountEditScreen() {
   const insets = useSafeAreaInsets();
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const { user, updateProfile } = useAuth();
+  const needsSetup = !!(user && ["LINEユーザー", "Googleユーザー", "ユーザー"].includes((user.displayName ?? user.name ?? "").trim()));
 
   const [name, setName] = useState(user?.name ?? user?.displayName ?? "");
   const [bio, setBio] = useState(user?.bio ?? "");
   const [avatar, setAvatar] = useState(user?.avatar ?? user?.profileImageUrl ?? "");
+  const [spotifyUrl, setSpotifyUrl] = useState(user?.spotifyUrl ?? "");
+  const [appleMusicUrl, setAppleMusicUrl] = useState(user?.appleMusicUrl ?? "");
+  const [bandcampUrl, setBandcampUrl] = useState(user?.bandcampUrl ?? "");
+  const [instagramUrl, setInstagramUrl] = useState(user?.instagramUrl ?? "");
+  const [youtubeUrl, setYoutubeUrl] = useState(user?.youtubeUrl ?? "");
+  const [xUrl, setXUrl] = useState(user?.xUrl ?? "");
+  const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber ?? "");
   const [saving, setSaving] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [email, setEmail] = useState("");
-  const [lineInfo, setLineInfo] = useState("");
-  const [birthday, setBirthday] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      setName(user.name ?? user.displayName ?? "");
+      setBio(user.bio ?? "");
+      setAvatar(user.avatar ?? user.profileImageUrl ?? "");
+      setSpotifyUrl(user.spotifyUrl ?? "");
+      setAppleMusicUrl(user.appleMusicUrl ?? "");
+      setBandcampUrl(user.bandcampUrl ?? "");
+      setInstagramUrl(user.instagramUrl ?? "");
+      setYoutubeUrl(user.youtubeUrl ?? "");
+      setXUrl(user.xUrl ?? "");
+      setPhoneNumber(user.phoneNumber ?? "");
+    }
+  }, [user]);
 
   async function handleSave() {
     if (!name.trim()) {
@@ -42,6 +61,13 @@ export default function AccountEditScreen() {
         name: name.trim(),
         bio: bio.trim(),
         avatar: avatar.trim() || null,
+        spotifyUrl: spotifyUrl.trim() || null,
+        appleMusicUrl: appleMusicUrl.trim() || null,
+        bandcampUrl: bandcampUrl.trim() || null,
+        instagramUrl: instagramUrl.trim() || null,
+        youtubeUrl: youtubeUrl.trim() || null,
+        xUrl: xUrl.trim() || null,
+        phoneNumber: phoneNumber.trim() || null,
       });
       Alert.alert("保存しました", "登録情報を更新しました", [
         {
@@ -72,7 +98,15 @@ export default function AccountEditScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: Platform.OS === "web" ? 40 : insets.bottom + 24 }}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.sectionTitle}>基本情報</Text>
+          {needsSetup && (
+            <View style={styles.setupBanner}>
+              <Ionicons name="information-circle" size={20} color={C.accent} />
+              <Text style={styles.setupBannerText}>
+                初回ログインのため、プロフィールを設定してください。保存後、アプリをご利用いただけます。
+              </Text>
+            </View>
+          )}
+          <Text style={[styles.sectionTitle, { marginTop: 0 }]}>基本情報</Text>
 
           <Text style={styles.label}>氏名（表示名）</Text>
           <View style={styles.inputRow}>
@@ -119,7 +153,98 @@ export default function AccountEditScreen() {
             <Image source={{ uri: avatar }} style={styles.avatarPreview} contentFit="cover" />
           ) : null}
 
+          <Text style={styles.sectionTitle}>SNS・チャンネル（公開）</Text>
+          <Text style={styles.sectionHint}>プロフィールにアイコンで表示されます</Text>
+
+          <Text style={styles.label}>Instagram</Text>
+          <View style={styles.inputRow}>
+            <Ionicons name="logo-instagram" size={18} color={C.textMuted} />
+            <TextInput
+              style={styles.input}
+              value={instagramUrl}
+              onChangeText={setInstagramUrl}
+              placeholder="https://www.instagram.com/..."
+              placeholderTextColor={C.textMuted}
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+          </View>
+
+          <Text style={styles.label}>YouTube</Text>
+          <View style={styles.inputRow}>
+            <Ionicons name="logo-youtube" size={18} color={C.textMuted} />
+            <TextInput
+              style={styles.input}
+              value={youtubeUrl}
+              onChangeText={setYoutubeUrl}
+              placeholder="https://www.youtube.com/@..."
+              placeholderTextColor={C.textMuted}
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+          </View>
+
+          <Text style={styles.label}>X（旧Twitter）</Text>
+          <View style={styles.inputRow}>
+            <Ionicons name="logo-twitter" size={18} color={C.textMuted} />
+            <TextInput
+              style={styles.input}
+              value={xUrl}
+              onChangeText={setXUrl}
+              placeholder="https://x.com/..."
+              placeholderTextColor={C.textMuted}
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+          </View>
+
+          <Text style={styles.sectionTitle}>音楽リンク（公開）</Text>
+          <Text style={styles.sectionHint}>プロフィールに表示される音楽サービスへのリンク</Text>
+
+          <Text style={styles.label}>Spotify</Text>
+          <View style={styles.inputRow}>
+            <Ionicons name="musical-notes-outline" size={18} color={C.textMuted} />
+            <TextInput
+              style={styles.input}
+              value={spotifyUrl}
+              onChangeText={setSpotifyUrl}
+              placeholder="https://open.spotify.com/..."
+              placeholderTextColor={C.textMuted}
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+          </View>
+
+          <Text style={styles.label}>Apple Music</Text>
+          <View style={styles.inputRow}>
+            <Ionicons name="musical-notes-outline" size={18} color={C.textMuted} />
+            <TextInput
+              style={styles.input}
+              value={appleMusicUrl}
+              onChangeText={setAppleMusicUrl}
+              placeholder="https://music.apple.com/..."
+              placeholderTextColor={C.textMuted}
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+          </View>
+
+          <Text style={styles.label}>Bandcamp</Text>
+          <View style={styles.inputRow}>
+            <Ionicons name="musical-notes-outline" size={18} color={C.textMuted} />
+            <TextInput
+              style={styles.input}
+              value={bandcampUrl}
+              onChangeText={setBandcampUrl}
+              placeholder="https://...bandcamp.com/..."
+              placeholderTextColor={C.textMuted}
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+          </View>
+
           <Text style={styles.sectionTitle}>アカウント情報（非公開）</Text>
+          <Text style={styles.sectionHint}>本人確認・連絡用。他ユーザーには表示されません</Text>
 
           <Text style={styles.label}>電話番号</Text>
           <View style={styles.inputRow}>
@@ -131,47 +256,6 @@ export default function AccountEditScreen() {
               placeholder="例）09012345678"
               placeholderTextColor={C.textMuted}
               keyboardType="phone-pad"
-            />
-          </View>
-
-          <Text style={styles.label}>メールアドレス</Text>
-          <View style={styles.inputRow}>
-            <Ionicons name="mail-outline" size={18} color={C.textMuted} />
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="example@example.com"
-              placeholderTextColor={C.textMuted}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-          </View>
-
-          <Text style={styles.label}>LINE情報</Text>
-          <View style={styles.inputRow}>
-            <Ionicons name="chatbubble-ellipses-outline" size={18} color={C.textMuted} />
-            <TextInput
-              style={styles.input}
-              value={lineInfo}
-              onChangeText={setLineInfo}
-              placeholder="LINE ID やメモ（公開されません）"
-              placeholderTextColor={C.textMuted}
-              autoCapitalize="none"
-              maxLength={80}
-            />
-          </View>
-
-          <Text style={styles.label}>生年月日（プロフィール連動）</Text>
-          <View style={styles.inputRow}>
-            <Ionicons name="calendar-outline" size={18} color={C.textMuted} />
-            <TextInput
-              style={styles.input}
-              value={birthday}
-              onChangeText={setBirthday}
-              placeholder="例）1990-01-01"
-              placeholderTextColor={C.textMuted}
-              autoCapitalize="none"
             />
           </View>
 
@@ -229,12 +313,34 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
+  setupBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(6,199,85,0.12)",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(6,199,85,0.25)",
+  },
+  setupBannerText: {
+    flex: 1,
+    color: C.text,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   sectionTitle: {
     color: C.text,
     fontSize: 14,
     fontWeight: "700",
+    marginBottom: 4,
+    marginTop: 16,
+  },
+  sectionHint: {
+    color: C.textMuted,
+    fontSize: 11,
     marginBottom: 12,
-    marginTop: 8,
   },
   label: {
     color: C.textSec,

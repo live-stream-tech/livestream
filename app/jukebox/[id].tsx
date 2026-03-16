@@ -114,14 +114,12 @@ function NowPlaying({
   const ytContainerRef = useRef<HTMLDivElement | null>(null);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
   const [elapsedDisplay, setElapsedDisplay] = useState(0);
-  const [muted, setMuted] = useState(true);
-
-  useEffect(() => {
-    if (state?.currentVideoYoutubeId) setMuted(true);
-  }, [state?.currentVideoYoutubeId]);
+  const onNextRef = useRef(onNext);
+  onNextRef.current = onNext;
 
   // Web: YouTube IFrame プレイヤー（メイン再生エリア）
   // コンテナを React 外で作成し、再レンダー時の iframe 破棄を防ぐ（カクつき対策）
+  // 依存は currentVideoYoutubeId のみ。onNext を入れるとポーリングのたびにプレイヤー再作成→カクつき・音声途切れ
   useEffect(() => {
     if (Platform.OS !== "web" || !state?.currentVideoYoutubeId) return;
     const vid = state.currentVideoYoutubeId;
@@ -181,10 +179,13 @@ function NowPlaying({
           }
         };
         window.addEventListener("resize", syncPosition);
+        // スクロール時も位置を同期（resize だけではスクロールでずれる）
+        window.addEventListener("scroll", syncPosition, true);
         const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncPosition) : null;
         ro?.observe(anchor);
         resizeCleanupRef.current = () => {
           window.removeEventListener("resize", syncPosition);
+          window.removeEventListener("scroll", syncPosition, true);
           ro?.disconnect();
         };
 
@@ -201,7 +202,7 @@ function NowPlaying({
           events: {
             onStateChange: (e: any) => {
               try {
-                if (e.data === (window as any).YT?.PlayerState?.ENDED) onNext();
+                if (e.data === (window as any).YT?.PlayerState?.ENDED) onNextRef.current();
               } catch {}
             },
           },
@@ -221,7 +222,7 @@ function NowPlaying({
       if (c && c.parentNode) c.parentNode.removeChild(c);
       ytContainerRef.current = null;
     };
-  }, [state?.currentVideoYoutubeId, onNext, ytContainerId]);
+  }, [state?.currentVideoYoutubeId, ytContainerId]);
 
   // 表示用の経過時間を1秒ごとに更新（再生中のみ）
   useEffect(() => {
@@ -333,35 +334,6 @@ function NowPlaying({
         </View>
 
         <View style={styles.nextRow}>
-          {Platform.OS === "web" && hasYoutube && (
-            <Pressable
-              style={styles.unmuteBtn}
-              onPress={() => {
-                try {
-                  const p = ytPlayerRef.current;
-                  if (muted) {
-                    p?.unMute?.();
-                    setMuted(false);
-                  } else {
-                    p?.mute?.();
-                    setMuted(true);
-                  }
-                } catch {}
-              }}
-            >
-              {muted ? (
-                <>
-                  <Ionicons name="volume-mute" size={14} color="#fff" />
-                  <Text style={styles.unmuteBtnText}>音声オン</Text>
-                </>
-              ) : (
-                <>
-                  <Ionicons name="volume-high" size={14} color="#fff" />
-                  <Text style={styles.unmuteBtnText}>音声オフ</Text>
-                </>
-              )}
-            </Pressable>
-          )}
           <Pressable style={styles.nextBtn} onPress={onNext}>
             <Ionicons name="play-skip-forward" size={14} color={C.textMuted} />
             <Text style={styles.nextBtnText}>次へスキップ</Text>
@@ -374,12 +346,20 @@ function NowPlaying({
 
 function QueueRow({
   items,
+  state,
   onAdd,
 }: {
   items: QueueItem[];
+  state: JukeboxState | null;
   onAdd: () => void;
 }) {
-  const upcoming = items.filter((q) => !q.isPlayed);
+  // 再生済みを除外し、再生中の曲もキュー表示から除外（Now Playing と重複しないように）
+  const upcoming = items.filter(
+    (q) =>
+      !q.isPlayed &&
+      !(state?.currentVideoId != null && q.videoId === state.currentVideoId) &&
+      !(state?.currentVideoYoutubeId && (q.youtubeId ?? null) === state.currentVideoYoutubeId)
+  );
   return (
     <View style={styles.queueSection}>
       <View style={styles.queueHeader}>
@@ -445,7 +425,7 @@ export default function JukeboxScreen() {
   const { data } = useQuery<JukeboxData>({
     queryKey: jukeboxKey,
     refetchInterval: (query) =>
-      (query.state.data as JukeboxData)?.state?.isPlaying ? 8000 : false,
+      (query.state.data as JukeboxData)?.state?.isPlaying ? 15000 : false,
   });
 
   const { data: myVideos = [] } = useQuery<Video[]>({
@@ -582,7 +562,7 @@ export default function JukeboxScreen() {
         <NowPlaying state={state} onNext={handleNext} />
 
         {/* Queue */}
-        <QueueRow items={queue} onAdd={() => setShowAddModal(true)} />
+        <QueueRow items={queue} state={state} onAdd={() => setShowAddModal(true)} />
 
         {/* Chat */}
         <View style={styles.chatSection}>
@@ -933,16 +913,6 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     gap: 12,
   },
-  unmuteBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  unmuteBtnText: { color: "#fff", fontSize: 11, fontWeight: "600" },
   nextBtn: {
     flexDirection: "row",
     alignItems: "center",
