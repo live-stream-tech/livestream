@@ -6,7 +6,6 @@ import { ActivityIndicator, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { DemoModeBanner } from "@/components/DemoModeBanner";
 import { queryClient } from "@/lib/query-client";
 import { DemoModeProvider } from "@/lib/demo-mode";
 import { AuthProvider, useAuth } from "@/lib/auth";
@@ -232,11 +231,8 @@ export default function RootLayout() {
                   <ProfileSetupGuard>
                   <DemoModeProvider>
                     <View style={{ flex: 1 }}>
-                      <DemoModeBanner />
-                      <View style={{ flex: 1 }}>
-                        <RootLayoutNav />
-                        <GlobalJukeboxPlayer />
-                      </View>
+                      <RootLayoutNav />
+                      <GlobalJukeboxPlayer />
                     </View>
                   </DemoModeProvider>
                   </ProfileSetupGuard>

@@ -588,7 +588,7 @@ export default function HomeScreen() {
         {/* 現在ライブ中 */}
         <View style={[styles.sectionHeaderRow, { marginTop: 40 }]}>
           <View style={styles.sectionHeaderLeft}>
-            <View style={styles.liveDotInline} />
+            <Ionicons name="radio" size={16} color={C.live} />
             <Text style={styles.sectionTitle}>now</Text>
           </View>
           <View style={styles.feedTabRowWithViewAllRight}>
