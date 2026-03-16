@@ -15,11 +15,12 @@ import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
 import { VIDEOS } from "@/constants/data";
 import { useAuth } from "@/lib/auth";
 import { apiRequest } from "@/lib/query-client";
+import { usePlayingVideo } from "@/lib/playing-video-context";
 
 type VideoComment = {
   id: number;
@@ -62,6 +63,7 @@ export default function VideoDetailScreen() {
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const qc = useQueryClient();
   const { user, requireAuth } = useAuth();
+  const { playVideo } = usePlayingVideo();
 
   const REPORT_REASONS: { value: string; label: string }[] = [
     { value: "spam", label: "スパム" },
@@ -83,6 +85,31 @@ export default function VideoDetailScreen() {
   const { data: comments = [] } = useQuery<VideoComment[]>({
     queryKey: [`/api/videos/${id}/comments`],
     enabled: !!id && !isDemo,
+  });
+
+  const { data: savedData, refetch: refetchSaved } = useQuery<{ saved: boolean }>({
+    queryKey: [`/api/videos/${id}/saved`],
+    enabled: !!id && !isDemo && !!user,
+  });
+  const isSaved = savedData?.saved ?? false;
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/videos/${id}/save`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [`/api/videos/${id}/saved`] });
+      qc.invalidateQueries({ queryKey: ["/api/videos/saved"] });
+    },
+  });
+  const unsaveMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", `/api/videos/${id}/save`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [`/api/videos/${id}/saved`] });
+      qc.invalidateQueries({ queryKey: ["/api/videos/saved"] });
+    },
   });
 
   const creatorId = (video as any)?.creatorId;
@@ -212,6 +239,23 @@ export default function VideoDetailScreen() {
             contentFit="cover"
           />
           <View style={styles.playerOverlay}>
+            {/* 動画再生ボタン（videoUrl または youtubeId がある場合） */}
+            {((video as any).videoUrl || (video as any).youtubeId) && !video.price && (
+              <Pressable
+                style={styles.playOverlayBtn}
+                onPress={() =>
+                  playVideo({
+                    videoId: Number(id),
+                    title: video.title,
+                    thumbnail: (video as any).thumbnail,
+                    videoUrl: (video as any).videoUrl ?? null,
+                    youtubeId: (video as any).youtubeId ?? null,
+                  })
+                }
+              >
+                <Ionicons name="play-circle" size={64} color="rgba(255,255,255,0.9)" />
+              </Pressable>
+            )}
             {/* 有料コンテンツの場合のみロック表示 */}
             {!purchased && video.price && (
               <View style={styles.lockedOverlay}>
@@ -392,6 +436,25 @@ export default function VideoDetailScreen() {
               {(video as any).timeAgo ?? (video as any).time_ago ?? formatRelativeTime((video as any).createdAt ?? (video as any).created_at) ?? "たった今"}
             </Text>
           </View>
+          {user && !isDemo && (
+            <Pressable
+              style={styles.metaItem}
+              onPress={() => {
+                if (isSaved) unsaveMutation.mutate();
+                else saveMutation.mutate();
+              }}
+              disabled={saveMutation.isPending || unsaveMutation.isPending}
+            >
+              <Ionicons
+                name={isSaved ? "bookmark" : "bookmark-outline"}
+                size={16}
+                color={isSaved ? C.accent : C.textSec}
+              />
+              <Text style={[styles.metaText, isSaved && { color: C.accent }]}>
+                マイリスト
+              </Text>
+            </Pressable>
+          )}
           <View style={styles.metaItem}>
             <Ionicons name="heart-outline" size={16} color={C.textSec} />
             <Text style={styles.metaText}>いいね</Text>
@@ -464,6 +527,11 @@ const styles = StyleSheet.create({
   playerOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.2)",
+  },
+  playOverlayBtn: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
   },
   lockedOverlay: {
     ...StyleSheet.absoluteFillObject,

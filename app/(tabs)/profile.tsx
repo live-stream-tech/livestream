@@ -242,6 +242,18 @@ export default function ProfileScreen() {
     queryKey: ["/api/communities/me"],
     enabled: !!user && !!token,
   });
+  const { data: savedVideos = [] } = useQuery<MyVideo[]>({
+    queryKey: ["/api/videos/saved"],
+    enabled: !!user && !!token,
+    queryFn: async () => {
+      const baseUrl = getApiUrl();
+      const res = await fetch(new URL("/api/videos/saved", baseUrl).toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+  });
   const [roleLoading, setRoleLoading] = useState<"editor" | "twoshot" | null>(null);
 
   const pwaBanner = usePwaInstallBanner();
@@ -676,6 +688,36 @@ export default function ProfileScreen() {
             ))}
           </View>
         )}
+
+        {/* マイリスト */}
+        <View style={styles.myListSection}>
+          <View style={styles.myListHeader}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Ionicons name="bookmark" size={16} color={C.accent} />
+              <Text style={styles.myListTitle}>マイリスト</Text>
+            </View>
+            <Text style={styles.myListCount}>{savedVideos.length}</Text>
+          </View>
+          <View style={styles.myListContent}>
+            {savedVideos.slice(0, 8).map((v) => (
+              <Pressable
+                key={v.id}
+                style={styles.myListItem}
+                onPress={() => router.push(`/video/${v.id}`)}
+              >
+                <Image source={{ uri: v.thumbnail }} style={styles.timelineThumb} contentFit="cover" />
+                <View style={styles.timelineBody}>
+                  <Text style={styles.timelineTitle} numberOfLines={2}>{v.title}</Text>
+                  <Text style={styles.timelineMeta} numberOfLines={1}>{v.community} ・ {v.timeAgo ?? ""}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
+              </Pressable>
+            ))}
+            {savedVideos.length === 0 && (
+              <Text style={styles.myListEmpty}>気に入った動画をマイリストに追加しよう</Text>
+            )}
+          </View>
+        </View>
 
         {/* 参加コミュニティパネル */}
         {myCommunities.length > 0 && (
@@ -1399,6 +1441,49 @@ const styles = StyleSheet.create({
   timelineEmpty: { paddingHorizontal: 16, paddingVertical: 12, alignItems: "center" },
   timelineEmptyText: { color: C.textSec, fontSize: 13, fontWeight: "700" },
   timelineEmptySub: { color: C.textMuted, fontSize: 11, marginTop: 4 },
+  myListSection: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  myListHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  myListTitle: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  myListCount: {
+    color: C.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  myListContent: {
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    gap: 8,
+  },
+  myListItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+  },
+  myListEmpty: {
+    color: C.textMuted,
+    fontSize: 13,
+    textAlign: "center",
+    paddingVertical: 16,
+  },
   myCommunitiesSection: {
     marginHorizontal: 16,
     marginBottom: 16,

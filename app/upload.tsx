@@ -292,6 +292,7 @@ export default function UploadScreen() {
       const communityName = selectedCommunity?.name ?? "";
       const creatorName = user?.name ?? user?.displayName ?? "ゲストライバー";
       const firstImage = mediaItems.find((m) => m.type === "image");
+      const firstVideo = mediaItems.find((m) => m.type === "video");
       let thumbUrl =
         firstImage?.uri ??
         selectedCommunity?.thumbnail ??
@@ -305,6 +306,16 @@ export default function UploadScreen() {
           thumbUrl =
             selectedCommunity?.thumbnail ??
             "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=400&fit=crop";
+        }
+      }
+      let videoUrlToSend: string | null = null;
+      if (firstVideo?.uri) {
+        try {
+          videoUrlToSend = firstVideo.uri.startsWith("blob:")
+            ? await ensureHttpsUrl(firstVideo.uri, "video")
+            : firstVideo.uri;
+        } catch (e) {
+          console.error("video URL upload failed:", e);
         }
       }
       const avatarUrl =
@@ -324,6 +335,7 @@ export default function UploadScreen() {
         avatar: avatarUrl,
         concertId,
         visibility: postTarget === "my_page_only" ? "my_page_only" : "community",
+        videoUrl: videoUrlToSend,
       });
       const data = (await res.json()) as { id: number };
       // 遷移を先に実行（invalidate の完了を待たない）

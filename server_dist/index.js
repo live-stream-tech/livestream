@@ -49,6 +49,7 @@ __export(schema_exports, {
   notifications: () => notifications,
   phoneVerifications: () => phoneVerifications,
   reports: () => reports,
+  savedVideos: () => savedVideos,
   streams: () => streams,
   transactions: () => transactions,
   twoshotBookings: () => twoshotBookings,
@@ -67,7 +68,8 @@ import {
   integer,
   boolean,
   real,
-  timestamp
+  timestamp,
+  unique
 } from "drizzle-orm/pg-core";
 var USER_ROLES = ["USER", "LIVER", "EDITOR", "MODERATOR", "ADMIN"];
 var communities = pgTable("communities", {
@@ -235,8 +237,22 @@ var videos = pgTable("videos", {
   /** 公開範囲: draft=下書き, my_page_only=自分のページのみ, community=コミュニティ公開 */
   visibility: text("visibility").notNull().default("community"),
   /** コミュニティ公開時の communityId。visibility=community の場合に設定 */
-  communityId: integer("community_id")
+  communityId: integer("community_id"),
+  /** 動画URL（R2等にアップロードした動画）。再生用 */
+  videoUrl: text("video_url"),
+  /** YouTube動画ID。videoUrl と排他的に使用 */
+  youtubeId: text("youtube_id")
 });
+var savedVideos = pgTable(
+  "saved_videos",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull(),
+    videoId: integer("video_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow()
+  },
+  (t) => [unique().on(t.userId, t.videoId)]
+);
 var videoComments = pgTable("video_comments", {
   id: serial("id").primaryKey(),
   videoId: integer("video_id").notNull(),
@@ -419,6 +435,14 @@ var users = pgTable("users", {
   phoneVerifiedAt: timestamp("phone_verified_at"),
   /** Stripe Connect 連結アカウントID（Express/Custom）。連携済みなら設定される */
   stripeConnectId: text("stripe_connect_id"),
+  /** Google OAuth（YouTube プレイリスト用）。Googleログインユーザーのみ */
+  googleRefreshToken: text("google_refresh_token"),
+  googleAccessToken: text("google_access_token"),
+  googleTokenExpiresAt: timestamp("google_token_expires_at"),
+  /** エニアグラム9型スコア（JSON配列 [1-9]） */
+  enneagramScores: text("enneagram_scores"),
+  /** プロフィールに表示する厳選コミュニティ4つ（JSON配列 [communityId, ...]） */
+  pinnedCommunityIds: text("pinned_community_ids"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
@@ -863,6 +887,28 @@ async function registerRoutes(app2) {
   app2.get("/api/auth/me", async (req, res) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const [u] = await db.select({
+      enneagramScores: users.enneagramScores,
+      pinnedCommunityIds: users.pinnedCommunityIds
+    }).from(users).where(eq2(users.id, user.id));
+    let enneagramScores = null;
+    let pinnedCommunityIds = [];
+    if (u) {
+      if (u.enneagramScores) {
+        try {
+          const p = JSON.parse(u.enneagramScores);
+          if (Array.isArray(p) && p.length === 9) enneagramScores = p;
+        } catch {
+        }
+      }
+      if (u.pinnedCommunityIds) {
+        try {
+          const p = JSON.parse(u.pinnedCommunityIds);
+          if (Array.isArray(p)) pinnedCommunityIds = p;
+        } catch {
+        }
+      }
+    }
     res.json({
       id: user.id,
       name: user.displayName,
@@ -878,7 +924,9 @@ async function registerRoutes(app2) {
       instagramUrl: user.instagramUrl ?? null,
       youtubeUrl: user.youtubeUrl ?? null,
       xUrl: user.xUrl ?? null,
-      phoneNumber: user.phoneNumber ?? null
+      phoneNumber: user.phoneNumber ?? null,
+      enneagramScores,
+      pinnedCommunityIds
     });
   });
   app2.post("/api/connect/onboard", async (req, res) => {
@@ -1036,11 +1084,13 @@ async function registerRoutes(app2) {
   app2.put("/api/auth/profile", async (req, res) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
-    const { name, displayName, bio, avatar, profileImageUrl, spotifyUrl, appleMusicUrl, bandcampUrl, instagramUrl, youtubeUrl, xUrl, phoneNumber } = req.body;
+    const { name, displayName, bio, avatar, profileImageUrl, spotifyUrl, appleMusicUrl, bandcampUrl, instagramUrl, youtubeUrl, xUrl, phoneNumber, enneagramScores, pinnedCommunityIds } = req.body;
     const newName = name ?? displayName ?? user.displayName;
     const newBio = bio ?? user.bio;
     const newAvatar = avatar ?? profileImageUrl ?? user.profileImageUrl;
     const newPhone = phoneNumber !== void 0 ? phoneNumber?.trim() || null : void 0;
+    const enneagramJson = enneagramScores !== void 0 ? Array.isArray(enneagramScores) && enneagramScores.length === 9 ? JSON.stringify(enneagramScores) : null : void 0;
+    const pinnedJson = pinnedCommunityIds !== void 0 ? Array.isArray(pinnedCommunityIds) ? JSON.stringify(pinnedCommunityIds.slice(0, 4)) : null : void 0;
     const [updated] = await db.update(users).set({
       displayName: newName,
       bio: newBio,
@@ -1052,8 +1102,26 @@ async function registerRoutes(app2) {
       ...youtubeUrl !== void 0 ? { youtubeUrl: youtubeUrl?.trim() || null } : {},
       ...xUrl !== void 0 ? { xUrl: xUrl?.trim() || null } : {},
       ...newPhone !== void 0 && { phoneNumber: newPhone },
+      ...enneagramJson !== void 0 && { enneagramScores: enneagramJson },
+      ...pinnedJson !== void 0 && { pinnedCommunityIds: pinnedJson },
       updatedAt: /* @__PURE__ */ new Date()
     }).where(eq2(users.id, user.id)).returning();
+    let outEnneagram = null;
+    let outPinned = [];
+    if (updated.enneagramScores) {
+      try {
+        const p = JSON.parse(updated.enneagramScores);
+        if (Array.isArray(p) && p.length === 9) outEnneagram = p;
+      } catch {
+      }
+    }
+    if (updated.pinnedCommunityIds) {
+      try {
+        const p = JSON.parse(updated.pinnedCommunityIds);
+        if (Array.isArray(p)) outPinned = p;
+      } catch {
+      }
+    }
     res.json({
       id: updated.id,
       name: updated.displayName,
@@ -1067,6 +1135,8 @@ async function registerRoutes(app2) {
       bandcampUrl: updated.bandcampUrl ?? null,
       instagramUrl: updated.instagramUrl ?? null,
       youtubeUrl: updated.youtubeUrl ?? null,
+      enneagramScores: outEnneagram,
+      pinnedCommunityIds: outPinned,
       xUrl: updated.xUrl ?? null
     });
   });
@@ -1112,9 +1182,37 @@ async function registerRoutes(app2) {
       xUrl: users.xUrl,
       spotifyUrl: users.spotifyUrl,
       appleMusicUrl: users.appleMusicUrl,
-      bandcampUrl: users.bandcampUrl
+      bandcampUrl: users.bandcampUrl,
+      enneagramScores: users.enneagramScores,
+      pinnedCommunityIds: users.pinnedCommunityIds
     }).from(users).where(eq2(users.id, id));
     if (!u) return res.status(404).json({ error: "Not found" });
+    let pinnedCommunities = [];
+    const pinnedRaw = u.pinnedCommunityIds;
+    if (pinnedRaw && typeof pinnedRaw === "string") {
+      try {
+        const ids = JSON.parse(pinnedRaw);
+        if (Array.isArray(ids) && ids.length > 0) {
+          const rows = await db.select({ id: communities.id, name: communities.name, thumbnail: communities.thumbnail, category: communities.category }).from(communities).where(inArray(communities.id, ids.slice(0, 4)));
+          pinnedCommunities = rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            thumbnail: r.thumbnail,
+            category: r.category
+          }));
+        }
+      } catch {
+      }
+    }
+    let enneagramScores = null;
+    const scoresRaw = u.enneagramScores;
+    if (scoresRaw && typeof scoresRaw === "string") {
+      try {
+        const parsed = JSON.parse(scoresRaw);
+        if (Array.isArray(parsed) && parsed.length === 9) enneagramScores = parsed;
+      } catch {
+      }
+    }
     res.json({
       id: u.id,
       name: u.displayName,
@@ -1127,7 +1225,9 @@ async function registerRoutes(app2) {
       xUrl: u.xUrl ?? null,
       spotifyUrl: u.spotifyUrl ?? null,
       appleMusicUrl: u.appleMusicUrl ?? null,
-      bandcampUrl: u.bandcampUrl ?? null
+      bandcampUrl: u.bandcampUrl ?? null,
+      enneagramScores,
+      pinnedCommunities
     });
   });
   const LINE_CHANNEL_ID = process.env.LINE_CHANNEL_ID ?? "";
@@ -1141,16 +1241,27 @@ async function registerRoutes(app2) {
   const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL ?? "https://livestream-nu-ten.vercel.app/api/auth/google-callback";
   const GOOGLE_STATE = "livestage-google-state";
   const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY ?? "";
+  app2.get("/api/auth/status", (_req, res) => {
+    res.json({
+      line: {
+        configured: !!(LINE_CHANNEL_ID && LINE_CHANNEL_SECRET && LINE_CALLBACK_URL),
+        callbackUrl: LINE_CALLBACK_URL || null
+      },
+      google: {
+        configured: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_CALLBACK_URL)
+      }
+    });
+  });
   app2.get("/api/auth/line", (_req, res) => {
-    if (!LINE_CALLBACK_URL) {
-      return res.status(500).json({ error: "LINE_CALLBACK_URL is not configured" });
+    if (!LINE_CHANNEL_ID || !LINE_CHANNEL_SECRET || !LINE_CALLBACK_URL) {
+      return res.status(500).json({ error: "LINE OAuth is not configured (LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, LINE_CALLBACK_URL)" });
     }
     const params = new URLSearchParams({
       response_type: "code",
       client_id: LINE_CHANNEL_ID,
       redirect_uri: LINE_CALLBACK_URL,
       state: LINE_STATE,
-      scope: "profile openid email"
+      scope: "profile"
     });
     res.redirect(`https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`);
   });
@@ -1162,7 +1273,7 @@ async function registerRoutes(app2) {
       response_type: "code",
       client_id: GOOGLE_CLIENT_ID,
       redirect_uri: GOOGLE_CALLBACK_URL,
-      scope: "openid email profile",
+      scope: "openid email profile https://www.googleapis.com/auth/youtube.readonly",
       state: GOOGLE_STATE,
       access_type: "offline",
       prompt: "consent"
@@ -1201,16 +1312,28 @@ async function registerRoutes(app2) {
       const googleKey = `google:${profile.sub}`;
       const displayName = profile.name ?? profile.email ?? "Google\u30E6\u30FC\u30B6\u30FC";
       const avatar = profile.picture ?? null;
+      const expiresAt = tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1e3) : null;
+      const tokenUpdate = {
+        googleAccessToken: tokenData.access_token,
+        ...tokenData.refresh_token ? { googleRefreshToken: tokenData.refresh_token } : {},
+        ...expiresAt ? { googleTokenExpiresAt: expiresAt } : {}
+      };
       let [existing] = await db.select().from(users).where(eq2(users.lineId, googleKey));
       if (!existing) {
         [existing] = await db.insert(users).values({
           lineId: googleKey,
           displayName,
           profileImageUrl: avatar,
-          role: "USER"
+          role: "USER",
+          ...tokenUpdate
         }).returning();
       } else {
-        [existing] = await db.update(users).set({ displayName, profileImageUrl: avatar, updatedAt: /* @__PURE__ */ new Date() }).where(eq2(users.id, existing.id)).returning();
+        [existing] = await db.update(users).set({
+          displayName,
+          profileImageUrl: avatar,
+          updatedAt: /* @__PURE__ */ new Date(),
+          ...tokenUpdate
+        }).where(eq2(users.id, existing.id)).returning();
       }
       const jwtToken = makeToken(existing.id);
       res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
@@ -1257,9 +1380,131 @@ async function registerRoutes(app2) {
       res.status(500).json({ error: "YouTube \u691C\u7D22\u3067\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F" });
     }
   });
+  async function getGoogleAccessToken(userId) {
+    const [u] = await db.select().from(users).where(eq2(users.id, userId));
+    if (!u || !u.googleRefreshToken) return null;
+    const row = u;
+    const expiresAt = row.googleTokenExpiresAt ? new Date(row.googleTokenExpiresAt).getTime() : 0;
+    const now = Date.now();
+    if (row.googleAccessToken && expiresAt > now + 6e4) {
+      return row.googleAccessToken;
+    }
+    const refreshToken = row.googleRefreshToken;
+    if (!refreshToken || !GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) return null;
+    try {
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET
+        }).toString()
+      });
+      const data = await tokenRes.json();
+      if (!data.access_token) return null;
+      const newExpiresAt = data.expires_in ? new Date(Date.now() + data.expires_in * 1e3) : null;
+      await db.update(users).set({
+        googleAccessToken: data.access_token,
+        ...newExpiresAt ? { googleTokenExpiresAt: newExpiresAt } : {},
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq2(users.id, userId));
+      return data.access_token;
+    } catch {
+      return null;
+    }
+  }
+  app2.get("/api/youtube/playlists", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const accessToken = await getGoogleAccessToken(user.id);
+    if (!accessToken) {
+      return res.status(403).json({
+        error: "YouTube \u30D7\u30EC\u30A4\u30EA\u30B9\u30C8\u3092\u5229\u7528\u3059\u308B\u306B\u306F Google \u3067\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044",
+        needsGoogleLogin: true
+      });
+    }
+    try {
+      const params = new URLSearchParams({
+        part: "snippet",
+        mine: "true",
+        maxResults: "25"
+      });
+      const ytRes = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlists?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (!ytRes.ok) {
+        const text2 = await ytRes.text();
+        console.error("YouTube playlists error:", ytRes.status, text2);
+        return res.status(502).json({ error: "\u30D7\u30EC\u30A4\u30EA\u30B9\u30C8\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
+      }
+      const json = await ytRes.json();
+      const items = (json.items ?? []).map((item) => {
+        const thumbs = item.snippet?.thumbnails;
+        const thumbUrl = thumbs?.medium?.url ?? thumbs?.default?.url ?? "";
+        return {
+          id: item.id,
+          title: item.snippet?.title ?? "",
+          thumbnail: thumbUrl
+        };
+      });
+      res.json(items);
+    } catch (e) {
+      console.error("YouTube playlists exception:", e);
+      res.status(500).json({ error: "\u30D7\u30EC\u30A4\u30EA\u30B9\u30C8\u306E\u53D6\u5F97\u3067\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F" });
+    }
+  });
+  app2.get("/api/youtube/playlists/:playlistId/items", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044" });
+    const accessToken = await getGoogleAccessToken(user.id);
+    if (!accessToken) {
+      return res.status(403).json({
+        error: "YouTube \u30D7\u30EC\u30A4\u30EA\u30B9\u30C8\u3092\u5229\u7528\u3059\u308B\u306B\u306F Google \u3067\u30ED\u30B0\u30A4\u30F3\u3057\u3066\u304F\u3060\u3055\u3044",
+        needsGoogleLogin: true
+      });
+    }
+    const playlistId = paramStr(req, "playlistId");
+    if (!playlistId) return res.status(400).json({ error: "\u30D7\u30EC\u30A4\u30EA\u30B9\u30C8ID\u304C\u5FC5\u8981\u3067\u3059" });
+    try {
+      const params = new URLSearchParams({
+        part: "snippet,contentDetails",
+        playlistId,
+        maxResults: "50"
+      });
+      const ytRes = await fetch(
+        `https://www.googleapis.com/youtube/v3/playlistItems?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (!ytRes.ok) {
+        const text2 = await ytRes.text();
+        console.error("YouTube playlistItems error:", ytRes.status, text2);
+        return res.status(502).json({ error: "\u30D7\u30EC\u30A4\u30EA\u30B9\u30C8\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F" });
+      }
+      const json = await ytRes.json();
+      const items = (json.items ?? []).map((item) => {
+        const videoId = item.contentDetails?.videoId ?? item.snippet?.resourceId?.videoId;
+        const thumbs = item.snippet?.thumbnails;
+        const thumbUrl = thumbs?.high?.url ?? thumbs?.medium?.url ?? thumbs?.default?.url ?? "";
+        if (!videoId) return null;
+        return {
+          videoId,
+          title: item.snippet?.title ?? "",
+          thumbnail: thumbUrl
+        };
+      }).filter(Boolean);
+      res.json(items);
+    } catch (e) {
+      console.error("YouTube playlistItems exception:", e);
+      res.status(500).json({ error: "\u30D7\u30EC\u30A4\u30EA\u30B9\u30C8\u306E\u53D6\u5F97\u3067\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F" });
+    }
+  });
   app2.get("/api/auth/callback/line", async (req, res) => {
     const code = req.query.code;
     const state = req.query.state;
+    console.log("[LINE callback/line] received", { hasCode: !!code, stateMatch: state === LINE_STATE });
     if (!code || state !== LINE_STATE) {
       return res.redirect(lineRedirect("/?line_error=invalid_state"));
     }
@@ -1277,16 +1522,20 @@ async function registerRoutes(app2) {
       });
       const tokenData = await tokenRes.json();
       if (!tokenData.access_token) {
-        return res.redirect(lineRedirect("/?line_error=token_failed"));
+        console.error("[LINE callback] token failed", tokenData);
+        const err = tokenData.error_description ?? tokenData.error ?? "token_failed";
+        return res.redirect(lineRedirect(`/?line_error=${encodeURIComponent(err)}`));
       }
       const profileRes = await fetch("https://api.line.me/v2/profile", {
         headers: { Authorization: `Bearer ${tokenData.access_token}` }
       });
       const profile = await profileRes.json();
       if (!profile.userId) {
+        console.error("[LINE callback] profile failed", profile);
         return res.redirect(lineRedirect("/?line_error=profile_failed"));
       }
       const lineId = profile.userId;
+      console.log("[LINE callback] profile ok", { lineId, displayName: profile.displayName });
       const lineName = profile.displayName ?? "LINE\u30E6\u30FC\u30B6\u30FC";
       const lineAvatar = profile.pictureUrl ?? null;
       let [existing] = await db.select().from(users).where(eq2(users.lineId, lineId));
@@ -1310,6 +1559,7 @@ async function registerRoutes(app2) {
   app2.get("/api/auth/line-callback", async (req, res) => {
     const code = req.query.code;
     const state = req.query.state;
+    console.log("[LINE callback] received", { hasCode: !!code, stateMatch: state === LINE_STATE });
     if (!code || state !== LINE_STATE) {
       return res.redirect(lineRedirect("/?line_error=invalid_state"));
     }
@@ -1327,16 +1577,20 @@ async function registerRoutes(app2) {
       });
       const tokenData = await tokenRes.json();
       if (!tokenData.access_token) {
-        return res.redirect(lineRedirect("/?line_error=token_failed"));
+        console.error("[LINE callback] token failed", tokenData);
+        const err = tokenData.error_description ?? tokenData.error ?? "token_failed";
+        return res.redirect(lineRedirect(`/?line_error=${encodeURIComponent(err)}`));
       }
       const profileRes = await fetch("https://api.line.me/v2/profile", {
         headers: { Authorization: `Bearer ${tokenData.access_token}` }
       });
       const profile = await profileRes.json();
       if (!profile.userId) {
+        console.error("[LINE callback] profile failed", profile);
         return res.redirect(lineRedirect("/?line_error=profile_failed"));
       }
       const lineId = profile.userId;
+      console.log("[LINE callback] profile ok", { lineId, displayName: profile.displayName });
       const lineName = profile.displayName ?? "LINE\u30E6\u30FC\u30B6\u30FC";
       const lineAvatar = profile.pictureUrl ?? null;
       let [existing] = await db.select().from(users).where(eq2(users.lineId, lineId));
@@ -1351,10 +1605,12 @@ async function registerRoutes(app2) {
         [existing] = await db.update(users).set({ displayName: lineName, profileImageUrl: lineAvatar, updatedAt: /* @__PURE__ */ new Date() }).where(eq2(users.id, existing.id)).returning();
       }
       const jwtToken = makeToken(existing.id);
+      console.log("[LINE callback] success", { userId: existing.id });
       res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
     } catch (err) {
-      console.error("LINE callback error:", err);
-      res.redirect(lineRedirect("/?line_error=server_error"));
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[LINE callback] server_error", err);
+      res.redirect(lineRedirect(`/?line_error=${encodeURIComponent("server_error:" + msg.slice(0, 80))}`));
     }
   });
   const GENRE_TO_CATEGORY = {
@@ -2403,6 +2659,24 @@ async function registerRoutes(app2) {
     const rows = await db.select().from(videos).where(and2(eq2(videos.isRanked, true), eq2(videos.hidden, false))).orderBy(asc(videos.rank));
     res.json(rows);
   });
+  app2.get("/api/videos/saved", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const rows = await db.select({
+      id: videos.id,
+      title: videos.title,
+      thumbnail: videos.thumbnail,
+      creator: videos.creator,
+      community: videos.community,
+      views: videos.views,
+      createdAt: videos.createdAt
+    }).from(savedVideos).innerJoin(videos, eq2(videos.id, savedVideos.videoId)).where(and2(eq2(savedVideos.userId, user.id), eq2(videos.hidden, false))).orderBy(desc(savedVideos.createdAt));
+    const timeAgoList = rows.map((r) => ({
+      ...r,
+      timeAgo: r.createdAt ? formatTimeAgo(r.createdAt) : "\u305F\u3063\u305F\u4ECA"
+    }));
+    res.json(timeAgoList);
+  });
   app2.get("/api/videos/:id", async (req, res) => {
     const id = paramNum(req, "id");
     const authUser = await getAuthUser(req);
@@ -2444,7 +2718,7 @@ async function registerRoutes(app2) {
   app2.post("/api/videos", async (req, res) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
-    const { title, community, communityId, duration, price, thumbnail, description, concertId, visibility } = req.body;
+    const { title, community, communityId, duration, price, thumbnail, description, concertId, visibility, videoUrl, youtubeId } = req.body;
     if (!title || !duration || !thumbnail) {
       return res.status(400).json({ message: "\u5FC5\u9808\u30D5\u30A3\u30FC\u30EB\u30C9\u304C\u4E0D\u8DB3\u3057\u3066\u3044\u307E\u3059" });
     }
@@ -2467,7 +2741,9 @@ async function registerRoutes(app2) {
       concertId: concertId ?? null,
       userId: user.id,
       visibility: vis,
-      communityId: vis === "community" ? communityId ?? null : null
+      communityId: vis === "community" ? communityId ?? null : null,
+      videoUrl: videoUrl?.trim() || null,
+      youtubeId: youtubeId?.trim() || null
     }).returning();
     res.status(201).json(row);
   });
@@ -2508,6 +2784,36 @@ async function registerRoutes(app2) {
     await db.delete(videoComments).where(eq2(videoComments.videoId, id));
     await db.delete(videos).where(eq2(videos.id, id));
     res.json({ ok: true });
+  });
+  app2.post("/api/videos/:id/save", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const videoId = paramNum(req, "id");
+    const [video] = await db.select().from(videos).where(eq2(videos.id, videoId));
+    if (!video || video.hidden) return res.status(404).json({ message: "Not found" });
+    const vis = video.visibility;
+    const isOwner = video.userId === user.id || video.creator === user.displayName;
+    if (vis === "draft" && !isOwner) return res.status(404).json({ message: "Not found" });
+    if (vis === "my_page_only" && !isOwner) return res.status(404).json({ message: "Not found" });
+    try {
+      await db.insert(savedVideos).values({ userId: user.id, videoId });
+    } catch {
+    }
+    res.json({ ok: true });
+  });
+  app2.delete("/api/videos/:id/save", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "\u672A\u8A8D\u8A3C\u3067\u3059" });
+    const videoId = paramNum(req, "id");
+    await db.delete(savedVideos).where(and2(eq2(savedVideos.userId, user.id), eq2(savedVideos.videoId, videoId)));
+    res.json({ ok: true });
+  });
+  app2.get("/api/videos/:id/saved", async (req, res) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.json({ saved: false });
+    const videoId = paramNum(req, "id");
+    const [row] = await db.select().from(savedVideos).where(and2(eq2(savedVideos.userId, user.id), eq2(savedVideos.videoId, videoId)));
+    res.json({ saved: !!row });
   });
   app2.get("/api/users/:id/posts", async (req, res) => {
     const userId = paramNum(req, "id");

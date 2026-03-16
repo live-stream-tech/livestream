@@ -6,6 +6,7 @@ import {
   boolean,
   real,
   timestamp,
+  unique,
 } from "drizzle-orm/pg-core";
 
 /** ユーザー権限（ライバーランク・分配ロジック等で使用） */
@@ -196,7 +197,23 @@ export const videos = pgTable("videos", {
   visibility: text("visibility").notNull().default("community"),
   /** コミュニティ公開時の communityId。visibility=community の場合に設定 */
   communityId: integer("community_id"),
+  /** 動画URL（R2等にアップロードした動画）。再生用 */
+  videoUrl: text("video_url"),
+  /** YouTube動画ID。videoUrl と排他的に使用 */
+  youtubeId: text("youtube_id"),
 });
+
+/** マイリスト（気に入った動画の保存） */
+export const savedVideos = pgTable(
+  "saved_videos",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull(),
+    videoId: integer("video_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (t) => [unique().on(t.userId, t.videoId)]
+);
 
 /** 投稿動画へのコメント */
 export const videoComments = pgTable("video_comments", {

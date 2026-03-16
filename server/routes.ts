@@ -37,6 +37,7 @@ import {
   communityPollOptions,
   communityPollVotes,
   reports,
+  savedVideos,
   genreAds,
   genreOwners,
   concerts,
@@ -2526,6 +2527,32 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.json(rows);
   });
 
+  /** マイリスト: 保存済み動画一覧（:id より前に定義すること） */
+  app.get("/api/videos/saved", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const rows = await db
+      .select({
+        id: videos.id,
+        title: videos.title,
+        thumbnail: videos.thumbnail,
+        creator: videos.creator,
+        community: videos.community,
+        views: videos.views,
+        createdAt: videos.createdAt,
+      })
+      .from(savedVideos)
+      .innerJoin(videos, eq(videos.id, savedVideos.videoId))
+      .where(and(eq(savedVideos.userId, user.id), eq(videos.hidden, false)))
+      .orderBy(desc(savedVideos.createdAt));
+    const timeAgoList = rows.map((r) => ({
+      ...r,
+      timeAgo: r.createdAt ? formatTimeAgo(r.createdAt) : "たった今",
+    }));
+    res.json(timeAgoList);
+  });
+
   app.get("/api/videos/:id", async (req: Request, res: Response) => {
     const id = paramNum(req, "id");
     const authUser = await getAuthUser(req);
@@ -2583,7 +2610,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
 
-    const { title, community, communityId, duration, price, thumbnail, description, concertId, visibility } = req.body as {
+    const { title, community, communityId, duration, price, thumbnail, description, concertId, visibility, videoUrl, youtubeId } = req.body as {
       title?: string;
       community?: string;
       communityId?: number | null;
@@ -2593,6 +2620,8 @@ export async function registerRoutes(app: Express): Promise<void> {
       description?: string | null;
       concertId?: number | null;
       visibility?: "draft" | "my_page_only" | "community";
+      videoUrl?: string | null;
+      youtubeId?: string | null;
     };
 
     if (!title || !duration || !thumbnail) {
@@ -2625,6 +2654,8 @@ export async function registerRoutes(app: Express): Promise<void> {
         userId: user.id,
         visibility: vis,
         communityId: vis === "community" ? (communityId ?? null) : null,
+        videoUrl: videoUrl?.trim() || null,
+        youtubeId: youtubeId?.trim() || null,
       } as typeof videos.$inferInsert)
       .returning();
     res.status(201).json(row);
@@ -2686,6 +2717,55 @@ export async function registerRoutes(app: Express): Promise<void> {
     await db.delete(videoComments).where(eq(videoComments.videoId, id));
     await db.delete(videos).where(eq(videos.id, id));
     res.json({ ok: true });
+  });
+
+  /** マイリスト: 動画を保存 */
+  app.post("/api/videos/:id/save", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const videoId = paramNum(req, "id");
+    const [video] = await db.select().from(videos).where(eq(videos.id, videoId));
+    if (!video || video.hidden) return res.status(404).json({ message: "Not found" });
+
+    const vis = (video as any).visibility;
+    const isOwner = (video as any).userId === user.id || video.creator === user.displayName;
+    if (vis === "draft" && !isOwner) return res.status(404).json({ message: "Not found" });
+    if (vis === "my_page_only" && !isOwner) return res.status(404).json({ message: "Not found" });
+
+    try {
+      await db
+        .insert(savedVideos)
+        .values({ userId: user.id, videoId } as typeof savedVideos.$inferInsert);
+    } catch {
+      // 既に保存済み（UNIQUE制約）の場合は無視
+    }
+    res.json({ ok: true });
+  });
+
+  /** マイリスト: 動画の保存を解除 */
+  app.delete("/api/videos/:id/save", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+
+    const videoId = paramNum(req, "id");
+    await db
+      .delete(savedVideos)
+      .where(and(eq(savedVideos.userId, user.id), eq(savedVideos.videoId, videoId)));
+    res.json({ ok: true });
+  });
+
+  /** 動画がマイリストに含まれるか */
+  app.get("/api/videos/:id/saved", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.json({ saved: false });
+
+    const videoId = paramNum(req, "id");
+    const [row] = await db
+      .select()
+      .from(savedVideos)
+      .where(and(eq(savedVideos.userId, user.id), eq(savedVideos.videoId, videoId)));
+    res.json({ saved: !!row });
   });
 
   /** 公開プロフィール用: ユーザーの公開投稿一覧（my_page_only 以上） */

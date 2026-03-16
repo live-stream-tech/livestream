@@ -11,6 +11,8 @@ import { DemoModeProvider } from "@/lib/demo-mode";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { getLoginReturn, saveLoginReturn } from "@/lib/login-return";
 import { GlobalJukeboxPlayer } from "@/components/GlobalJukeboxPlayer";
+import { GlobalMyListPlayer } from "@/components/GlobalMyListPlayer";
+import { PlayingVideoProvider } from "@/lib/playing-video-context";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -230,10 +232,13 @@ export default function RootLayout() {
                 <GlobalAuthGate>
                   <ProfileSetupGuard>
                   <DemoModeProvider>
-                    <View style={{ flex: 1 }}>
-                      <RootLayoutNav />
-                      <GlobalJukeboxPlayer />
-                    </View>
+                    <PlayingVideoProvider>
+                      <View style={{ flex: 1 }}>
+                        <RootLayoutNav />
+                        <GlobalJukeboxPlayer />
+                        <GlobalMyListPlayer />
+                      </View>
+                    </PlayingVideoProvider>
                   </DemoModeProvider>
                   </ProfileSetupGuard>
                 </GlobalAuthGate>

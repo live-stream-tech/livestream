@@ -571,7 +571,7 @@ export default function HomeScreen() {
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionHeaderLeft}>
             <Ionicons name="sparkles" size={16} color={C.accent} />
-            <Text style={styles.sectionTitle}>新着動画</Text>
+            <Text style={styles.sectionTitle}>New</Text>
           </View>
           <FeedTabRow activeTab={videoFeedTab} onTabChange={setVideoFeedTab} inline />
         </View>
@@ -589,7 +589,7 @@ export default function HomeScreen() {
         <View style={[styles.sectionHeaderRow, { marginTop: 40 }]}>
           <View style={styles.sectionHeaderLeft}>
             <Ionicons name="radio" size={16} color={C.live} />
-            <Text style={styles.sectionTitle}>now</Text>
+            <Text style={styles.sectionTitle}>Now</Text>
           </View>
           <View style={styles.feedTabRowWithViewAllRight}>
             <FeedTabRow activeTab={liveFeedTab} onTabChange={setLiveFeedTab} inline />
@@ -933,6 +933,11 @@ const styles = StyleSheet.create({
     color: C.text,
     fontSize: 16,
     fontWeight: "700",
+    fontFamily: Platform.select({
+      ios: "Helvetica Neue",
+      android: "sans-serif",
+      web: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    }),
   },
   liveDotInline: {
     width: 8,
@@ -1042,22 +1047,31 @@ const styles = StyleSheet.create({
   },
   panelScroll: {
     paddingBottom: 16,
+    paddingHorizontal: 4,
     gap: 0,
   },
   panelCard: {
-    marginRight: 0,
-    borderRadius: 0,
+    marginRight: 12,
+    borderRadius: 12,
     overflow: "hidden",
+    backgroundColor: C.surface,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 3,
+    elevation: 4,
   },
   panelThumbWrap: {
     position: "relative",
     overflow: "hidden",
     aspectRatio: 16 / 9,
-    borderRadius: 0,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
   },
   panelThumb: {
     aspectRatio: 16 / 9,
-    borderRadius: 0,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
   },
   panelThumbOverlay: {
     position: "absolute",
@@ -1095,7 +1109,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: C.surface,
     gap: 3,
-    borderRadius: 0,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
   },
   twoshotCard: {
     width: 220,
