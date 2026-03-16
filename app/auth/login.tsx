@@ -14,6 +14,8 @@ const LINE_ERROR_LABELS: Record<string, string> = {
   profile_failed: "プロフィール取得に失敗しました。",
   server_error: "サーバーエラーが発生しました。しばらくしてからお試しください。",
 };
+const getErrorLabel = (key: string) =>
+  LINE_ERROR_LABELS[key] ?? (key.length > 50 ? "エラーが発生しました。" : `エラー: ${key}`);
 
 /** LINEログインのみ。メール/パスワードは廃止。 */
 export default function LoginScreen() {
@@ -22,7 +24,7 @@ export default function LoginScreen() {
 
   useEffect(() => {
     if (line_error && Platform.OS === "web" && typeof window !== "undefined") {
-      const msg = LINE_ERROR_LABELS[line_error] ?? `エラー: ${line_error}`;
+      const msg = getErrorLabel(line_error);
       setErrorMsg(msg);
       const url = new URL(window.location.href);
       url.searchParams.delete("line_error");

@@ -596,15 +596,15 @@ export async function registerRoutes(app: Express): Promise<void> {
   const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY ?? "";
 
   app.get("/api/auth/line", (_req: Request, res: Response) => {
-    if (!LINE_CALLBACK_URL) {
-      return res.status(500).json({ error: "LINE_CALLBACK_URL is not configured" });
+    if (!LINE_CHANNEL_ID || !LINE_CHANNEL_SECRET || !LINE_CALLBACK_URL) {
+      return res.status(500).json({ error: "LINE OAuth is not configured (LINE_CHANNEL_ID, LINE_CHANNEL_SECRET, LINE_CALLBACK_URL)" });
     }
     const params = new URLSearchParams({
       response_type: "code",
       client_id: LINE_CHANNEL_ID,
       redirect_uri: LINE_CALLBACK_URL,
       state: LINE_STATE,
-      scope: "profile openid email",
+      scope: "profile",
     });
     res.redirect(`https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`);
   });
@@ -921,9 +921,10 @@ export async function registerRoutes(app: Express): Promise<void> {
           client_secret: LINE_CHANNEL_SECRET,
         }).toString(),
       });
-      const tokenData = await tokenRes.json() as { access_token?: string; error?: string };
+      const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string; error_description?: string };
       if (!tokenData.access_token) {
-        return res.redirect(lineRedirect("/?line_error=token_failed"));
+        const err = tokenData.error_description ?? tokenData.error ?? "token_failed";
+        return res.redirect(lineRedirect(`/?line_error=${encodeURIComponent(err)}`));
       }
 
       const profileRes = await fetch("https://api.line.me/v2/profile", {
@@ -984,9 +985,10 @@ export async function registerRoutes(app: Express): Promise<void> {
           client_secret: LINE_CHANNEL_SECRET,
         }).toString(),
       });
-      const tokenData = await tokenRes.json() as { access_token?: string; error?: string };
+      const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string; error_description?: string };
       if (!tokenData.access_token) {
-        return res.redirect(lineRedirect("/?line_error=token_failed"));
+        const err = tokenData.error_description ?? tokenData.error ?? "token_failed";
+        return res.redirect(lineRedirect(`/?line_error=${encodeURIComponent(err)}`));
       }
 
       const profileRes = await fetch("https://api.line.me/v2/profile", {
