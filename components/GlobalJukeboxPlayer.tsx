@@ -101,7 +101,12 @@ export function GlobalJukeboxPlayer() {
   useEffect(() => {
     const next = parseCommunityId(pathname);
     if (next !== null) {
-      setCommunityId(next);
+      const isJukebox = pathname?.match(/^\/jukebox\/\d+/) != null;
+      setCommunityId((prev) => {
+        if (isJukebox) return next;
+        if (prev === null) return next;
+        return prev;
+      });
     }
   }, [pathname]);
 
@@ -229,71 +234,84 @@ export function GlobalJukeboxPlayer() {
       });
     }
 
+    const initPlayer = (YT: any) => {
+      if (cancelled) return;
+      const containerId = containerIdRef.current;
+      if (!containerId) return;
+      const startSeconds =
+        state.elapsedSecs && state.elapsedSecs > 0
+          ? state.elapsedSecs
+          : Math.max(
+              0,
+              (Date.now() - new Date(state.startedAt).getTime()) / 1000
+            );
+
+      if (youtubePlayerRef.current) {
+        try {
+          youtubePlayerRef.current.loadVideoById({
+            videoId: state.currentVideoYoutubeId,
+            startSeconds,
+          });
+        } catch {
+          try {
+            youtubePlayerRef.current.destroy();
+          } catch {
+            // ignore
+          }
+          youtubePlayerRef.current = null;
+        }
+      }
+
+      if (!youtubePlayerRef.current) {
+        const startSec = state.elapsedSecs && state.elapsedSecs > 0
+          ? state.elapsedSecs
+          : Math.max(0, (Date.now() - new Date(state.startedAt).getTime()) / 1000);
+        youtubePlayerRef.current = new YT.Player(containerId, {
+          videoId: state.currentVideoYoutubeId,
+          playerVars: {
+            autoplay: 1,
+            rel: 0,
+            controls: 1,
+            disablekb: 0,
+            playsinline: 1,
+            start: Math.floor(startSec),
+          },
+          events: {
+            onReady: (event: any) => {
+              try {
+                event.target?.unMute?.();
+              } catch {
+                // ignore
+              }
+            },
+            onStateChange: (event: any) => {
+              try {
+                const w = window as any;
+                if (event.data === w.YT?.PlayerState?.ENDED) {
+                  handleNextRef.current();
+                }
+              } catch {
+                // ignore
+              }
+            },
+          },
+        });
+      }
+    };
+
     ensureYouTubeApi()
       .then((YT: any) => {
         if (cancelled) return;
         const containerId = containerIdRef.current;
         if (!containerId) return;
-
-        const startSeconds =
-          state.elapsedSecs && state.elapsedSecs > 0
-            ? state.elapsedSecs
-            : Math.max(
-                0,
-                (Date.now() - new Date(state.startedAt).getTime()) / 1000
-              );
-
-        if (youtubePlayerRef.current) {
-          try {
-            youtubePlayerRef.current.loadVideoById({
-              videoId: state.currentVideoYoutubeId,
-              startSeconds,
-            });
-          } catch {
-            try {
-              youtubePlayerRef.current.destroy();
-            } catch {
-              // ignore
-            }
-            youtubePlayerRef.current = null;
-          }
-        }
-
-        if (!youtubePlayerRef.current) {
-          const startSec = state.elapsedSecs && state.elapsedSecs > 0
-            ? state.elapsedSecs
-            : Math.max(0, (Date.now() - new Date(state.startedAt).getTime()) / 1000);
-          youtubePlayerRef.current = new YT.Player(containerId, {
-            videoId: state.currentVideoYoutubeId,
-            playerVars: {
-              autoplay: 1,
-              rel: 0,
-              controls: 1,
-              disablekb: 0,
-              playsinline: 1,
-              start: Math.floor(startSec),
-            },
-            events: {
-              onReady: (event: any) => {
-                try {
-                  event.target?.unMute?.();
-                } catch {
-                  // ignore
-                }
-              },
-              onStateChange: (event: any) => {
-                try {
-                  const w = window as any;
-                  if (event.data === w.YT?.PlayerState?.ENDED) {
-                    handleNextRef.current();
-                  }
-                } catch {
-                  // ignore
-                }
-              },
-            },
+        if (!document.getElementById(containerId)) {
+          requestAnimationFrame(() => {
+            if (cancelled) return;
+            initPlayer(YT);
           });
+          return;
         }
+        initPlayer(YT);
       })
       .catch(() => {
         // ignore
@@ -336,11 +354,13 @@ export function GlobalJukeboxPlayer() {
               styles.youtubeContainer,
               {
                 position: "absolute",
-                width: 1,
-                height: 1,
+                width: 320,
+                height: 180,
                 opacity: 0,
                 overflow: "hidden",
                 left: -9999,
+                top: 0,
+                pointerEvents: "none",
               },
             ]}
             nativeID={containerIdRef.current}
