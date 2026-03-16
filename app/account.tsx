@@ -14,8 +14,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { router } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import { AuthGuard, useAuth } from "@/lib/auth";
 import { C } from "@/constants/colors";
+import { EnneagramChart, ENNEAGRAM_TYPES } from "@/components/EnneagramChart";
+
+const DEFAULT_ENNEAGRAM = [6, 5, 7, 4, 8, 5, 6, 4, 7];
 
 export default function AccountEditScreen() {
   const insets = useSafeAreaInsets();
@@ -34,6 +38,13 @@ export default function AccountEditScreen() {
   const [xUrl, setXUrl] = useState(user?.xUrl ?? "");
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber ?? "");
   const [saving, setSaving] = useState(false);
+  const [enneagramScores, setEnneagramScores] = useState<number[]>(DEFAULT_ENNEAGRAM);
+  const [pinnedCommunityIds, setPinnedCommunityIds] = useState<number[]>([]);
+
+  const { data: myCommunities = [] } = useQuery<{ id: number; name: string; thumbnail: string; category: string }[]>({
+    queryKey: ["/api/communities/me"],
+    enabled: !!user,
+  });
 
   useEffect(() => {
     if (user) {
@@ -47,8 +58,30 @@ export default function AccountEditScreen() {
       setYoutubeUrl(user.youtubeUrl ?? "");
       setXUrl(user.xUrl ?? "");
       setPhoneNumber(user.phoneNumber ?? "");
+      if (user.enneagramScores && user.enneagramScores.length === 9) {
+        setEnneagramScores(user.enneagramScores);
+      }
+      if (user.pinnedCommunityIds && user.pinnedCommunityIds.length > 0) {
+        setPinnedCommunityIds(user.pinnedCommunityIds);
+      }
     }
   }, [user]);
+
+  function togglePinnedCommunity(id: number) {
+    setPinnedCommunityIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= 4) return prev;
+      return [...prev, id];
+    });
+  }
+
+  function changeEnneagramScore(index: number, delta: number) {
+    setEnneagramScores((prev) => {
+      const next = [...prev];
+      next[index] = Math.max(0, Math.min(10, next[index] + delta));
+      return next;
+    });
+  }
 
   async function handleSave() {
     if (!name.trim()) {
@@ -68,6 +101,8 @@ export default function AccountEditScreen() {
         youtubeUrl: youtubeUrl.trim() || null,
         xUrl: xUrl.trim() || null,
         phoneNumber: phoneNumber.trim() || null,
+        enneagramScores,
+        pinnedCommunityIds,
       });
       Alert.alert("保存しました", "登録情報を更新しました", [
         {
@@ -259,6 +294,61 @@ export default function AccountEditScreen() {
             />
           </View>
 
+          <Text style={styles.sectionTitle}>プロフィール表示（他ユーザー向け）</Text>
+          <Text style={styles.sectionHint}>人から見たプロフィールに表示されます</Text>
+
+          <Text style={styles.label}>エニアグラム</Text>
+          <View style={styles.enneagramWrap}>
+            <EnneagramChart scores={enneagramScores} />
+            <View style={styles.enneagramControls}>
+              {ENNEAGRAM_TYPES.map((t, i) => (
+                <View key={i} style={styles.enneagramRow}>
+                  <View style={[styles.enneagramDot, { backgroundColor: t.color }]} />
+                  <Text style={styles.enneagramLabel}>{t.label}</Text>
+                  <Pressable style={styles.enneagramBtn} onPress={() => changeEnneagramScore(i, -1)}>
+                    <Ionicons name="remove" size={14} color={C.text} />
+                  </Pressable>
+                  <Text style={styles.enneagramValue}>{enneagramScores[i]}</Text>
+                  <Pressable style={styles.enneagramBtn} onPress={() => changeEnneagramScore(i, 1)}>
+                    <Ionicons name="add" size={14} color={C.text} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <Text style={styles.label}>参加コミュニティ厳選4つ</Text>
+          <Text style={styles.sectionHint}>プロフィールに表示するコミュニティを最大4つ選んでください</Text>
+          {myCommunities.length === 0 ? (
+            <Text style={styles.hintText}>参加中のコミュニティがありません</Text>
+          ) : (
+            <View style={styles.pinnedList}>
+              {myCommunities.map((c) => {
+                const isSelected = pinnedCommunityIds.includes(c.id);
+                const canSelect = isSelected || pinnedCommunityIds.length < 4;
+                return (
+                  <Pressable
+                    key={c.id}
+                    style={[styles.pinnedItem, isSelected && styles.pinnedItemSelected]}
+                    onPress={() => canSelect && togglePinnedCommunity(c.id)}
+                    disabled={!canSelect}
+                  >
+                    <Image source={{ uri: c.thumbnail }} style={styles.pinnedThumb} contentFit="cover" />
+                    <View style={styles.pinnedInfo}>
+                      <Text style={styles.pinnedName} numberOfLines={1}>{c.name}</Text>
+                      <Text style={styles.pinnedCategory} numberOfLines={1}>{c.category}</Text>
+                    </View>
+                    {isSelected ? (
+                      <Ionicons name="checkmark-circle" size={22} color={C.accent} />
+                    ) : (
+                      <View style={styles.pinnedCheckEmpty} />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+
           <View style={styles.footer}>
             <Pressable style={styles.cancelBtn} onPress={() => router.back()}>
               <Text style={styles.cancelText}>キャンセル</Text>
@@ -417,5 +507,46 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
   },
+  enneagramWrap: {
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+    alignItems: "center",
+  },
+  enneagramControls: { marginTop: 12, width: "100%", gap: 6 },
+  enneagramRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  enneagramDot: { width: 8, height: 8, borderRadius: 4 },
+  enneagramLabel: { flex: 1, color: C.text, fontSize: 12 },
+  enneagramBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: C.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  enneagramValue: { width: 20, textAlign: "center", color: C.text, fontSize: 13, fontWeight: "700" },
+  hintText: { color: C.textMuted, fontSize: 13, marginTop: 8 },
+  pinnedList: { marginTop: 8, gap: 8 },
+  pinnedItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  pinnedItemSelected: { borderColor: C.accent },
+  pinnedThumb: { width: 48, height: 36, borderRadius: 6 },
+  pinnedInfo: { flex: 1, marginLeft: 12 },
+  pinnedName: { color: C.text, fontSize: 13, fontWeight: "600" },
+  pinnedCategory: { color: C.textMuted, fontSize: 11, marginTop: 2 },
+  pinnedCheckEmpty: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: C.border },
 });
 

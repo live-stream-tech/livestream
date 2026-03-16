@@ -7,6 +7,7 @@ import {
   Pressable,
   Platform,
   Dimensions,
+  Modal,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -294,15 +295,17 @@ const DUMMY_CREATORS: Record<string, any[]> = {
 };
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
-/** 1.5枚分が画面に収まる幅（1枚目が大きく、右端に次のパネルが半分見える） */
-const PANEL_WIDTH = Math.floor(SCREEN_WIDTH * (2 / 3));
+/** サムネ幅（やや大きめ。右端に次のパネルが少し見える） */
+const PANEL_WIDTH = Math.floor(SCREEN_WIDTH * 0.75);
 
 function FeedTabRow({
   activeTab,
   onTabChange,
+  inline,
 }: {
   activeTab: FeedTab;
   onTabChange: (t: FeedTab) => void;
+  inline?: boolean;
 }) {
   const tabs: { key: FeedTab; label: string }[] = [
     { key: "all", label: "すべて" },
@@ -310,7 +313,7 @@ function FeedTabRow({
     { key: "recommended", label: "おすすめ" },
   ];
   return (
-    <View style={styles.feedTabRow}>
+    <View style={[styles.feedTabRow, inline && styles.feedTabRowInline]}>
       {tabs.map((t) => (
         <Pressable
           key={t.key}
@@ -334,6 +337,7 @@ export default function HomeScreen() {
   const [creatorTab, setCreatorTab] = useState<"ranking" | "twoshot">("ranking");
   const [videoFeedTab, setVideoFeedTab] = useState<FeedTab>("all");
   const [liveFeedTab, setLiveFeedTab] = useState<FeedTab>("all");
+  const [showAnnouncementsModal, setShowAnnouncementsModal] = useState(false);
 
   const { data: apiVideos = [] } = useQuery<any[]>({ queryKey: ["/api/videos"] });
   const { data: apiLive = [] } = useQuery<any[]>({ queryKey: ["/api/live-streams"] });
@@ -386,7 +390,7 @@ export default function HomeScreen() {
     {
       id: 0,
       title: "【イベント】「アイドル界隈コミュニティ」で賞金100万円イベント開催中",
-      body: "参加条件など詳細はコミュニティ内でご確認ください。",
+      body: "",
       type: "event",
       isPinned: true,
       createdAt: "",
@@ -474,7 +478,10 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* 運営からのお知らせ */}
-        <View style={styles.announcementSection}>
+        <Pressable
+          style={styles.announcementSection}
+          onPress={() => displayAnnouncements.length > 0 && setShowAnnouncementsModal(true)}
+        >
           <View style={styles.announcementSectionHeader}>
             <Ionicons name="megaphone-outline" size={16} color={C.accent} />
             <Text style={styles.announcementSectionTitle}>運営からのお知らせ</Text>
@@ -484,20 +491,55 @@ export default function HomeScreen() {
               <Text style={styles.announcementBody}>現在お知らせはありません</Text>
             </View>
           ) : (
-            displayAnnouncements.slice(0, 5).map((a) => (
-              <View key={a.id} style={styles.announcementCard}>
-                {a.isPinned && (
-                  <View style={styles.announcementPinned}>
-                    <Ionicons name="pin" size={10} color={C.orange} />
-                    <Text style={styles.announcementPinnedText}>固定</Text>
+            <>
+              {displayAnnouncements.slice(0, 3).map((a) => (
+                <View key={a.id} style={styles.announcementCard}>
+                  <View style={styles.announcementCardRow}>
+                    {a.isPinned && (
+                      <View style={styles.announcementPinned}>
+                        <Ionicons name="pin" size={10} color={C.orange} />
+                        <Text style={styles.announcementPinnedText}>固定</Text>
+                      </View>
+                    )}
+                    <Text style={styles.announcementTitle} numberOfLines={1}>{a.title}</Text>
                   </View>
-                )}
-                <Text style={styles.announcementTitle} numberOfLines={1}>{a.title}</Text>
-                <Text style={styles.announcementBody} numberOfLines={2}>{a.body}</Text>
-              </View>
-            ))
+                </View>
+              ))}
+              {displayAnnouncements.length > 3 && (
+                <Text style={styles.announcementMore}>タップして全て表示 ({displayAnnouncements.length}件)</Text>
+              )}
+            </>
           )}
-        </View>
+        </Pressable>
+
+        {/* お知らせ一覧モーダル */}
+        <Modal visible={showAnnouncementsModal} transparent animationType="slide">
+          <Pressable style={styles.modalOverlay} onPress={() => setShowAnnouncementsModal(false)}>
+            <Pressable style={styles.announcementModalSheet} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.announcementModalHeader}>
+                <Text style={styles.announcementModalTitle}>運営からのお知らせ</Text>
+                <Pressable onPress={() => setShowAnnouncementsModal(false)} hitSlop={8}>
+                  <Ionicons name="close" size={24} color={C.textMuted} />
+                </Pressable>
+              </View>
+              <ScrollView style={styles.announcementModalScroll} showsVerticalScrollIndicator={false}>
+                {displayAnnouncements.map((a) => (
+                  <View key={a.id} style={styles.announcementCard}>
+                    <View style={styles.announcementCardRow}>
+                      {a.isPinned && (
+                        <View style={styles.announcementPinned}>
+                          <Ionicons name="pin" size={10} color={C.orange} />
+                          <Text style={styles.announcementPinnedText}>固定</Text>
+                        </View>
+                      )}
+                      <Text style={styles.announcementTitle} numberOfLines={1}>{a.title}</Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         {/* Juke bot - 再生中のみ表示 */}
         {user && randomCommunityId && randomCommunity && jukeboxData?.state?.isPlaying && (
@@ -526,11 +568,13 @@ export default function HomeScreen() {
         )}
 
         {/* 新着動画 */}
-        <View style={styles.sectionHeader}>
-          <Ionicons name="sparkles" size={16} color={C.accent} />
-          <Text style={styles.sectionTitle}>新着動画</Text>
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionHeaderLeft}>
+            <Ionicons name="sparkles" size={16} color={C.accent} />
+            <Text style={styles.sectionTitle}>新着動画</Text>
+          </View>
+          <FeedTabRow activeTab={videoFeedTab} onTabChange={setVideoFeedTab} inline />
         </View>
-        <FeedTabRow activeTab={videoFeedTab} onTabChange={setVideoFeedTab} />
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -542,17 +586,17 @@ export default function HomeScreen() {
         </ScrollView>
 
         {/* 現在ライブ中 */}
-        <View style={[styles.sectionHeader, { marginTop: 40 }]}>
-          <View style={styles.liveDotInline} />
-          <Text style={styles.sectionTitle}>現在ライブ中</Text>
-        </View>
-        <View style={styles.feedTabRowWithViewAll}>
-          <View style={styles.feedTabRowWithViewAllLeft}>
-            <FeedTabRow activeTab={liveFeedTab} onTabChange={setLiveFeedTab} />
+        <View style={[styles.sectionHeaderRow, { marginTop: 40 }]}>
+          <View style={styles.sectionHeaderLeft}>
+            <View style={styles.liveDotInline} />
+            <Text style={styles.sectionTitle}>now</Text>
           </View>
-          <Pressable style={styles.viewAllBtn}>
-            <Text style={styles.viewAllText}>VIEW ALL</Text>
-          </Pressable>
+          <View style={styles.feedTabRowWithViewAllRight}>
+            <FeedTabRow activeTab={liveFeedTab} onTabChange={setLiveFeedTab} inline />
+            <Pressable style={styles.viewAllBtn}>
+              <Text style={styles.viewAllText}>VIEW ALL</Text>
+            </Pressable>
+          </View>
         </View>
         <ScrollView
           horizontal
@@ -765,11 +809,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
   },
+  announcementCardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   announcementPinned: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginBottom: 6,
   },
   announcementPinnedText: {
     color: C.orange,
@@ -777,15 +825,47 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   announcementTitle: {
+    flex: 1,
     color: C.text,
     fontSize: 13,
     fontWeight: "700",
   },
-  announcementBody: {
-    color: C.textMuted,
+  announcementMore: {
+    color: C.accent,
     fontSize: 12,
-    marginTop: 4,
-    lineHeight: 18,
+    fontWeight: "600",
+    marginTop: 8,
+    textAlign: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  announcementModalSheet: {
+    backgroundColor: C.bg,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "80%",
+  },
+  announcementModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  announcementModalTitle: {
+    color: C.text,
+    fontSize: 17,
+    fontWeight: "700",
+  },
+  announcementModalScroll: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingBottom: 40,
   },
   jukeBotCard: {
     marginHorizontal: 16,
@@ -924,6 +1004,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 10,
   },
+  feedTabRowInline: {
+    paddingHorizontal: 0,
+    marginBottom: 0,
+  },
   feedTabRowWithViewAll: {
     flexDirection: "row",
     alignItems: "center",
@@ -933,6 +1017,11 @@ const styles = StyleSheet.create({
   },
   feedTabRowWithViewAllLeft: {
     flex: 1,
+  },
+  feedTabRowWithViewAllRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   feedTab: {
     paddingHorizontal: 12,

@@ -13,9 +13,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { Linking } from "react-native";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/query-client";
 import { C } from "@/constants/colors";
-import { getTabTopInset } from "@/constants/layout";
+import { EnneagramChart } from "@/components/EnneagramChart";
+
+type PinnedCommunity = {
+  id: number;
+  name: string;
+  thumbnail: string;
+  category: string;
+};
 
 type UserProfile = {
   id: number;
@@ -27,6 +33,8 @@ type UserProfile = {
   instagramUrl?: string | null;
   youtubeUrl?: string | null;
   xUrl?: string | null;
+  enneagramScores?: number[] | null;
+  pinnedCommunities?: PinnedCommunity[];
 };
 
 type VideoItem = {
@@ -36,6 +44,8 @@ type VideoItem = {
   community: string;
   timeAgo?: string;
 };
+
+const DEFAULT_ENNEAGRAM = [6, 5, 7, 4, 8, 5, 6, 4, 7];
 
 export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -87,6 +97,8 @@ export default function UserProfileScreen() {
   }
 
   const avatar = profile.avatar ?? profile.profileImageUrl ?? null;
+  const enneagramScores = profile.enneagramScores ?? DEFAULT_ENNEAGRAM;
+  const pinnedCommunities = profile.pinnedCommunities ?? [];
 
   return (
     <View style={[styles.container, { paddingTop: topInset }]}>
@@ -99,6 +111,7 @@ export default function UserProfileScreen() {
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* 写真・名前・公開情報 */}
         <View style={styles.profileCard}>
           <View style={styles.avatarWrap}>
             {avatar ? (
@@ -133,6 +146,35 @@ export default function UserProfileScreen() {
           ) : null}
         </View>
 
+        {/* 参加コミュニティ厳選4つ（パネル表示） */}
+        {pinnedCommunities.length > 0 && (
+          <View style={styles.communitiesSection}>
+            <Text style={styles.sectionTitle}>参加コミュニティ</Text>
+            <View style={styles.communityGrid}>
+              {pinnedCommunities.slice(0, 4).map((c) => (
+                <Pressable
+                  key={c.id}
+                  style={styles.communityPanel}
+                  onPress={() => router.push(`/community/${c.id}`)}
+                >
+                  <Image source={{ uri: c.thumbnail }} style={styles.communityThumb} contentFit="cover" />
+                  <Text style={styles.communityName} numberOfLines={2}>{c.name}</Text>
+                  <Text style={styles.communityCategory} numberOfLines={1}>{c.category}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* エニアグラム */}
+        <View style={styles.enneagramSection}>
+          <Text style={styles.sectionTitle}>ENNEAGRAM</Text>
+          <View style={styles.enneagramWrap}>
+            <EnneagramChart scores={enneagramScores} />
+          </View>
+        </View>
+
+        {/* 投稿一覧 */}
         <View style={styles.postsSection}>
           <Text style={styles.postsTitle}>投稿</Text>
           {posts.length === 0 ? (
@@ -156,6 +198,7 @@ export default function UserProfileScreen() {
             ))
           )}
         </View>
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -183,17 +226,55 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   avatarWrap: { marginBottom: 12 },
-  avatar: { width: 80, height: 80, borderRadius: 40 },
+  avatar: { width: 100, height: 100, borderRadius: 50 },
   avatarFallback: {
     backgroundColor: C.surface2,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarInitial: { color: C.textMuted, fontSize: 28, fontWeight: "700" },
-  name: { color: C.text, fontSize: 18, fontWeight: "800", marginBottom: 8 },
-  bio: { color: C.textSec, fontSize: 14, lineHeight: 20, textAlign: "center", maxWidth: "100%" },
+  avatarInitial: { color: C.textMuted, fontSize: 36, fontWeight: "700" },
+  name: { color: C.text, fontSize: 20, fontWeight: "800", marginBottom: 8 },
+  bio: { color: C.textSec, fontSize: 14, lineHeight: 22, textAlign: "center", maxWidth: "100%" },
   socialRow: { flexDirection: "row", gap: 12, marginTop: 12 },
   socialBtn: { padding: 8 },
+  sectionTitle: {
+    color: C.textSec,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1,
+    marginBottom: 12,
+    paddingHorizontal: 16,
+  },
+  communitiesSection: { paddingHorizontal: 16, paddingBottom: 24 },
+  communityGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  communityPanel: {
+    width: "47%",
+    backgroundColor: C.surface2,
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  communityThumb: { width: "100%", height: 72, backgroundColor: C.surface3 },
+  communityName: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+    paddingHorizontal: 10,
+    paddingTop: 8,
+  },
+  communityCategory: {
+    color: C.textMuted,
+    fontSize: 11,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+  },
+  enneagramSection: { paddingHorizontal: 16, paddingBottom: 24, alignItems: "center" },
+  enneagramWrap: { backgroundColor: C.surface2, borderRadius: 16, padding: 16 },
   postsSection: { paddingHorizontal: 16, paddingBottom: 32 },
   postsTitle: { color: C.text, fontSize: 16, fontWeight: "700", marginBottom: 12 },
   emptyText: { color: C.textMuted, fontSize: 14, paddingVertical: 24 },

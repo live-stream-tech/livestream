@@ -397,6 +397,10 @@ export const users = pgTable("users", {
   googleRefreshToken: text("google_refresh_token"),
   googleAccessToken: text("google_access_token"),
   googleTokenExpiresAt: timestamp("google_token_expires_at"),
+  /** エニアグラム9型スコア（JSON配列 [1-9]） */
+  enneagramScores: text("enneagram_scores"),
+  /** プロフィールに表示する厳選コミュニティ4つ（JSON配列 [communityId, ...]） */
+  pinnedCommunityIds: text("pinned_community_ids"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

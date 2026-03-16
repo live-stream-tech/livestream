@@ -19,13 +19,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Svg, { Polygon, Circle, Line, Text as SvgText } from "react-native-svg";
 import { useAuth } from "@/lib/auth";
 import { C } from "@/constants/colors";
 import { getTabTopInset, getTabBottomInset } from "@/constants/layout";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { AppLogo } from "@/components/AppLogo";
 import { MetallicLine } from "@/components/MetallicLine";
+import { EnneagramChart } from "@/components/EnneagramChart";
 import { saveLoginReturn } from "@/lib/login-return";
 
 type Notif = { id: number; isRead: boolean };
@@ -198,126 +198,6 @@ function usePwaInstallBanner() {
   };
 }
 
-function getPolygonPoints(
-  cx: number,
-  cy: number,
-  radius: number,
-  scores: number[],
-  max = 10
-): string {
-  const n = scores.length;
-  return scores
-    .map((s, i) => {
-      const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
-      const r = (s / max) * radius;
-      const x = cx + r * Math.cos(angle);
-      const y = cy + r * Math.sin(angle);
-      return `${x},${y}`;
-    })
-    .join(" ");
-}
-
-function getAxisPoints(cx: number, cy: number, radius: number, n: number) {
-  return Array.from({ length: n }, (_, i) => {
-    const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
-    return {
-      x: cx + radius * Math.cos(angle),
-      y: cy + radius * Math.sin(angle),
-    };
-  });
-}
-
-function getLabelPoints(cx: number, cy: number, radius: number, n: number) {
-  return Array.from({ length: n }, (_, i) => {
-    const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
-    const r = radius + 18;
-    return {
-      x: cx + r * Math.cos(angle),
-      y: cy + r * Math.sin(angle),
-    };
-  });
-}
-
-function EnneagramChart({ scores }: { scores: number[] }) {
-  const SIZE = 240;
-  const cx = SIZE / 2;
-  const cy = SIZE / 2;
-  const RADIUS = 80;
-  const rings = [2, 4, 6, 8, 10];
-
-  const axisPoints = getAxisPoints(cx, cy, RADIUS, 9);
-  const labelPoints = getLabelPoints(cx, cy, RADIUS, 9);
-  const filledPoints = getPolygonPoints(cx, cy, RADIUS, scores);
-
-  return (
-    <Svg width={SIZE} height={SIZE}>
-      {rings.map((r) => {
-        const pts = getPolygonPoints(cx, cy, RADIUS, Array(9).fill(r));
-        return (
-          <Polygon
-            key={r}
-            points={pts}
-            fill="none"
-            stroke={r === 10 ? C.border : "rgba(255,255,255,0.06)"}
-            strokeWidth={r === 10 ? 1 : 0.8}
-          />
-        );
-      })}
-
-      {axisPoints.map((pt, i) => (
-        <Line
-          key={i}
-          x1={cx}
-          y1={cy}
-          x2={pt.x}
-          y2={pt.y}
-          stroke="rgba(255,255,255,0.1)"
-          strokeWidth={1}
-        />
-      ))}
-
-      <Polygon
-        points={filledPoints}
-        fill="rgba(41,182,207,0.25)"
-        stroke={C.accent}
-        strokeWidth={2}
-        strokeLinejoin="round"
-      />
-
-      {scores.map((s, i) => {
-        const angle = (Math.PI * 2 * i) / 9 - Math.PI / 2;
-        const r = (s / 10) * RADIUS;
-        return (
-          <Circle
-            key={i}
-            cx={cx + r * Math.cos(angle)}
-            cy={cy + r * Math.sin(angle)}
-            r={4}
-            fill={ENNEAGRAM_TYPES[i].color}
-            stroke="#0A1218"
-            strokeWidth={1.5}
-          />
-        );
-      })}
-
-      {labelPoints.map((pt, i) => (
-        <SvgText
-          key={i}
-          x={pt.x}
-          y={pt.y}
-          fill="rgba(255,255,255,0.65)"
-          fontSize="9"
-          fontWeight="700"
-          textAnchor="middle"
-          alignmentBaseline="middle"
-        >
-          {ENNEAGRAM_TYPES[i].num}
-        </SvgText>
-      ))}
-    </Svg>
-  );
-}
-
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const topInset = getTabTopInset(insets);
@@ -392,6 +272,11 @@ export default function ProfileScreen() {
   });
 
   useEffect(() => {
+    if (user?.enneagramScores && user.enneagramScores.length === 9) {
+      setScores(user.enneagramScores);
+      setEditScores(user.enneagramScores);
+      return;
+    }
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
       if (raw) {
         try {
@@ -403,7 +288,7 @@ export default function ProfileScreen() {
         } catch {}
       }
     });
-  }, []);
+  }, [user?.enneagramScores]);
 
   function openEdit() {
     setEditScores([...scores]);
@@ -424,9 +309,12 @@ export default function ProfileScreen() {
     }).start(() => setShowEditModal(false));
   }
 
-  function saveScores() {
+  async function saveScores() {
     setScores([...editScores]);
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(editScores));
+    try {
+      await updateProfile({ enneagramScores: editScores });
+    } catch {}
     closeEdit();
   }
 
@@ -1011,6 +899,29 @@ export default function ProfileScreen() {
                     {user?.xUrl && <View style={styles.socialIconBtn}><Ionicons name="logo-twitter" size={22} color="#1DA1F2" /></View>}
                   </View>
                 ) : null}
+              </View>
+              {user?.pinnedCommunityIds && user.pinnedCommunityIds.length > 0 && myCommunities.length > 0 && (
+                <View style={styles.previewCommunitiesSection}>
+                  <Text style={styles.previewSectionTitle}>参加コミュニティ</Text>
+                  <View style={styles.previewCommunityGrid}>
+                    {user.pinnedCommunityIds.slice(0, 4).map((cid) => {
+                      const c = myCommunities.find((m) => m.id === cid);
+                      if (!c) return null;
+                      return (
+                        <Pressable key={c.id} style={styles.previewCommunityChip} onPress={() => router.push(`/community/${c.id}`)}>
+                          <Image source={{ uri: c.thumbnail }} style={styles.previewCommunityThumb} contentFit="cover" />
+                          <Text style={styles.previewCommunityName} numberOfLines={1}>{c.name}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+              <View style={styles.previewEnneagramSection}>
+                <Text style={styles.previewSectionTitle}>ENNEAGRAM</Text>
+                <View style={styles.previewEnneagramWrap}>
+                  <EnneagramChart scores={scores} />
+                </View>
               </View>
               <View style={styles.previewPostsSection}>
                 <Text style={styles.postsTitle}>投稿</Text>

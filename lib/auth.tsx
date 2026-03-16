@@ -21,6 +21,8 @@ export type User = {
   youtubeUrl?: string | null;
   xUrl?: string | null;
   phoneNumber?: string | null;
+  enneagramScores?: number[] | null;
+  pinnedCommunityIds?: number[];
 };
 
 type AuthCtx = {
@@ -29,7 +31,7 @@ type AuthCtx = {
   loading: boolean;
   loginWithToken: (token: string) => Promise<void>;
   logout: () => void;
-  updateProfile: (data: Partial<Pick<User, "name" | "bio" | "avatar" | "spotifyUrl" | "appleMusicUrl" | "bandcampUrl" | "instagramUrl" | "youtubeUrl" | "xUrl" | "phoneNumber">>) => Promise<void>;
+  updateProfile: (data: Partial<Pick<User, "name" | "bio" | "avatar" | "spotifyUrl" | "appleMusicUrl" | "bandcampUrl" | "instagramUrl" | "youtubeUrl" | "xUrl" | "phoneNumber">> & { enneagramScores?: number[] | null; pinnedCommunityIds?: number[] | null }) => Promise<void>;
   /** 未ログイン時にLINEログインへ誘導する。戻り値はログイン済みなら true */
   requireAuth: (actionLabel?: string) => boolean;
 };
@@ -74,6 +76,8 @@ function normalizeMe(me: Record<string, unknown>): User {
     youtubeUrl: (me.youtubeUrl ?? null) as string | null,
     xUrl: (me.xUrl ?? null) as string | null,
     phoneNumber: (me.phoneNumber ?? null) as string | null,
+    enneagramScores: (me.enneagramScores ?? null) as number[] | null,
+    pinnedCommunityIds: (me.pinnedCommunityIds ?? []) as number[],
   };
 }
 
@@ -116,9 +120,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace("/auth/login");
   }, []);
 
-  const updateProfile = useCallback(async (data: Partial<Pick<User, "name" | "bio" | "avatar" | "spotifyUrl" | "appleMusicUrl" | "bandcampUrl" | "instagramUrl" | "youtubeUrl" | "xUrl" | "phoneNumber">>) => {
+  const updateProfile = useCallback(async (data: Partial<Pick<User, "name" | "bio" | "avatar" | "spotifyUrl" | "appleMusicUrl" | "bandcampUrl" | "instagramUrl" | "youtubeUrl" | "xUrl" | "phoneNumber">> & { enneagramScores?: number[] | null; pinnedCommunityIds?: number[] | null }) => {
     const t = await AsyncStorage.getItem(TOKEN_KEY);
-    const payload: Record<string, string | null> = {};
+    const payload: Record<string, string | null | number[]> = {};
     if (data.name !== undefined) payload.name = data.name;
     if (data.bio !== undefined) payload.bio = data.bio;
     if (data.avatar !== undefined) payload.avatar = data.avatar;
@@ -129,6 +133,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (data.youtubeUrl !== undefined) payload.youtubeUrl = data.youtubeUrl;
     if (data.xUrl !== undefined) payload.xUrl = data.xUrl;
     if (data.phoneNumber !== undefined) payload.phoneNumber = data.phoneNumber;
+    if (data.enneagramScores !== undefined) payload.enneagramScores = data.enneagramScores;
+    if (data.pinnedCommunityIds !== undefined) payload.pinnedCommunityIds = data.pinnedCommunityIds;
     const updated = await apiFetch("/api/auth/profile", {
       method: "PUT",
       headers: { Authorization: `Bearer ${t}` },

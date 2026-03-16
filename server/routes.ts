@@ -159,6 +159,26 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.get("/api/auth/me", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
+    const [u] = await db.select({
+      enneagramScores: users.enneagramScores,
+      pinnedCommunityIds: users.pinnedCommunityIds,
+    }).from(users).where(eq(users.id, user.id));
+    let enneagramScores: number[] | null = null;
+    let pinnedCommunityIds: number[] = [];
+    if (u) {
+      if ((u as any).enneagramScores) {
+        try {
+          const p = JSON.parse((u as any).enneagramScores) as number[];
+          if (Array.isArray(p) && p.length === 9) enneagramScores = p;
+        } catch {}
+      }
+      if ((u as any).pinnedCommunityIds) {
+        try {
+          const p = JSON.parse((u as any).pinnedCommunityIds) as number[];
+          if (Array.isArray(p)) pinnedCommunityIds = p;
+        } catch {}
+      }
+    }
     res.json({
       id: user.id,
       name: user.displayName,
@@ -175,6 +195,8 @@ export async function registerRoutes(app: Express): Promise<void> {
       youtubeUrl: (user as any).youtubeUrl ?? null,
       xUrl: (user as any).xUrl ?? null,
       phoneNumber: (user as any).phoneNumber ?? null,
+      enneagramScores,
+      pinnedCommunityIds,
     });
   });
 
@@ -369,7 +391,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.put("/api/auth/profile", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
-    const { name, displayName, bio, avatar, profileImageUrl, spotifyUrl, appleMusicUrl, bandcampUrl, instagramUrl, youtubeUrl, xUrl, phoneNumber } = req.body as {
+    const { name, displayName, bio, avatar, profileImageUrl, spotifyUrl, appleMusicUrl, bandcampUrl, instagramUrl, youtubeUrl, xUrl, phoneNumber, enneagramScores, pinnedCommunityIds } = req.body as {
       name?: string;
       displayName?: string;
       bio?: string;
@@ -382,11 +404,25 @@ export async function registerRoutes(app: Express): Promise<void> {
       youtubeUrl?: string | null;
       xUrl?: string | null;
       phoneNumber?: string | null;
+      enneagramScores?: number[] | null;
+      pinnedCommunityIds?: number[] | null;
     };
     const newName = name ?? displayName ?? user.displayName;
     const newBio = bio ?? user.bio;
     const newAvatar = avatar ?? profileImageUrl ?? user.profileImageUrl;
     const newPhone = phoneNumber !== undefined ? (phoneNumber?.trim() || null) : undefined;
+    const enneagramJson =
+      enneagramScores !== undefined
+        ? Array.isArray(enneagramScores) && enneagramScores.length === 9
+          ? JSON.stringify(enneagramScores)
+          : null
+        : undefined;
+    const pinnedJson =
+      pinnedCommunityIds !== undefined
+        ? Array.isArray(pinnedCommunityIds)
+          ? JSON.stringify(pinnedCommunityIds.slice(0, 4))
+          : null
+        : undefined;
     const [updated] = await db
       .update(users)
       .set({
@@ -400,10 +436,26 @@ export async function registerRoutes(app: Express): Promise<void> {
         ...(youtubeUrl !== undefined ? { youtubeUrl: youtubeUrl?.trim() || null } : {}),
         ...(xUrl !== undefined ? { xUrl: xUrl?.trim() || null } : {}),
         ...(newPhone !== undefined && { phoneNumber: newPhone }),
+        ...(enneagramJson !== undefined && { enneagramScores: enneagramJson }),
+        ...(pinnedJson !== undefined && { pinnedCommunityIds: pinnedJson }),
         updatedAt: new Date(),
       } as Partial<typeof users.$inferInsert>)
       .where(eq(users.id, user.id))
       .returning();
+    let outEnneagram: number[] | null = null;
+    let outPinned: number[] = [];
+    if ((updated as any).enneagramScores) {
+      try {
+        const p = JSON.parse((updated as any).enneagramScores) as number[];
+        if (Array.isArray(p) && p.length === 9) outEnneagram = p;
+      } catch {}
+    }
+    if ((updated as any).pinnedCommunityIds) {
+      try {
+        const p = JSON.parse((updated as any).pinnedCommunityIds) as number[];
+        if (Array.isArray(p)) outPinned = p;
+      } catch {}
+    }
     res.json({
       id: updated.id,
       name: updated.displayName,
@@ -417,6 +469,8 @@ export async function registerRoutes(app: Express): Promise<void> {
       bandcampUrl: updated.bandcampUrl ?? null,
       instagramUrl: (updated as any).instagramUrl ?? null,
       youtubeUrl: (updated as any).youtubeUrl ?? null,
+      enneagramScores: outEnneagram,
+      pinnedCommunityIds: outPinned,
       xUrl: (updated as any).xUrl ?? null,
     });
   });
@@ -471,8 +525,40 @@ export async function registerRoutes(app: Express): Promise<void> {
       spotifyUrl: users.spotifyUrl,
       appleMusicUrl: users.appleMusicUrl,
       bandcampUrl: users.bandcampUrl,
+      enneagramScores: users.enneagramScores,
+      pinnedCommunityIds: users.pinnedCommunityIds,
     }).from(users).where(eq(users.id, id));
     if (!u) return res.status(404).json({ error: "Not found" });
+
+    let pinnedCommunities: { id: number; name: string; thumbnail: string; category: string }[] = [];
+    const pinnedRaw = (u as any).pinnedCommunityIds;
+    if (pinnedRaw && typeof pinnedRaw === "string") {
+      try {
+        const ids = JSON.parse(pinnedRaw) as number[];
+        if (Array.isArray(ids) && ids.length > 0) {
+          const rows = await db
+            .select({ id: communities.id, name: communities.name, thumbnail: communities.thumbnail, category: communities.category })
+            .from(communities)
+            .where(inArray(communities.id, ids.slice(0, 4)));
+          pinnedCommunities = rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            thumbnail: r.thumbnail,
+            category: r.category,
+          }));
+        }
+      } catch {}
+    }
+
+    let enneagramScores: number[] | null = null;
+    const scoresRaw = (u as any).enneagramScores;
+    if (scoresRaw && typeof scoresRaw === "string") {
+      try {
+        const parsed = JSON.parse(scoresRaw) as number[];
+        if (Array.isArray(parsed) && parsed.length === 9) enneagramScores = parsed;
+      } catch {}
+    }
+
     res.json({
       id: u.id,
       name: u.displayName,
@@ -486,6 +572,8 @@ export async function registerRoutes(app: Express): Promise<void> {
       spotifyUrl: (u as any).spotifyUrl ?? null,
       appleMusicUrl: (u as any).appleMusicUrl ?? null,
       bandcampUrl: (u as any).bandcampUrl ?? null,
+      enneagramScores,
+      pinnedCommunities,
     });
   });
 
