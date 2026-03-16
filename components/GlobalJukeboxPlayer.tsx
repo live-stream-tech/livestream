@@ -185,10 +185,12 @@ export function GlobalJukeboxPlayer() {
   const handleNextRef = useRef(handleNext);
   handleNextRef.current = handleNext;
 
-  // YouTube IFrame プレイヤー（Webのみ）
+  // YouTube IFrame プレイヤー（Webのみ）。jukebox ページでは NowPlaying が再生するため、ここでは作らない
+  const isOnJukeboxPage = pathname?.match(/^\/jukebox\/\d+/) != null;
   useEffect(() => {
     if (Platform.OS !== "web") return;
     if (!communityId) return;
+    if (isOnJukeboxPage) return;
 
     // 再生対象がない場合はプレイヤー破棄
     if (!state?.currentVideoYoutubeId) {
@@ -265,7 +267,6 @@ export function GlobalJukeboxPlayer() {
             videoId: state.currentVideoYoutubeId,
             playerVars: {
               autoplay: 1,
-              mute: 1,
               rel: 0,
               controls: 1,
               disablekb: 0,
@@ -273,6 +274,13 @@ export function GlobalJukeboxPlayer() {
               start: Math.floor(startSec),
             },
             events: {
+              onReady: (event: any) => {
+                try {
+                  event.target?.unMute?.();
+                } catch {
+                  // ignore
+                }
+              },
               onStateChange: (event: any) => {
                 try {
                   const w = window as any;
@@ -303,7 +311,7 @@ export function GlobalJukeboxPlayer() {
       }
     };
   // 依存は currentVideoYoutubeId のみ。handleNext を入れるとポーリングのたびにプレイヤー再作成→カクつき
-  }, [communityId, state?.currentVideoYoutubeId]);
+  }, [communityId, state?.currentVideoYoutubeId, isOnJukeboxPage]);
 
   // コミュニティ/jukebox ページ以外では何も表示しない
   if (!communityId) return null;
@@ -311,7 +319,7 @@ export function GlobalJukeboxPlayer() {
   // 再生中でない場合は何も表示しない（jukebox ページで直接視聴）
   if (!state) return null;
 
-  // デフォルト非表示: タップでポップアップを表示
+  // デフォルト非表示: タップでポップアップを表示。dismissed 時もプレイヤーコンテナは非表示で維持し音声を途切れさせない
   if (dismissed) {
     return (
       <View pointerEvents="box-none" style={[styles.root, { left: 0, right: 0, top: 0, bottom: 0 }]}>
@@ -322,6 +330,22 @@ export function GlobalJukeboxPlayer() {
           <Ionicons name="musical-notes" size={20} color="#fff" />
           <Text style={styles.fabText}>Jukebox</Text>
         </Pressable>
+        {Platform.OS === "web" && state.currentVideoYoutubeId && !isOnJukeboxPage ? (
+          <View
+            style={[
+              styles.youtubeContainer,
+              {
+                position: "absolute",
+                width: 1,
+                height: 1,
+                opacity: 0,
+                overflow: "hidden",
+                left: -9999,
+              },
+            ]}
+            nativeID={containerIdRef.current}
+          />
+        ) : null}
       </View>
     );
   }
@@ -351,17 +375,10 @@ export function GlobalJukeboxPlayer() {
       >
         <Pressable
           style={styles.mainRow}
-          onPress={() => {
-            try {
-              youtubePlayerRef.current?.unMute?.();
-            } catch {
-              // ignore
-            }
-            setMinimized((v) => !v);
-          }}
+          onPress={() => setMinimized((v) => !v)}
         >
           <View style={styles.thumbWrap}>
-            {Platform.OS === "web" && state.currentVideoYoutubeId ? (
+            {Platform.OS === "web" && state.currentVideoYoutubeId && !isOnJukeboxPage ? (
               <View style={styles.youtubeContainer} nativeID={containerIdRef.current} />
             ) : state.currentVideoThumbnail ? (
               <Image

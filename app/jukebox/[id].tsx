@@ -193,13 +193,17 @@ function NowPlaying({
           videoId: vid,
           playerVars: {
             autoplay: 1,
-            mute: 1,
             rel: 0,
             controls: 1,
             playsinline: 1,
             start: Math.floor(startSec),
           },
           events: {
+            onReady: (e: any) => {
+              try {
+                e.target?.unMute?.();
+              } catch {}
+            },
             onStateChange: (e: any) => {
               try {
                 if (e.data === (window as any).YT?.PlayerState?.ENDED) onNextRef.current();
