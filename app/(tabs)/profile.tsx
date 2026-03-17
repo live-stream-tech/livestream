@@ -764,8 +764,10 @@ export default function ProfileScreen() {
 
         <View style={styles.postsHeader}>
           <View style={styles.postsLeft}>
-            <Text style={styles.postsTitle}>タイムライン</Text>
-            <Text style={styles.postsCount}>{myVideos.length}</Text>
+            <Text style={styles.postsTitle}>日常</Text>
+            <Text style={styles.postsCount}>
+              {myVideos.filter((v: any) => (v as any).postType === "daily" || !(v as any).postType).length}
+            </Text>
           </View>
           <Pressable style={styles.uploadBtn} onPress={() => router.push("/upload")}>
             <Ionicons name="add" size={16} color="#fff" />
@@ -774,7 +776,10 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.timelineList}>
-          {myVideos.slice(0, 4).map((video) => (
+          {myVideos
+            .filter((v: any) => (v as any).postType === "daily" || !(v as any).postType)
+            .slice(0, 4)
+            .map((video) => (
             <View key={video.id} style={styles.timelineItem}>
               <Pressable
                 style={styles.timelineMain}
@@ -799,10 +804,61 @@ export default function ProfileScreen() {
               </Pressable>
             </View>
           ))}
-          {myVideos.length === 0 && (
+          {myVideos.filter((v: any) => (v as any).postType === "daily" || !(v as any).postType).length === 0 && (
             <View style={styles.timelineEmpty}>
-              <Text style={styles.timelineEmptyText}>まだ投稿がありません</Text>
-              <Text style={styles.timelineEmptySub}>左下の「投稿する」から最初の投稿をしてみましょう</Text>
+              <Text style={styles.timelineEmptyText}>まだ日常投稿がありません</Text>
+              <Text style={styles.timelineEmptySub}>「投稿する」から手軽に投稿してみましょう</Text>
+            </View>
+          )}
+        </View>
+
+        {/* 作品タイムライン */}
+        <View style={styles.postsHeader}>
+          <View style={styles.postsLeft}>
+            <Text style={styles.postsTitle}>作品</Text>
+            <Text style={styles.postsCount}>
+              {myVideos.filter((v: any) => (v as any).postType === "work").length}
+            </Text>
+          </View>
+          <Pressable style={styles.uploadBtn} onPress={() => router.push("/upload/work")}>
+            <Ionicons name="add" size={16} color="#fff" />
+            <Text style={styles.uploadBtnText}>作品を投稿</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.timelineList}>
+          {myVideos
+            .filter((v: any) => (v as any).postType === "work")
+            .slice(0, 4)
+            .map((video) => (
+            <View key={video.id} style={styles.timelineItem}>
+              <Pressable
+                style={styles.timelineMain}
+                onPress={() => router.push(`/video/${video.id}`)}
+              >
+                <Image source={{ uri: video.thumbnail }} style={styles.timelineThumb} contentFit="cover" />
+                <View style={styles.timelineBody}>
+                  <Text style={styles.timelineTitle} numberOfLines={2}>
+                    {video.title}
+                  </Text>
+                  <Text style={styles.timelineMeta} numberOfLines={1}>
+                    {video.community} ・ {video.timeAgo ?? "たった今"}
+                  </Text>
+                </View>
+              </Pressable>
+              <Pressable
+                style={styles.timelineDeleteBtn}
+                onPress={() => deleteVideo(video.id)}
+                hitSlop={8}
+              >
+                <Ionicons name="trash-outline" size={16} color={C.textMuted} />
+              </Pressable>
+            </View>
+          ))}
+          {myVideos.filter((v: any) => (v as any).postType === "work").length === 0 && (
+            <View style={styles.timelineEmpty}>
+              <Text style={styles.timelineEmptyText}>まだ作品がありません</Text>
+              <Text style={styles.timelineEmptySub}>「作品を投稿」から記事＋写真（＋動画）を投稿できます</Text>
             </View>
           )}
         </View>
@@ -1430,7 +1486,7 @@ const styles = StyleSheet.create({
     gap: 8,
     flex: 1,
   },
-  timelineThumb: { width: 40, height: 40, borderRadius: 3, backgroundColor: C.surface2 },
+  timelineThumb: { width: 64, aspectRatio: 16 / 9, borderRadius: 3, backgroundColor: C.surface2 },
   timelineBody: { flex: 1 },
   timelineTitle: { color: C.text, fontSize: 12, fontWeight: "700", marginBottom: 1 },
   timelineMeta: { color: C.textMuted, fontSize: 10 },

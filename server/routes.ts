@@ -2522,7 +2522,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const rows = await db
       .select()
       .from(videos)
-      .where(and(eq(videos.isRanked, true), eq(videos.hidden, false)))
+      .where(and(eq(videos.postType, "work"), eq(videos.hidden, false)))
       .orderBy(asc(videos.rank));
     res.json(rows);
   });
@@ -2610,7 +2610,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
 
-    const { title, community, communityId, duration, price, thumbnail, description, concertId, visibility, videoUrl, youtubeId } = req.body as {
+    const { title, community, communityId, duration, price, thumbnail, description, concertId, visibility, videoUrl, youtubeId, postType } = req.body as {
       title?: string;
       community?: string;
       communityId?: number | null;
@@ -2622,6 +2622,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       visibility?: "draft" | "my_page_only" | "community";
       videoUrl?: string | null;
       youtubeId?: string | null;
+      postType?: "daily" | "work";
     };
 
     if (!title || !duration || !thumbnail) {
@@ -2656,6 +2657,8 @@ export async function registerRoutes(app: Express): Promise<void> {
         communityId: vis === "community" ? (communityId ?? null) : null,
         videoUrl: videoUrl?.trim() || null,
         youtubeId: youtubeId?.trim() || null,
+        postType: postType === "work" ? "work" : "daily",
+        isRanked: postType === "work",
       } as typeof videos.$inferInsert)
       .returning();
     res.status(201).json(row);

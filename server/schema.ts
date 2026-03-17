@@ -201,6 +201,8 @@ export const videos = pgTable("videos", {
   videoUrl: text("video_url"),
   /** YouTube動画ID。videoUrl と排他的に使用 */
   youtubeId: text("youtube_id"),
+  /** 投稿タイプ: daily=日常投稿（手軽・容量制限あり）, work=作品（記事+写真無料、動画価格設定可、ランキング対象） */
+  postType: text("post_type").notNull().default("daily"),
 });
 
 /** マイリスト（気に入った動画の保存） */

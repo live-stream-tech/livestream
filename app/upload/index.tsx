@@ -22,15 +22,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiRequest, ApiError, getApiUrl } from "@/lib/query-client";
 import { C } from "@/constants/colors";
 import { useAuth } from "@/lib/auth";
+import { DAILY_POST_LIMITS } from "@/constants/upload-limits";
 
-type FeeType = "free" | "paid";
-type PriceOption = 300 | 500 | 1000 | 2000 | 3000 | 5000;
-const PRICE_OPTIONS: PriceOption[] = [300, 500, 1000, 2000, 3000, 5000];
-
-type MediaItem = { id: string; uri: string; type: "image" | "video" };
+type MediaItem = { id: string; uri: string; type: "image" | "video"; size?: number; durationSec?: number };
 type Community = { id: number; name: string; thumbnail: string };
 
-export default function UploadScreen() {
+export default function DailyUploadScreen() {
   const insets = useSafeAreaInsets();
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -45,11 +42,7 @@ export default function UploadScreen() {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [selectedCommunityId, setSelectedCommunityId] = useState<number | null>(null);
   const [postTarget, setPostTarget] = useState<"my_page_only" | "community">("my_page_only");
-  const [postType, setPostType] = useState<"article" | "video">("article");
-  const [publishFromExisting, setPublishFromExisting] = useState(false);
   const [showPublishFromModal, setShowPublishFromModal] = useState(false);
-  const [fee, setFee] = useState<FeeType>("free");
-  const [price, setPrice] = useState<PriceOption>(500);
   const [addMenuVisible, setAddMenuVisible] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -57,13 +50,27 @@ export default function UploadScreen() {
     queryKey: ["/api/videos/my"],
     enabled: showPublishFromModal && !!user,
   });
-  const myPageOnlyVideos = myVideos.filter((v) => (v as any).visibility === "my_page_only" || (v as any).visibility === "draft");
+  const myPageOnlyVideos = myVideos.filter(
+    (v) => ((v as any).postType === "daily" || !(v as any).postType) && ((v as any).visibility === "my_page_only" || (v as any).visibility === "draft")
+  );
 
   const activeCommunityId = selectedCommunityId ?? communities[0]?.id ?? null;
   const selectedCommunity = communities.find((c) => c.id === activeCommunityId);
 
-  function addMedia(id: string, uri: string, type: "image" | "video") {
-    setMediaItems((prev) => [...prev, { id, uri, type }]);
+  const videoCount = mediaItems.filter((m) => m.type === "video").length;
+  const canAddMore = mediaItems.length < DAILY_POST_LIMITS.maxMediaCount;
+  const canAddVideo = videoCount < DAILY_POST_LIMITS.maxVideoCount;
+
+  function addMedia(id: string, uri: string, type: "image" | "video", size?: number, durationSec?: number) {
+    if (mediaItems.length >= DAILY_POST_LIMITS.maxMediaCount) {
+      Alert.alert("", `1件あたり${DAILY_POST_LIMITS.maxMediaCount}個までです`);
+      return;
+    }
+    if (type === "video" && videoCount >= DAILY_POST_LIMITS.maxVideoCount) {
+      Alert.alert("", "動画は1本までです");
+      return;
+    }
+    setMediaItems((prev) => [...prev, { id, uri, type, size, durationSec }]);
   }
 
   function removeMedia(id: string) {
@@ -71,6 +78,10 @@ export default function UploadScreen() {
   }
 
   async function uploadFileToR2Web(file: File) {
+    const maxBytes = DAILY_POST_LIMITS.maxFileSizeMB * 1024 * 1024;
+    if (file.size > maxBytes) {
+      throw new Error(`ファイルは${DAILY_POST_LIMITS.maxFileSizeMB}MBまでです`);
+    }
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     try {
       const token = await AsyncStorage.getItem("auth_token");
@@ -84,18 +95,14 @@ export default function UploadScreen() {
         contentType: file.type || "application/octet-stream",
       }),
     });
-    if (!res.ok) {
-      throw new Error("署名付きURLの取得に失敗しました");
-    }
+    if (!res.ok) throw new Error("署名付きURLの取得に失敗しました");
     const { uploadUrl, url } = await res.json();
     const putRes = await fetch(uploadUrl, {
       method: "PUT",
       headers: { "Content-Type": file.type || "application/octet-stream" },
       body: file,
     });
-    if (!putRes.ok) {
-      throw new Error("ファイルのアップロードに失敗しました");
-    }
+    if (!putRes.ok) throw new Error("ファイルのアップロードに失敗しました");
     return url as string;
   }
 
@@ -106,6 +113,9 @@ export default function UploadScreen() {
     });
     const { uploadUrl, url } = await resp.json();
     const blob = await (await fetch(uri)).blob();
+    if (blob.size > DAILY_POST_LIMITS.maxFileSizeMB * 1024 * 1024) {
+      throw new Error(`ファイルは${DAILY_POST_LIMITS.maxFileSizeMB}MBまでです`);
+    }
     await fetch(uploadUrl, {
       method: "PUT",
       headers: { "Content-Type": mime },
@@ -116,6 +126,7 @@ export default function UploadScreen() {
 
   async function pickPhoto() {
     setAddMenuVisible(false);
+    if (!canAddMore) return;
     if (Platform.OS === "web") {
       const input = document.createElement("input");
       input.type = "file";
@@ -126,11 +137,9 @@ export default function UploadScreen() {
         try {
           setUploading(true);
           const url = await uploadFileToR2Web(file);
-          addMedia(`img-${Date.now()}`, url, "image");
-          console.log("Uploaded image to:", url);
-        } catch (err) {
-          console.error(err);
-          Alert.alert("エラー", "画像のアップロードに失敗しました");
+          addMedia(`img-${Date.now()}`, url, "image", file.size);
+        } catch (err: any) {
+          Alert.alert("エラー", err?.message ?? "画像のアップロードに失敗しました");
         } finally {
           setUploading(false);
         }
@@ -156,10 +165,8 @@ export default function UploadScreen() {
         const name = asset.fileName ?? "image.jpg";
         const url = await uploadFileToR2Native(asset.uri, name, mime);
         addMedia(`img-${Date.now()}`, url, "image");
-        console.log("Uploaded image to:", url);
-      } catch (err) {
-        console.error(err);
-        Alert.alert("エラー", "画像のアップロードに失敗しました");
+      } catch (err: any) {
+        Alert.alert("エラー", err?.message ?? "画像のアップロードに失敗しました");
       } finally {
         setUploading(false);
       }
@@ -168,6 +175,7 @@ export default function UploadScreen() {
 
   async function pickVideo() {
     setAddMenuVisible(false);
+    if (!canAddMore || !canAddVideo) return;
     if (Platform.OS === "web") {
       const input = document.createElement("input");
       input.type = "file";
@@ -178,11 +186,9 @@ export default function UploadScreen() {
         try {
           setUploading(true);
           const url = await uploadFileToR2Web(file);
-          addMedia(`vid-${Date.now()}`, url, "video");
-          console.log("Uploaded video to:", url);
-        } catch (err) {
-          console.error(err);
-          Alert.alert("エラー", "動画のアップロードに失敗しました");
+          addMedia(`vid-${Date.now()}`, url, "video", file.size);
+        } catch (err: any) {
+          Alert.alert("エラー", err?.message ?? "動画のアップロードに失敗しました");
         } finally {
           setUploading(false);
         }
@@ -198,19 +204,23 @@ export default function UploadScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["videos"],
       allowsEditing: false,
+      videoMaxDuration: DAILY_POST_LIMITS.maxVideoDurationSec,
     });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
+      const durationSec = asset.duration ? Math.ceil(asset.duration / 1000) : undefined;
+      if (durationSec && durationSec > DAILY_POST_LIMITS.maxVideoDurationSec) {
+        Alert.alert("", `動画は${DAILY_POST_LIMITS.maxVideoDurationSec}秒までです`);
+        return;
+      }
       try {
         setUploading(true);
         const mime = asset.mimeType ?? "video/mp4";
         const name = asset.fileName ?? "video.mp4";
         const url = await uploadFileToR2Native(asset.uri, name, mime);
-        addMedia(`vid-${Date.now()}`, url, "video");
-        console.log("Uploaded video to:", url);
-      } catch (err) {
-        console.error(err);
-        Alert.alert("エラー", "動画のアップロードに失敗しました");
+        addMedia(`vid-${Date.now()}`, url, "video", undefined, durationSec);
+      } catch (err: any) {
+        Alert.alert("エラー", err?.message ?? "動画のアップロードに失敗しました");
       } finally {
         setUploading(false);
       }
@@ -221,12 +231,12 @@ export default function UploadScreen() {
     if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions(
         {
-          options: ["キャンセル", "写真を追加", "動画を追加"],
+          options: ["キャンセル", "写真を追加", canAddVideo ? "動画を追加" : "動画（1本まで）"],
           cancelButtonIndex: 0,
         },
         (i) => {
           if (i === 1) pickPhoto();
-          if (i === 2) pickVideo();
+          if (i === 2 && canAddVideo) pickVideo();
         }
       );
     } else {
@@ -234,12 +244,14 @@ export default function UploadScreen() {
     }
   }
 
-  /** blob: URL は永続化できないため、R2 にアップロードして https URL に変換する */
   async function ensureHttpsUrl(uri: string, type: "image" | "video"): Promise<string> {
     if (!uri.startsWith("blob:")) return uri;
     const res = await fetch(uri);
-    if (!res.ok) throw new Error("画像の読み込みに失敗しました");
+    if (!res.ok) throw new Error("読み込みに失敗しました");
     const blob = await res.blob();
+    if (blob.size > DAILY_POST_LIMITS.maxFileSizeMB * 1024 * 1024) {
+      throw new Error(`ファイルは${DAILY_POST_LIMITS.maxFileSizeMB}MBまでです`);
+    }
     const contentType = res.headers.get("content-type") || (type === "image" ? "image/jpeg" : "video/mp4");
     const ext = type === "image" ? "jpg" : "mp4";
     const resp = await apiRequest("POST", "/api/upload-url", {
@@ -252,7 +264,7 @@ export default function UploadScreen() {
       headers: { "Content-Type": contentType },
       body: blob,
     });
-    if (!putRes.ok) throw new Error("画像のアップロードに失敗しました");
+    if (!putRes.ok) throw new Error("アップロードに失敗しました");
     return url as string;
   }
 
@@ -277,7 +289,7 @@ export default function UploadScreen() {
   }
 
   async function handleSubmit() {
-    const title = text.trim();
+    const title = text.trim().slice(0, DAILY_POST_LIMITS.maxTextLength);
     if (!title.length) {
       Alert.alert("", "テキストを入力してください");
       return;
@@ -286,7 +298,6 @@ export default function UploadScreen() {
       Alert.alert("", "コミュニティを選択してください");
       return;
     }
-    // 投稿はログイン必須
     if (!requireAuth("投稿")) return;
     setUploading(true);
     try {
@@ -298,15 +309,11 @@ export default function UploadScreen() {
         firstImage?.uri ??
         selectedCommunity?.thumbnail ??
         "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=400&fit=crop";
-      // blob: URL は永続化できないため R2 にアップロード
       if (thumbUrl.startsWith("blob:") && firstImage) {
         try {
           thumbUrl = await ensureHttpsUrl(firstImage.uri, "image");
         } catch (e) {
-          console.error("blob URL upload failed:", e);
-          thumbUrl =
-            selectedCommunity?.thumbnail ??
-            "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=400&fit=crop";
+          thumbUrl = selectedCommunity?.thumbnail ?? "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=400&fit=crop";
         }
       }
       let videoUrlToSend: string | null = null;
@@ -316,7 +323,7 @@ export default function UploadScreen() {
             ? await ensureHttpsUrl(firstVideo.uri, "video")
             : firstVideo.uri;
         } catch (e) {
-          console.error("video URL upload failed:", e);
+          console.error("video upload failed:", e);
         }
       }
       const avatarUrl =
@@ -324,50 +331,38 @@ export default function UploadScreen() {
         user?.profileImageUrl ??
         "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop";
 
-      const res = await apiRequest("POST", "/api/videos", {
+      await apiRequest("POST", "/api/videos", {
         title,
         description: title,
         creator: creatorName,
         community: communityName,
         communityId: postTarget === "community" ? selectedCommunity?.id : null,
-        duration: firstVideo ? "00:00" : "00:00",
-        price: fee === "paid" ? price : null,
+        duration: "00:00",
+        price: null,
         thumbnail: thumbUrl,
         avatar: avatarUrl,
         concertId,
         visibility: postTarget === "my_page_only" ? "my_page_only" : "community",
         videoUrl: videoUrlToSend,
-        postType,
+        postType: "daily",
       });
-      const data = (await res.json()) as { id: number };
-      // 遷移を先に実行（invalidate の完了を待たない）
       router.replace("/(tabs)/profile");
       queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
       queryClient.invalidateQueries({ queryKey: ["/api/videos/my"] });
     } catch (err: any) {
       if (err instanceof ApiError) {
-        if (err.status === 401) {
-          Alert.alert("ログインが必要です", "LINEでログインしてから投稿してください。");
-        } else if (err.status === 400) {
-          Alert.alert("投稿内容に問題があります", "入力内容を確認して、もう一度お試しください。");
-        } else if (err.status >= 500) {
-          Alert.alert("サーバーエラー", "サーバー側でエラーが発生しました。時間をおいて再度お試しください。");
-        } else {
-          Alert.alert("エラー", "投稿に失敗しました。もう一度お試しください。");
-        }
+        if (err.status === 401) Alert.alert("ログインが必要です", "LINEでログインしてから投稿してください。");
+        else if (err.status === 400) Alert.alert("投稿内容に問題があります", err.message ?? "入力内容を確認してください。");
+        else Alert.alert("エラー", "投稿に失敗しました。");
       } else {
-        Alert.alert("エラー", "投稿に失敗しました。もう一度お試しください。");
+        Alert.alert("エラー", err?.message ?? "投稿に失敗しました。");
       }
     } finally {
       setUploading(false);
     }
   }
 
-  const hasPhoto = mediaItems.some((m) => m.type === "image");
-  const hasVideo = mediaItems.some((m) => m.type === "video");
-  const canSubmitArticle = postType === "article" && hasPhoto && text.trim().length > 0 && !uploading;
-  const canSubmitVideo = postType === "video" && text.trim().length > 0 && !uploading;
-  const canSubmit = postType === "article" ? canSubmitArticle : canSubmitVideo;
+  const canSubmit = text.trim().length > 0 && !uploading;
 
   return (
     <View style={[styles.container, { paddingTop: topInset }]}>
@@ -375,26 +370,16 @@ export default function UploadScreen() {
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color={C.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>新規投稿</Text>
-        <View style={{ width: 40 }} />
+        <Text style={styles.headerTitle}>日常投稿</Text>
+        <Pressable style={styles.workLink} onPress={() => router.push("/upload/work")}>
+          <Text style={styles.workLinkText}>作品を投稿</Text>
+        </Pressable>
       </View>
 
-      {/* 投稿タイプ: 写真・記事 vs 動画 */}
-      <View style={styles.postTypeRow}>
-        <Pressable
-          style={[styles.postTypeBtn, postType === "article" && styles.postTypeBtnActive]}
-          onPress={() => setPostType("article")}
-        >
-          <Ionicons name="image-outline" size={18} color={postType === "article" ? "#fff" : C.textSec} />
-          <Text style={[styles.postTypeText, postType === "article" && styles.postTypeTextActive]}>写真・記事</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.postTypeBtn, postType === "video" && styles.postTypeBtnActive]}
-          onPress={() => setPostType("video")}
-        >
-          <Ionicons name="videocam-outline" size={18} color={postType === "video" ? "#fff" : C.textSec} />
-          <Text style={[styles.postTypeText, postType === "video" && styles.postTypeTextActive]}>動画</Text>
-        </Pressable>
+      <View style={styles.limitHint}>
+        <Text style={styles.limitHintText}>
+          1件あたり: メディア{DAILY_POST_LIMITS.maxMediaCount}個まで、動画1本・{DAILY_POST_LIMITS.maxVideoDurationSec}秒・{DAILY_POST_LIMITS.maxFileSizeMB}MBまで
+        </Text>
       </View>
 
       <ScrollView
@@ -403,14 +388,6 @@ export default function UploadScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* 写真・記事モード: 写真を最初に、記事テキスト、続きを動画は任意 */}
-        {postType === "article" && (
-          <View style={styles.articleHint}>
-            <Text style={styles.articleHintText}>写真と記事で投稿。続きに動画を追加できます。</Text>
-          </View>
-        )}
-
-        {/* サムネイルプレビュー（入力欄の上） */}
         {mediaItems.length > 0 && (
           <View style={styles.previewRow}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.previewScroll}>
@@ -432,7 +409,6 @@ export default function UploadScreen() {
           </View>
         )}
 
-        {/* メインテキスト入力（大きめ・LINE風） */}
         <View style={styles.inputWrap}>
           <TextInput
             style={styles.mainInput}
@@ -441,11 +417,11 @@ export default function UploadScreen() {
             value={text}
             onChangeText={setText}
             multiline
-            maxLength={500}
+            maxLength={DAILY_POST_LIMITS.maxTextLength}
           />
+          <Text style={styles.charCount}>{text.length}/{DAILY_POST_LIMITS.maxTextLength}</Text>
         </View>
 
-        {/* 投稿先・コミュニティ */}
         <View style={styles.optionsSection}>
           <Text style={styles.optionsLabel}>投稿先</Text>
           <View style={styles.postTargetRow}>
@@ -494,35 +470,11 @@ export default function UploadScreen() {
               <Text style={styles.communityChipText}>紐付け公演ID: {concertId}</Text>
             </View>
           )}
-
-          <Text style={styles.optionsLabel}>料金</Text>
-          <View style={styles.feeRow}>
-            <Pressable style={[styles.feeBtn, fee === "free" && styles.feeBtnActive]} onPress={() => setFee("free")}>
-              <Text style={[styles.feeBtnText, fee === "free" && styles.feeBtnTextActive]}>無料</Text>
-            </Pressable>
-            <Pressable style={[styles.feeBtn, fee === "paid" && styles.feeBtnActive]} onPress={() => setFee("paid")}>
-              <Text style={[styles.feeBtnText, fee === "paid" && styles.feeBtnTextActive]}>有料</Text>
-            </Pressable>
-          </View>
-          {fee === "paid" && (
-            <View style={styles.priceRow}>
-              {PRICE_OPTIONS.map((p) => (
-                <Pressable
-                  key={p}
-                  style={[styles.priceBtn, price === p && styles.priceBtnActive]}
-                  onPress={() => setPrice(p)}
-                >
-                  <Text style={[styles.priceBtnText, price === p && styles.priceBtnTextActive]}>¥{p}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
         </View>
       </ScrollView>
 
-      {/* 下部バー: 左下 + ボタン、右下 投稿する */}
       <View style={[styles.bottomBar, { paddingBottom: bottomInset + 12 }]}>
-        <Pressable style={styles.addBtn} onPress={openAddMenu}>
+        <Pressable style={styles.addBtn} onPress={openAddMenu} disabled={!canAddMore}>
           <Ionicons name="add" size={26} color={C.accent} />
         </Pressable>
         <Pressable
@@ -538,7 +490,6 @@ export default function UploadScreen() {
         </Pressable>
       </View>
 
-      {/* 自分の投稿から公開するモーダル */}
       <Modal visible={showPublishFromModal} transparent animationType="slide">
         <Pressable style={styles.menuOverlay} onPress={() => !uploading && setShowPublishFromModal(false)}>
           <Pressable style={styles.publishFromModal} onPress={(e) => e.stopPropagation()}>
@@ -564,17 +515,16 @@ export default function UploadScreen() {
         </Pressable>
       </Modal>
 
-      {/* Android/Web: + タップでメニューモーダル */}
       <Modal visible={addMenuVisible} transparent animationType="fade">
         <Pressable style={styles.menuOverlay} onPress={() => setAddMenuVisible(false)}>
           <View style={styles.menuCard}>
-            <Pressable style={styles.menuItem} onPress={pickPhoto}>
+            <Pressable style={styles.menuItem} onPress={pickPhoto} disabled={!canAddMore}>
               <Ionicons name="image-outline" size={22} color={C.text} />
               <Text style={styles.menuItemText}>写真を追加</Text>
             </Pressable>
-            <Pressable style={styles.menuItem} onPress={pickVideo}>
+            <Pressable style={styles.menuItem} onPress={pickVideo} disabled={!canAddMore || !canAddVideo}>
               <Ionicons name="videocam-outline" size={22} color={C.text} />
-              <Text style={styles.menuItemText}>{postType === "article" ? "続きを動画" : "動画を追加"}</Text>
+              <Text style={styles.menuItemText}>動画を追加（1本まで）</Text>
             </Pressable>
             <Pressable style={[styles.menuItem, styles.menuItemCancel]} onPress={() => setAddMenuVisible(false)}>
               <Text style={styles.menuItemCancelText}>キャンセル</Text>
@@ -599,40 +549,10 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { color: C.text, fontSize: 17, fontWeight: "700" },
-  postTypeRow: {
-    flexDirection: "row",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  postTypeBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 3,
-    backgroundColor: C.surface2,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  postTypeBtnActive: {
-    backgroundColor: C.accent,
-    borderColor: C.accent,
-  },
-  postTypeText: { color: C.textSec, fontSize: 14, fontWeight: "700" },
-  postTypeTextActive: { color: "#fff" },
-  articleHint: {
-    marginBottom: 12,
-    paddingHorizontal: 16,
-  },
-  articleHintText: {
-    color: C.textMuted,
-    fontSize: 12,
-  },
+  workLink: { padding: 8 },
+  workLinkText: { color: C.accent, fontSize: 13, fontWeight: "700" },
+  limitHint: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: C.surface2 },
+  limitHintText: { color: C.textMuted, fontSize: 11 },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 },
   previewRow: { marginBottom: 12 },
@@ -652,9 +572,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   inputWrap: {
-    minHeight: 140,
+    minHeight: 120,
     backgroundColor: C.surface,
-    borderRadius: 12,
+    borderRadius: 3,
     borderWidth: 1,
     borderColor: C.border,
     paddingHorizontal: 14,
@@ -663,10 +583,11 @@ const styles = StyleSheet.create({
   mainInput: {
     color: C.text,
     fontSize: 16,
-    minHeight: 116,
+    minHeight: 90,
     textAlignVertical: "top",
     padding: 0,
   },
+  charCount: { color: C.textMuted, fontSize: 11, marginTop: 4, textAlign: "right" },
   optionsSection: { marginTop: 20, gap: 10 },
   optionsLabel: { color: C.textMuted, fontSize: 12, fontWeight: "600" },
   communityRow: { flexDirection: "row", gap: 8, marginBottom: 4 },
@@ -676,18 +597,14 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 999,
+    borderRadius: 3,
     backgroundColor: C.surface2,
   },
-  communityChipText: {
-    fontSize: 12,
-    color: C.textMuted,
-    marginLeft: 4,
-  },
+  communityChipText: { fontSize: 12, color: C.textMuted, marginLeft: 4 },
   communityPill: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 3,
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,
@@ -699,7 +616,7 @@ const styles = StyleSheet.create({
   postTargetBtn: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: 3,
     backgroundColor: C.surface,
     borderWidth: 1,
     borderColor: C.border,
@@ -707,18 +624,12 @@ const styles = StyleSheet.create({
   postTargetBtnActive: { borderColor: C.accent, backgroundColor: "rgba(41,182,207,0.15)" },
   postTargetText: { color: C.textSec, fontSize: 13, fontWeight: "600" },
   postTargetTextActive: { color: C.accent },
-  publishFromBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 8,
-    paddingVertical: 8,
-  },
+  publishFromBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, paddingVertical: 8 },
   publishFromText: { color: C.accent, fontSize: 13, fontWeight: "600" },
   publishFromModal: {
     backgroundColor: C.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
     padding: 20,
     maxHeight: "70%",
   },
@@ -732,38 +643,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.border,
   },
-  publishFromThumb: { width: 56, height: 56, borderRadius: 8 },
+  publishFromThumb: { width: 56, height: 56, borderRadius: 3 },
   publishFromItemTitle: { flex: 1, color: C.text, fontSize: 14 },
-  publishFromCancel: {
-    marginTop: 16,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
+  publishFromCancel: { marginTop: 16, paddingVertical: 12, alignItems: "center" },
   publishFromCancelText: { color: C.textMuted, fontSize: 14 },
-  feeRow: { flexDirection: "row", gap: 10 },
-  feeBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: C.surface,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  feeBtnActive: { backgroundColor: C.accent, borderColor: C.accent },
-  feeBtnText: { color: C.textSec, fontSize: 14, fontWeight: "700" },
-  feeBtnTextActive: { color: "#fff" },
-  priceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  priceBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: C.surface,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  priceBtnActive: { backgroundColor: C.accent, borderColor: C.accent },
-  priceBtnText: { color: C.textSec, fontSize: 13, fontWeight: "700" },
-  priceBtnTextActive: { color: "#fff" },
   bottomBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -777,7 +660,7 @@ const styles = StyleSheet.create({
   addBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 3,
     backgroundColor: "rgba(41,182,207,0.15)",
     alignItems: "center",
     justifyContent: "center",
@@ -785,30 +668,20 @@ const styles = StyleSheet.create({
   submitBtn: {
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 22,
+    borderRadius: 3,
     backgroundColor: C.accent,
   },
   submitBtnDisabled: { backgroundColor: C.surface3, opacity: 0.8 },
   submitBtnText: { color: "#fff", fontSize: 15, fontWeight: "800" },
-  menuOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
+  menuOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   menuCard: {
     backgroundColor: C.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
     padding: 16,
     paddingBottom: 32,
   },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-  },
+  menuItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 8 },
   menuItemText: { color: C.text, fontSize: 16, fontWeight: "600" },
   menuItemCancel: { marginTop: 8, alignItems: "center" },
   menuItemCancelText: { color: C.textMuted, fontSize: 15 },
