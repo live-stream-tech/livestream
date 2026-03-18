@@ -11,6 +11,11 @@ type Props = {
 };
 
 export function AppLogo({ height = 36 }: Props) {
+  // テキスト画像の実寸は700x200px → アスペクト比3.5
+  // 上下余白が約22%あるので表示高さを0.78倍に調整
+  const textH = height * 0.78;
+  const textW = textH * 3.5;
+
   return (
     <View style={styles.wrap}>
       <Image
@@ -20,7 +25,7 @@ export function AppLogo({ height = 36 }: Props) {
       />
       <Image
         source={{ uri: TEXT_URL }}
-        style={{ height: height * 0.9, width: height * 4.5, marginLeft: -8 }}
+        style={{ height: textH, width: textW }}
         contentFit="contain"
       />
     </View>
@@ -31,6 +36,6 @@ const styles = StyleSheet.create({
   wrap: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 0,
+    gap: 6,
   },
 });
