@@ -1,79 +1,83 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RawStock — my haven</title>
+<title>Raw Stock — Live footage marketplace</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Bebas+Neue&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
 <style>
 html, body { margin: 0; padding: 0; height: auto; min-height: 100%; overflow-x: hidden; overflow-y: auto; scroll-behavior: smooth; }
 :root {
-  --bg-darkest: #07090f;
-  --bg-dark: #0d1420;
-  --bg-mid: #1B2838;
-  --bg-light: #1E3045;
-  --accent: #29B6CF;
-  --red: #E53935;
-  --yellow: #FFD600;
-  --text: #FFFFFF;
-  --text-sec: rgba(255,255,255,0.72);
-  --text-muted: rgba(255,255,255,0.38);
-  --border: rgba(41,182,207,0.25);
-  --border-dim: rgba(255,255,255,0.07);
+  --bg-darkest: #050505;
+  --bg-dark: #0a0a0a;
+  --bg-mid: #0f0f0f;
+  --bg-light: #1a1a1a;
+  --neon: #00ffcc;
+  --orange: #ff4d00;
+  --text: #e8e4dc;
+  --text-sec: rgba(232,228,220,0.7);
+  --text-muted: rgba(232,228,220,0.5);
+  --border: rgba(0,255,204,0.2);
+  --border-dim: rgba(255,255,255,0.08);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg-darkest); color: var(--text); font-family: 'Noto Sans JP', sans-serif; -webkit-font-smoothing: antialiased; line-height: 1.6; }
-h1, h2, h3, h4, .hero-h1, .hero-lead, .vision-text { font-family: 'Noto Sans JP', sans-serif !important; font-weight: 700; }
-.bebas { font-family: 'Bebas Neue', sans-serif !important; letter-spacing: 0.05em; }
-.wrap { max-width: 900px; margin: 0 auto; padding: 0 48px; }
-.sec-label { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
-.sec-label-text { font-family: 'Bebas Neue', sans-serif; font-size: 11px; letter-spacing: .45em; color: var(--accent); text-transform: uppercase; }
+body { background: var(--bg-darkest); color: var(--text); font-family: 'Courier Prime', monospace; -webkit-font-smoothing: antialiased; line-height: 1.6; }
+h1, h2, h3, h4, .hero-h1, .hero-lead, .vision-text { font-family: 'Barlow Condensed', sans-serif !important; font-weight: 800; letter-spacing: -0.02em; }
+.bebas { font-family: 'Barlow Condensed', sans-serif !important; letter-spacing: 0.08em; font-weight: 700; }
+.wrap { max-width: 1000px; margin: 0 auto; padding: 0 40px; }
+.sec-label { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.sec-label-text { font-family: 'Courier Prime', monospace; font-size: 10px; letter-spacing: .3em; color: var(--neon); text-transform: uppercase; font-weight: 700; }
 .sec-label-line { flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); }
-.masthead { background: rgba(27,40,56,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-dim); padding: 0 48px; height: 64px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
-.masthead img { height: 36px; width: auto; }
-.masthead-tag { font-family: 'Bebas Neue', sans-serif; font-size: 11px; letter-spacing: .25em; color: var(--text-muted); }
+.masthead { background: rgba(5,5,5,0.9); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-dim); padding: 0 40px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+.masthead img { height: 32px; width: auto; }
+.masthead-tag { font-family: 'Courier Prime', monospace; font-size: 9px; letter-spacing: .2em; color: var(--text-muted); text-transform: uppercase; }
 .hero { position: relative; min-height: 100vh; display: flex; align-items: flex-end; overflow: hidden; background-image: url('/hero-bg.png'); background-size: cover; background-position: center top; }
-.hero-overlay { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(7,9,15,0) 0%, rgba(7,9,15,0.8) 80%, var(--bg-darkest) 100%); }
-.hero-grid { position: absolute; inset: 0; z-index: 1; background-image: linear-gradient(rgba(41,182,207,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(41,182,207,.03) 1px, transparent 1px); background-size: 48px 48px; }
-.hero-inner { position: relative; z-index: 2; width: 100%; max-width: 900px; margin: 0 auto; padding: 0 48px 96px; }
-.hero-h1 { font-size: clamp(36px, 6vw, 72px); font-weight: 900; line-height: 1.2; margin-bottom: 16px; }
-.hero-h1 em { font-style: normal; color: var(--accent); }
-.hero-sub { font-family: 'Bebas Neue', sans-serif; font-size: 20px; color: var(--accent); margin-bottom: 24px; letter-spacing: .1em; }
-.hero-lead { font-size: 16px; line-height: 1.8; color: var(--text-sec); border-left: 3px solid var(--red); padding-left: 20px; max-width: 600px; }
-.for-you { background: var(--bg-light); padding: 88px 0; border-top: 1px solid var(--border-dim); }
+.hero-overlay { position: absolute; inset: 0; z-index: 1; background: linear-gradient(180deg, rgba(5,5,5,0) 0%, rgba(5,5,5,0.8) 70%, var(--bg-darkest) 100%); }
+.hero-grid { position: absolute; inset: 0; z-index: 1; background-image: linear-gradient(rgba(0,255,204,.02) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,204,.02) 1px, transparent 1px); background-size: 40px 40px; }
+.hero-inner { position: relative; z-index: 2; width: 100%; max-width: 1000px; margin: 0 auto; padding: 0 40px 80px; }
+.hero-h1 { font-size: clamp(32px, 5.5vw, 80px); font-weight: 800; line-height: 1.1; margin-bottom: 20px; letter-spacing: -0.03em; }
+.hero-h1 em { font-style: normal; color: var(--neon); }
+.hero-sub { font-family: 'Courier Prime', monospace; font-size: 12px; color: var(--orange); margin-bottom: 20px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; }
+.hero-lead { font-size: 15px; line-height: 1.7; color: var(--text-sec); border-left: 2px solid var(--neon); padding-left: 16px; max-width: 600px; }
+.hero-lead-sub { font-size: 12px; color: var(--text-muted); margin-top: 12px; font-style: italic; }
+.for-you { background: var(--bg-mid); padding: 80px 0; border-top: 1px solid var(--border-dim); }
 .for-you-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border-dim); border: 1px solid var(--border-dim); margin-top: 40px; }
-.for-you-card { background: var(--bg-light); padding: 32px 24px; transition: .2s; }
-.for-you-card:hover { background: var(--bg-mid); }
-.for-you-picto { width: 48px; height: 48px; margin-bottom: 16px; color: var(--accent); }
-.for-you-name { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
-.for-you-desc { font-size: 13px; color: var(--text-sec); line-height: 1.6; }
-.concept { position: relative; background: var(--bg-dark); padding: 96px 0; overflow: hidden; }
-.stage-bg-svg { position: absolute; inset: 0; opacity: 0.1; pointer-events: none; }
-.flow-steps { display: flex; align-items: center; gap: 8px; margin-top: 40px; }
-.flow-box { flex: 1; border: 1px solid var(--border); background: rgba(41,182,207,0.05); padding: 24px 12px; text-align: center; position: relative; }
-.flow-num { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); background: var(--red); color: #fff; font-family: 'Bebas Neue'; font-size: 11px; padding: 2px 10px; }
-.flow-name { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
-.flow-desc { font-size: 11px; color: var(--accent); }
-.flow-arrow { color: var(--accent); font-size: 24px; }
-.revenue-tables { padding: 80px 0; background: var(--bg-mid); }
+.for-you-card { background: var(--bg-light); padding: 28px 20px; transition: .2s; border-left: 2px solid transparent; }
+.for-you-card:hover { background: var(--bg-dark); border-left-color: var(--neon); }
+.for-you-picto { width: 40px; height: 40px; margin-bottom: 12px; color: var(--neon); }
+.for-you-name { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 6px; font-family: 'Barlow Condensed', sans-serif; }
+.for-you-desc { font-size: 12px; color: var(--text-sec); line-height: 1.5; }
+.concept { position: relative; background: var(--bg-dark); padding: 80px 0; overflow: hidden; border-top: 1px solid var(--border-dim); }
+.stage-bg-svg { position: absolute; inset: 0; opacity: 0.05; pointer-events: none; }
+.flow-steps { display: flex; align-items: center; gap: 6px; margin-top: 40px; }
+.flow-box { flex: 1; border: 1px solid var(--border); background: rgba(0,255,204,0.03); padding: 20px 12px; text-align: center; position: relative; }
+.flow-num { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--orange); color: #000; font-family: 'Barlow Condensed'; font-size: 10px; padding: 2px 8px; font-weight: 700; }
+.flow-name { font-size: 12px; font-weight: 700; margin-bottom: 4px; font-family: 'Barlow Condensed', sans-serif; }
+.flow-desc { font-size: 10px; color: var(--neon); }
+.flow-arrow { color: var(--neon); font-size: 20px; }
+.revenue-tables { padding: 80px 0; background: var(--bg-dark); border-top: 1px solid var(--border-dim); }
 .table-wrapper { width: 100%; overflow-x: auto; margin: 24px 0; border: 1px solid var(--border); }
 table { width: 100%; border-collapse: collapse; min-width: 700px; }
-th { background: rgba(41,182,207,0.15); color: var(--accent); padding: 12px; font-size: 12px; text-align: center; border-bottom: 2px solid var(--accent); }
-td { padding: 14px; border-bottom: 1px solid var(--border-dim); text-align: center; font-size: 14px; }
-.row-active { background: rgba(41,182,207,0.1); font-weight: 700; }
-.pct-big { font-family: 'DM Serif Display', serif; font-size: 24px; font-style: italic; color: var(--red); }
-.vision { position: relative; padding: 120px 0; background: var(--bg-mid); overflow: hidden; }
-.vision-map { position: absolute; inset: 0; opacity: 0.1; mix-blend-mode: screen; }
+th { background: rgba(0,255,204,0.1); color: var(--neon); padding: 12px; font-size: 11px; text-align: center; border-bottom: 1px solid var(--border); font-family: 'Barlow Condensed', sans-serif; font-weight: 700; letter-spacing: 0.05em; }
+td { padding: 12px; border-bottom: 1px solid var(--border-dim); text-align: center; font-size: 13px; }
+.row-active { background: rgba(0,255,204,0.08); font-weight: 700; }
+.pct-big { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 800; color: var(--orange); }
+.vision { position: relative; padding: 100px 0; background: var(--bg-mid); overflow: hidden; border-top: 1px solid var(--border-dim); }
+.vision-map { position: absolute; inset: 0; opacity: 0.05; mix-blend-mode: screen; }
 .vision-map img { width: 100%; height: 100%; object-fit: cover; }
-.vision-text { font-size: 1.6rem; line-height: 2.2; font-weight: 700; }
+.vision-text { font-size: 1.5rem; line-height: 1.9; font-weight: 800; }
+.cta-button { display: inline-flex; align-items: center; gap: 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 700; padding: 12px 24px; background: var(--neon); color: #000; border: none; cursor: pointer; text-decoration: none; letter-spacing: 0.05em; transition: all 0.2s; }
+.cta-button:hover { background: #fff; transform: translateX(2px); }
+.footer { background: var(--bg-dark); border-top: 1px solid var(--border-dim); padding: 40px; text-align: center; }
+.footer-text { font-size: 11px; color: var(--text-muted); letter-spacing: 0.05em; }
 @media (max-width: 768px) {
-  .wrap { padding: 0 24px; }
-  .masthead { padding: 0 24px; }
-  .hero-inner { padding: 0 24px 64px; }
+  .wrap { padding: 0 20px; }
+  .masthead { padding: 0 20px; }
+  .hero-inner { padding: 0 20px 60px; }
   .for-you-grid { grid-template-columns: 1fr; }
   .flow-steps { flex-direction: column; }
-  .flow-arrow { transform: rotate(90deg); margin: 10px 0; }
+  .flow-arrow { transform: rotate(90deg); margin: 8px 0; }
   .vision-text { font-size: 1.2rem; }
 }
 </style>
@@ -81,134 +85,109 @@ td { padding: 14px; border-bottom: 1px solid var(--border-dim); text-align: cent
 <body>
 <header class="masthead">
   <img src="/logo-200x70-v2.png" alt="RawStock">
-  <span class="masthead-tag">LIVE &amp; COMMUNITY PLATFORM / JAPAN 2026</span>
+  <span class="masthead-tag">LIVE FOOTAGE MARKETPLACE / GLOBAL 2026</span>
 </header>
 <section class="hero">
   <div class="hero-grid"></div>
   <div class="hero-overlay"></div>
   <div class="hero-inner">
-    <p class="hero-sub">AIに作れないRaw Dataの価値を最大化。</p>
-    <h1 class="hero-h1">ライブレポートを<br>売りませんか？<br>個人開発で<em>90%還元</em>を<br>実現しました</h1>
+    <p class="hero-sub">The underground marketplace for real moments</p>
+    <h1 class="hero-h1">Film it.<br>Sell it.<br>Keep <em>90%</em>.</h1>
     <div class="hero-lead">
-      生成AIで誰でも大量のコンテンツを作れる時代だからこそ、AIには絶対に量産できない「生の熱量」にこそ、価値が上がっていくと考えています。現場の汗、叫び、震え、胸が熱くなる瞬間——それをRawのまま切り取り、ストック資産として積み上げ世界に届ける。そんな場所を作りませんか。
+      No labels. No gatekeepers. No cuts.<br>
+      Just real moments, sold by the people who were there.
+      <div class="hero-lead-sub">If you were there, you know.</div>
     </div>
   </div>
 </section>
 <section class="for-you">
   <div class="wrap">
     <div class="sec-label"><span class="sec-label-text">Ecosystem</span><span class="sec-label-line"></span></div>
-    <h2 style="font-size:32px;">私たちが創る共同経済圏<br><span style="font-size:14px; color:var(--text-sec); font-weight:400;">自分たちで回す、新しいエコシステム</span></h2>
+    <h2 style="font-size:32px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800;">Who it's for</h2>
     <div class="for-you-grid">
       <div class="for-you-card">
-        <div class="for-you-picto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div>
-        <div class="for-you-name">インディーズアーティスト・地下アイドル</div>
-        <div class="for-you-desc">現場の熱量を動画レポートにして世界に届ける</div>
+        <div class="for-you-picto">♪</div>
+        <div class="for-you-name">Indie Artists</div>
+        <div class="for-you-desc">Sell your set. No middlemen.</div>
       </div>
       <div class="for-you-card">
-        <div class="for-you-picto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg></div>
-        <div class="for-you-name">ライバー・ファン交流</div>
-        <div class="for-you-desc">生配信で投げ銭最大95%還元</div>
+        <div class="for-you-picto">📡</div>
+        <div class="for-you-name">Live Streamers</div>
+        <div class="for-you-desc">Stream it. Get paid. Simple.</div>
       </div>
       <div class="for-you-card">
-        <div class="for-you-picto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="7" r="4"></circle><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path></svg></div>
-        <div class="for-you-name">メンタルコーチ・講師</div>
-        <div class="for-you-desc">有料ライブ販売・個別セッションで直接収益化</div>
+        <div class="for-you-picto">🎓</div>
+        <div class="for-you-name">Coaches / Educators</div>
+        <div class="for-you-desc">Run sessions. Set your price.</div>
       </div>
       <div class="for-you-card">
-        <div class="for-you-picto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><path d="M9 9l6 3-6 3V9z"></path></svg></div>
-        <div class="for-you-name">動画編集者</div>
-        <div class="for-you-desc">現場動画の編集依頼を受けてダイレクトに稼ぐ</div>
+        <div class="for-you-picto">✂️</div>
+        <div class="for-you-name">Video Editors</div>
+        <div class="for-you-desc">Get work. Get paid. No delays.</div>
       </div>
       <div class="for-you-card">
-        <div class="for-you-picto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
-        <div class="for-you-name">コミュニティ管理人・モデレーター</div>
-        <div class="for-you-desc">広告収益はコミュニティへ還元</div>
+        <div class="for-you-picto">👥</div>
+        <div class="for-you-name">Community Managers</div>
+        <div class="for-you-desc">Build scenes. Take your cut.</div>
       </div>
       <div class="for-you-card">
-        <div class="for-you-picto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path></svg></div>
-        <div class="for-you-name">コンテスト賞金・イベント積立</div>
-        <div class="for-you-desc">コミュニティに貯まった資金でリアルイベント開催</div>
+        <div class="for-you-picto">🎪</div>
+        <div class="for-you-name">Event Organisers</div>
+        <div class="for-you-desc">Fund the next one. Keep it moving.</div>
       </div>
     </div>
   </div>
 </section>
 <section class="concept">
-  <div class="stage-bg-svg">
-    <svg viewBox="0 0 1000 400"><polygon points="0,400 500,0 1000,400" fill="url(#g)" opacity="0.5"/><defs><linearGradient id="g" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="var(--accent)"/><stop offset="100%" stop-color="transparent"/></linearGradient></defs></svg>
-  </div>
   <div class="wrap" style="position:relative;">
     <div class="sec-label"><span class="sec-label-text">Process</span><span class="sec-label-line"></span></div>
-    <h2 style="font-size:28px;">エコシステムの流れ</h2>
+    <h2 style="font-size:28px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800;">How it works</h2>
     <div class="flow-steps">
-      <div class="flow-box"><span class="flow-num">01</span><div class="flow-name">現場でスマホ撮影</div><div class="flow-desc">生の熱気を切り取る</div></div>
+      <div class="flow-box"><span class="flow-num">01</span><div class="flow-name">Film it</div><div class="flow-desc">Get it on camera</div></div>
       <div class="flow-arrow">›</div>
-      <div class="flow-box"><span class="flow-num">02</span><div class="flow-name">編集者に依頼</div><div class="flow-desc">登録編集者に直接オーダー</div></div>
+      <div class="flow-box"><span class="flow-num">02</span><div class="flow-name">Get it cut</div><div class="flow-desc">Order an edit</div></div>
       <div class="flow-arrow">›</div>
-      <div class="flow-box"><span class="flow-num">03</span><div class="flow-name">映像を販売</div><div class="flow-desc">売上90%還元</div></div>
+      <div class="flow-box"><span class="flow-num">03</span><div class="flow-name">Sell it</div><div class="flow-desc">Your fans buy it</div></div>
       <div class="flow-arrow">›</div>
-      <div class="flow-box"><span class="flow-num">04</span><div class="flow-name">次のライブ告知</div><div class="flow-desc">資産がぐるぐる回る</div></div>
+      <div class="flow-box"><span class="flow-num">04</span><div class="flow-name">Run it back</div><div class="flow-desc">Next gig, repeat</div></div>
     </div>
   </div>
 </section>
 <section class="revenue-tables">
   <div class="wrap">
-    <div class="sec-label"><span class="sec-label-text">Revenue Detail</span><span class="sec-label-line"></span></div>
-    <h2 style="font-size:28px; margin-bottom:40px;">収益化の仕組み</h2>
-    <h3 style="color:var(--accent); margin-bottom:10px;">1. コンテンツ販売分配率</h3>
-    <div class="table-wrapper">
-      <table>
-        <thead><tr><th>ケース</th><th>投稿者</th><th>アーティスト</th><th>撮影者</th><th>編集者</th><th>PF</th></tr></thead>
-        <tbody>
-          <tr class="row-active"><td>標準例</td><td>20%</td><td>60%</td><td>10%</td><td>—</td><td>10%</td></tr>
-          <tr><td>ファン重視</td><td>10%</td><td>50%</td><td>30%</td><td>—</td><td>10%</td></tr>
-          <tr><td>編集込み</td><td>10%</td><td>60%</td><td>10%</td><td>10%</td><td>10%</td></tr>
-          <tr><td>個人独占</td><td>90%</td><td>—</td><td>—</td><td>—</td><td>10%</td></tr>
-        </tbody>
-      </table>
+    <div class="sec-label"><span class="sec-label-text">Revenue</span><span class="sec-label-line"></span></div>
+    <h2 style="font-size:28px; margin-bottom:40px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800;">Keep 90%. No bullshit.</h2>
+    <div style="margin-top:60px; padding:32px; border:1px solid var(--border); background:rgba(0,255,204,0.02);">
+      <h3 style="color:var(--neon); margin-bottom:15px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700;">Paid content</h3>
+      <p style="font-size:16px; font-weight:700; font-family: 'Barlow Condensed', sans-serif;">Flat <span class="pct-big">90%</span></p>
     </div>
-    <p style="font-size:12px; color:var(--text-muted); margin-bottom:50px;">※ 売上1万円の場合、標準例ならアーティストに6,000円、全体で合計9,000円（90%）が投稿者側に分配</p>
-    <h3 style="color:var(--accent); margin-bottom:10px;">2. ライブ配信還元率</h3>
-    <div class="table-wrapper">
-      <table>
-        <thead><tr><th>Level</th><th>事務所所属</th><th>個人</th><th>備考</th></tr></thead>
-        <tbody>
-          <tr class="row-active"><td>Level 4</td><td><span class="pct-big">95%</span></td><td><span class="pct-big">75%</span></td><td>最高ランク</td></tr>
-          <tr><td>Level 3</td><td><span class="pct-big" style="font-size:20px;">90%</span></td><td><span class="pct-big" style="font-size:20px;">70%</span></td><td>上位基準クリア</td></tr>
-          <tr><td>Level 2</td><td><span class="pct-big" style="font-size:20px;">80%</span></td><td><span class="pct-big" style="font-size:20px;">60%</span></td><td>中間レベル</td></tr>
-          <tr><td>Level 1</td><td><span class="pct-big" style="font-size:20px;">70%</span></td><td><span class="pct-big" style="font-size:20px;">50%</span></td><td>初心者スタート</td></tr>
-        </tbody>
-      </table>
-    </div>
-    <div style="margin-top:60px; padding:32px; border:1px solid var(--border); background:rgba(255,255,255,0.02);">
-      <h3 style="color:var(--yellow); margin-bottom:15px;">3. コミュニティ広告収益</h3>
-      <p style="font-size:18px; font-weight:700;">メンバー数 × 7円 / 日（最低10,000円〜）</p>
-      <p style="font-size:14px; color:var(--accent); margin:10px 0;">分配：管理人・モデレーター 70% ／ RawStock 20% ／ イベント積立 10%</p>
-      <div style="margin-top:20px; padding-top:20px; border-top:1px solid var(--border-dim); font-size:13px; color:var(--text-sec);">
-        ジャンル広告費 = ジャンル全体メンバー数合計 × 5円／日<br>
-        毎月1日に、そのジャンルで最もメンバーが多いコミュニティの管理人が自動的にジャンル管理人に就任
-      </div>
+    <div style="margin-top:20px; padding:32px; border:1px solid var(--border); background:rgba(0,255,204,0.02);">
+      <h3 style="color:var(--neon); margin-bottom:15px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700;">Streaming</h3>
+      <p style="font-size:16px; font-weight:700; font-family: 'Barlow Condensed', sans-serif;">Earn more as you grow</p>
     </div>
   </div>
 </section>
 <section class="vision">
-  <div class="vision-map"><img src="/image.png" alt=""></div>
-  <div class="wrap">
+  <div class="wrap" style="position:relative;">
+    <div class="sec-label"><span class="sec-label-text">Underground</span><span class="sec-label-line"></span></div>
+    <h2 style="font-size:28px; margin-bottom:24px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800;">Built for the underground</h2>
     <div class="vision-text">
-      まだ見ぬ世界の誰かに、この音を届けたい。<br>
-      今はまだ小さい。でも最初から世界を狙っています。<br>
-      運営の力がついたら、日本のインディーズが、<br>
-      ベルリンの夜に、ソウルの路地に、ニューヨークの部屋に響く未来。<br>
-      言葉はAIが繋いでくれる。<br>
-      でも震えとか、叫びとか、胸が熱くなる瞬間は——<br>
-      絶対に機械じゃ再現できない。<br><br>
-      RawStockは、それを、そのまま届ける場所です。<br>
-      一緒に、このシーンをデカくしていきませんか？
+      <p style="margin-bottom:16px;">This isn't for everyone.</p>
+      <p>It's for the ones actually doing it.</p>
     </div>
   </div>
 </section>
-<footer style="padding:40px 0; text-align:center; background:var(--bg-darkest); color:var(--text-muted); font-size:12px; border-top:1px solid var(--border-dim);">
-  <p>© 2026 RawStock — 鹿之賦 宏美</p>
-  <p>〒150-0043 東京都渋谷区道玄坂1丁目10番8号 渋谷道玄坂東急ビル2F-C</p>
+<section style="background: var(--bg-mid); padding: 80px 0; border-top: 1px solid var(--border-dim);">
+  <div class="wrap" style="text-align: center;">
+    <h2 style="font-size:28px; margin-bottom:24px; font-family: 'Barlow Condensed', sans-serif; font-weight: 800;">Build your scene</h2>
+    <p style="font-size:15px; color:var(--text-sec); margin-bottom:32px;">We're looking for the ones shaping what's next.<br>If that's you, get involved.</p>
+    <a href="mailto:hello@rawstock.uk" class="cta-button">Join the movement</a>
+  </div>
+</section>
+<footer class="footer">
+  <div class="wrap">
+    <p class="footer-text">© 2026 RawStock. All rights reserved. | <a href="#" style="color:var(--neon); text-decoration:none;">Privacy</a> | <a href="#" style="color:var(--neon); text-decoration:none;">Terms</a></p>
+  </div>
 </footer>
 </body>
 </html>
