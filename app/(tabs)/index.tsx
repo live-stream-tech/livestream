@@ -487,10 +487,7 @@ export default function HomeScreen() {
           style={styles.announcementSection}
           onPress={() => displayAnnouncements.length > 0 && setShowAnnouncementsModal(true)}
         >
-          <View style={styles.announcementSectionHeader}>
-            <Ionicons name="megaphone-outline" size={16} color={C.accent} />
-            <Text style={styles.announcementSectionTitle}>運営からのお知らせ</Text>
-          </View>
+
           {displayAnnouncements.length === 0 ? (
             <View style={styles.announcementCard}>
               <Text style={styles.announcementBody}>現在お知らせはありません</Text>
