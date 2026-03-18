@@ -4,7 +4,7 @@
     "slug": "livestage",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./public/icon-512.png",
     "scheme": "livestage",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
@@ -15,21 +15,21 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.livestage"
+      "bundleIdentifier": "com.livestage",
+      "icon": "./public/icon-512.png"
     },
     "android": {
       "package": "com.livestage",
       "adaptiveIcon": {
-        "backgroundColor": "#1B2838",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      }
+        "foregroundImage": "./public/icon-512.png",
+        "backgroundColor": "#050505"
+      },
+      "icon": "./public/icon-512.png"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./favi.png",
+      "favicon": "./public/favicon.ico",
       "name": "LiveStage",
       "shortName": "LiveStage",
       "description": "ライブ配信・有料動画プラットフォーム",
