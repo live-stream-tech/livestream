@@ -6,9 +6,13 @@ import { getLoginReturn } from "@/lib/login-return";
 import { C } from "@/constants/colors";
 
 /**
- * ポップアップが window.opener を持てない環境（一部ブラウザ）のフォールバック。
+ * ポップアップが window.opener を持てない環境（LINEなど外部OAuthがopenerを切断する場合）のフォールバック。
  * /auth/popup-fallback?token=... にリダイレクトされた場合にトークンを処理する。
- * このページ自体が「新しいタブ」になるが、ログイン後に元のページへ遷移する。
+ *
+ * このページがポップアップ内で動作している場合:
+ *   → window.opener にpostMessageを送ってメインウィンドウを更新し、ポップアップを閉じる
+ * このページがメインウィンドウで動作している場合（ポップアップが使えない環境）:
+ *   → 直接loginWithTokenを呼んでログイン処理する
  */
 export default function PopupFallbackScreen() {
   const { token } = useLocalSearchParams<{ token?: string }>();
@@ -19,6 +23,28 @@ export default function PopupFallbackScreen() {
       router.replace("/auth/login" as any);
       return;
     }
+
+    // ポップアップウィンドウ内かどうかを確認
+    const isPopup =
+      typeof window !== "undefined" &&
+      window.opener != null &&
+      !window.opener.closed;
+
+    if (isPopup) {
+      // ポップアップ内: openerにpostMessageを送ってメインウィンドウを更新
+      try {
+        window.opener.postMessage(
+          { type: "auth_success", token },
+          window.location.origin
+        );
+        setTimeout(() => window.close(), 300);
+        return;
+      } catch {
+        // postMessageが失敗した場合は直接ログイン処理にフォールスルー
+      }
+    }
+
+    // メインウィンドウ内（またはpostMessage失敗時）: 直接ログイン処理
     let cancelled = false;
     (async () => {
       try {

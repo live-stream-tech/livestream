@@ -599,11 +599,12 @@ export async function registerRoutes(app: Express): Promise<void> {
   const lineRedirect = (path: string) => (FRONTEND_URL ? `${FRONTEND_URL}${path}` : path);
   /** ポップアップ認証用: postMessageでトークンを親ウィンドウに送り自動クローズするHTML */
   const popupCallback = (token: string | null, error: string | null) => {
-    const payload = token ? JSON.stringify({ type: "auth_success", token }) : JSON.stringify({ type: "auth_error", error });
+    const payloadObj = token ? { type: "auth_success", token } : { type: "auth_error", error };
+    const payloadJson = JSON.stringify(payloadObj);
     const origin = FRONTEND_URL || "*";
     return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><script>
       (function() {
-        var payload = ${payload};
+        var payload = ${payloadJson};
         var targetOrigin = "${origin}";
         function tryPostMessage() {
           try {
