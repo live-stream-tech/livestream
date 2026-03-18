@@ -174,17 +174,23 @@ export default function UserProfileScreen() {
               <Text style={styles.followStatLabel}>フォロー中</Text>
             </Pressable>
           </View>
-          {/* フォローボタン（自分以外） */}
+          {/* フォローボタン・DMボタン（自分以外） */}
           {me && me.id !== userId && (
-            <Pressable
-              style={[styles.followBtn, isFollowing && styles.followBtnActive]}
-              onPress={handleFollow}
-              disabled={followMutation.isPending}
-            >
-              <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
-                {followMutation.isPending ? "..." : isFollowing ? "フォロー中" : "フォローする"}
-              </Text>
-            </Pressable>
+            <View style={styles.actionRow}>
+              <Pressable
+                style={[styles.followBtn, isFollowing && styles.followBtnActive]}
+                onPress={handleFollow}
+                disabled={followMutation.isPending}
+              >
+                <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
+                  {followMutation.isPending ? "..." : isFollowing ? "フォロー中" : "フォローする"}
+                </Text>
+              </Pressable>
+              <Pressable style={styles.dmBtn} onPress={handleDM}>
+                <Ionicons name="chatbubble-outline" size={16} color={C.text} />
+                <Text style={styles.dmBtnText}>DM</Text>
+              </Pressable>
+            </View>
           )}
 
           {(profile.instagramUrl || profile.youtubeUrl || profile.xUrl) ? (
@@ -296,9 +302,12 @@ const styles = StyleSheet.create({
   followStat: { alignItems: "center" as const, gap: 2 },
   followStatValue: { fontSize: 18, fontWeight: "700" as const, color: C.text },
   followStatLabel: { fontSize: 11, color: C.textMuted },
-  followBtn: { marginTop: 12, paddingVertical: 10, paddingHorizontal: 32, borderRadius: 24, borderWidth: 1.5, borderColor: C.accent, alignSelf: "center" as const },
+  actionRow: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 10, marginTop: 12 },
+  followBtn: { paddingVertical: 10, paddingHorizontal: 28, borderRadius: 24, borderWidth: 1.5, borderColor: C.accent },
   followBtnActive: { backgroundColor: C.accent, borderColor: C.accent },
   followBtnText: { fontSize: 14, fontWeight: "600" as const, color: C.accent },
+  dmBtn: { flexDirection: "row" as const, alignItems: "center" as const, gap: 5, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 24, borderWidth: 1.5, borderColor: C.border },
+  dmBtnText: { fontSize: 14, fontWeight: "600" as const, color: C.text },
   followBtnTextActive: { color: "#050505" },
   socialBtn: { padding: 8 },
   sectionTitle: {

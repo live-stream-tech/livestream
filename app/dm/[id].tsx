@@ -14,21 +14,26 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import * as ImagePicker from "expo-image-picker";
 import { C } from "@/constants/colors";
 import { apiRequest } from "@/lib/query-client";
+import { useAuth } from "@/lib/auth";
 
 type DMItem = {
   id: number;
   name: string;
-  avatar: string;
+  avatar: string | null;
   online: boolean;
   lastMessage: string;
+  otherUserId?: number;
 };
 
 type ConvMsg = {
   id: number;
-  sender: "me" | "them";
-  text: string;
+  senderId: number | null;
+  sender: string;
+  text: string | null;
+  imageUrl: string | null;
   isRead: boolean;
   createdAt: string;
 };
@@ -54,17 +59,16 @@ export default function DMChatScreen() {
   const qc = useQueryClient();
   const flatListRef = useRef<FlatList>(null);
   const [input, setInput] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const { user } = useAuth();
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
-  const { data: dmInfo } = useQuery<DMItem>({
-    queryKey: [`/api/dm-messages`],
-    select: (data: any) => {
-      if (Array.isArray(data)) return data.find((d: any) => d.id === dmId);
-      return undefined;
-    },
+  const { data: dmList = [] } = useQuery<DMItem[]>({
+    queryKey: ["/api/dm-messages"],
   });
+  const dmInfo = dmList.find((d) => d.id === dmId);
 
   const { data: messages = [] } = useQuery<ConvMsg[]>({
     queryKey: [`/api/dm-messages/${dmId}/conversation`],
@@ -171,8 +175,8 @@ export default function DMChatScreen() {
 
         {/* Input */}
         <View style={[styles.inputRow, { paddingBottom: bottomInset + 8 }]}>
-          <Pressable style={styles.attachBtn}>
-            <Ionicons name="add-circle-outline" size={24} color={C.textSec} />
+          <Pressable style={styles.attachBtn} onPress={pickImage} disabled={uploadingImage}>
+            <Ionicons name="image-outline" size={24} color={uploadingImage ? C.primary : C.textSec} />
           </Pressable>
           <TextInput
             style={styles.input}
@@ -302,4 +306,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sendBtnOff: { backgroundColor: C.surface2 },
+  bubbleImage: { width: 200, height: 150, borderRadius: 10 },
 });
