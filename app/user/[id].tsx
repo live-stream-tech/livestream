@@ -15,7 +15,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Linking } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
-import { getApiUrl } from "@/lib/apiUrl";
+import { getApiUrl } from "@/lib/query-client";
 import { C } from "@/constants/colors";
 
 type PinnedCommunity = {

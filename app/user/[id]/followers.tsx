@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
-import { getApiUrl } from "@/lib/apiUrl";
+import { getApiUrl } from "@/lib/query-client";
 import { useAuth } from "@/lib/auth";
 
 type FollowUser = {
