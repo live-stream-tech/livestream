@@ -213,7 +213,8 @@ export async function registerRoutes(app: Express): Promise<void> {
       const returnUrl = `${baseUrl}/payout-settings?connect=return`;
       const refreshUrl = `${baseUrl}/payout-settings?connect=refresh`;
 
-      let accountId = user.stripeConnectId;
+      let accountId = user
+      .stripeConnectId;
       if (!accountId) {
         accountId = await createConnectExpressAccount({ country: "JP" });
         await db.update(users).set({ stripeConnectId: accountId, updatedAt: new Date() } as Partial<typeof users.$inferInsert>).where(eq(users.id, user.id));
