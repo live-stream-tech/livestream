@@ -110,9 +110,20 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** PWA スタンドアロン（ホーム画面から起動）かどうかを判定 */
+function isPwaStandalone(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    if (window.matchMedia("(display-mode: standalone)").matches) return true;
+    if ((navigator as any).standalone === true) return true;
+  } catch {}
+  return false;
+}
+
 function isPublicPath(pathname: string): boolean {
   if (!pathname) return false;
-  if (pathname === "/") return true; // /(tabs)/index
+  // PWA スタンドアロン起動時はホームも認証必須にする
+  if (pathname === "/" && !isPwaStandalone()) return true; // /(tabs)/index（ブラウザのみ公開）
   if (pathname === "/auth/login") return true;
   if (pathname === "/community" || pathname.startsWith("/community/")) return true; // /(tabs)/community + 詳細 + members
   if (pathname === "/live" || pathname.startsWith("/live")) return true; // /(tabs)/live + /live/[id]

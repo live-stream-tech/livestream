@@ -909,7 +909,7 @@ export default function ProfileScreen() {
       {Platform.OS === "web" && pwaBanner.showBanner && (
         <>
           <Pressable
-            style={[styles.pwaFab, { bottom: bottomInset + 24 }]}
+            style={[styles.pwaFab, { bottom: bottomInset + 140 }]}
             onPress={pwaBanner.onFabPress}
           >
             <Ionicons name="phone-portrait-outline" size={22} color="#fff" />
@@ -1804,7 +1804,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 3,
-    backgroundColor: C.accent,
+    backgroundColor: C.bg,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -1812,6 +1812,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 6,
+    borderWidth: 1,
+    borderColor: C.accent,
   },
   pwaPopupOverlay: {
     flex: 1,
@@ -1850,7 +1852,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   pwaPopupBtnDisabled: { opacity: 0.6 },
-  pwaPopupBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  pwaPopupBtnText: { color: "#050505", fontSize: 14, fontWeight: "700" },
 
   // Header actions (edit + logout)
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8 },
