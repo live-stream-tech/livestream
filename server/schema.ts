@@ -431,9 +431,12 @@ export const users = pgTable("users", {
   googleRefreshToken: text("google_refresh_token"),
   googleAccessToken: text("google_access_token"),
   googleTokenExpiresAt: timestamp("google_token_expires_at"),
+  /** フォロワー数・フォロー数 */
+  followersCount: integer("followers_count").notNull().default(0),
+  followingCount: integer("following_count").notNull().default(0),
   /** エニアグラム9型スコア（JSON配列 [1-9]） */
   enneagramScores: text("enneagram_scores"),
-  /** プロフィールに表示する厳選コミュニティ4つ（JSON配列 [communityId, ...]） */
+  /** プロフィールに表示する厳選コミュニティ４つ（JSON配列 [communityId, ...]） */
   pinnedCommunityIds: text("pinned_community_ids"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
