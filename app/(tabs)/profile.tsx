@@ -411,11 +411,10 @@ export default function ProfileScreen() {
         saveLoginReturn(returnTo);
         const apiBase = getApiUrl();
         const url = new URL("/api/auth/line", apiBase).toString();
-        try {
-          (window.top || window).location.replace(url);
-        } catch {
-          window.location.replace(url);
-        }
+        const w = 520, h = 640;
+        const left = Math.max(0, (window.screen.width - w) / 2);
+        const top = Math.max(0, (window.screen.height - h) / 2);
+        window.open(url, "oauth_popup", `width=${w},height=${h},left=${left},top=${top},scrollbars=yes,resizable=yes`);
       } else {
         router.replace("/(tabs)");
       }

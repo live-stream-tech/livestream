@@ -32,8 +32,8 @@ function useHasLineTokenInUrl(): boolean {
 }
 
 /**
- * LINE コールバックで戻ったとき、line_token を最優先で処理する。
- * 処理が終わるまでメインUIを出さずローディングを表示し、認証ガードによるログインリダイレクトの無限ループを防ぐ。
+ * OAuth ポップアップからの postMessage を受け取り、トークンを処理する。
+ * ポップアップ方式: window.open でポップアップを開き、コールバックページが postMessage でトークンを送信する。
  */
 function LineTokenHandler({ children }: { children: React.ReactNode }) {
   const { line_token } = useLocalSearchParams<{ line_token?: string }>();
@@ -41,7 +41,33 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
   const hasLineTokenInUrl = useHasLineTokenInUrl();
   const [webTokenProcessed, setWebTokenProcessed] = useState(false);
 
-  // Web: URL の line_token を処理（同一タブで遷移するため window.opener はなし）
+  // Web: postMessage でポップアップからトークンを受け取る
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const handleMessage = async (event: MessageEvent) => {
+      // セキュリティ: 同一オリジンのみ受け付ける
+      if (event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (!data || typeof data !== "object") return;
+      if (data.type === "auth_success" && data.token) {
+        try {
+          await loginWithToken(data.token);
+          const saved = getLoginReturn();
+          let returnTo = saved ?? "/(tabs)/profile";
+          if (returnTo.startsWith("/auth/login")) returnTo = "/(tabs)/profile";
+          router.replace(returnTo as any);
+        } catch {
+          router.replace("/auth/login?line_error=me_failed" as any);
+        }
+      } else if (data.type === "auth_error" && data.error) {
+        router.replace(`/auth/login?line_error=${encodeURIComponent(data.error)}` as any);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [loginWithToken]);
+
+  // Web: URL の line_token を処理（フォールバック: ポップアップが使えない環境向け）
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);

@@ -38,37 +38,33 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const topInset = Platform.OS === "web" ? 12 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
-  // トップウィンドウで遷移（iframe内なら脱出して親を置換、タブ増加を防ぐ）
-  function handleLineLogin() {
+  // ポップアップウィンドウでOAuth認証（タブが増えない）
+  function openAuthPopup(path: string) {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       const returnTo = window.location.pathname + window.location.search;
       saveLoginReturn(returnTo);
       const apiBase = getApiUrl();
-      const url = new URL("/api/auth/line", apiBase).toString();
-      try {
-        (window.top || window).location.replace(url);
-      } catch {
-        window.location.replace(url);
-      }
+      const url = new URL(path, apiBase).toString();
+      const w = 520;
+      const h = 640;
+      const left = Math.max(0, (window.screen.width - w) / 2);
+      const top = Math.max(0, (window.screen.height - h) / 2);
+      window.open(
+        url,
+        "oauth_popup",
+        `width=${w},height=${h},left=${left},top=${top},scrollbars=yes,resizable=yes`
+      );
     } else {
       router.replace("/(tabs)");
     }
   }
 
+  function handleLineLogin() {
+    openAuthPopup("/api/auth/line");
+  }
+
   function handleGoogleLogin() {
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      const returnTo = window.location.pathname + window.location.search;
-      saveLoginReturn(returnTo);
-      const apiBase = getApiUrl();
-      const url = new URL("/api/auth/google", apiBase).toString();
-      try {
-        (window.top || window).location.replace(url);
-      } catch {
-        window.location.replace(url);
-      }
-    } else {
-      router.replace("/(tabs)");
-    }
+    openAuthPopup("/api/auth/google");
   }
 
   return (
