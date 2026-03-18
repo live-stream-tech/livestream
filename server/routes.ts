@@ -597,41 +597,17 @@ export async function registerRoutes(app: Express): Promise<void> {
   const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "https://livestream-nu-ten.vercel.app/api/auth/line-callback";
   const FRONTEND_URL = (process.env.FRONTEND_URL ?? "").replace(/\/$/, "");
   const lineRedirect = (path: string) => (FRONTEND_URL ? `${FRONTEND_URL}${path}` : path);
-  /** ポップアップ認証用: postMessageでトークンを親ウィンドウに送り自動クローズするHTML */
-  const popupCallback = (token: string | null, error: string | null) => {
-    const payloadObj = token ? { type: "auth_success", token } : { type: "auth_error", error };
-    const payloadJson = JSON.stringify(payloadObj);
-    const origin = FRONTEND_URL || "*";
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><script>
-      (function() {
-        var payload = ${payloadJson};
-        var targetOrigin = "${origin}";
-        function tryPostMessage() {
-          try {
-            if (window.opener && !window.opener.closed) {
-              window.opener.postMessage(payload, targetOrigin === "*" ? "*" : targetOrigin);
-              setTimeout(function() { window.close(); }, 300);
-              return true;
-            }
-          } catch(e) {}
-          return false;
-        }
-        // 即時試行 → 失敗したら 200ms 後に再試行 → それでも失敗したらフォールバック
-        if (!tryPostMessage()) {
-          setTimeout(function() {
-            if (!tryPostMessage()) {
-              // フォールバック: ポップアップでない場合は専用ページへリダイレクト（元タブは汚染しない）
-              var base = "${FRONTEND_URL || ""}";
-              if (payload.token) {
-                window.location.replace(base + "/auth/popup-fallback?token=" + encodeURIComponent(payload.token));
-              } else {
-                window.location.replace(base + "/auth/login?line_error=" + encodeURIComponent(payload.error || "unknown"));
-              }
-            }
-          }, 200);
-        }
-      })();
-    <\/script><p style="color:#fff;background:#050505;font-family:monospace;padding:20px">認証中...</p></body></html>`;
+  /**
+   * 同一タブリダイレクト方式の認証コールバック。
+   * 成功時: /auth/callback?token=xxx にリダイレクト
+   * 失敗時: /auth/login?line_error=xxx にリダイレクト
+   */
+  const authCallback = (res: Response, token: string | null, error: string | null) => {
+    if (token) {
+      return res.redirect(lineRedirect(`/auth/callback?token=${encodeURIComponent(token)}`));
+    } else {
+      return res.redirect(lineRedirect(`/auth/login?line_error=${encodeURIComponent(error || "unknown")}`));
+    }
   };
   const LINE_STATE = "rawstock-line-state";
 
@@ -689,7 +665,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const code = req.query.code as string;
     const state = req.query.state as string;
     if (!code || state !== GOOGLE_STATE) {
-      return res.send(popupCallback(null, "invalid_state"));
+      return authCallback(res, null, "invalid_state");
     }
     try {
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -711,7 +687,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         error?: string;
       };
       if (!tokenData.access_token) {
-        return res.send(popupCallback(null, "token_failed"));
+        return authCallback(res, null, "token_failed");
       }
 
       const profileRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
@@ -724,7 +700,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         email?: string;
       };
       if (!profile.sub) {
-        return res.send(popupCallback(null, "profile_failed"));
+        return authCallback(res, null, "profile_failed");
       }
 
       const googleKey = `google:${profile.sub}`;
@@ -766,10 +742,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
 
       const jwtToken = makeToken(existing.id);
-      res.send(popupCallback(jwtToken, null));
+      authCallback(res, jwtToken, null);
     } catch (err) {
       console.error("Google callback error:", err);
-      res.send(popupCallback(null, "server_error"));
+      authCallback(res, null, "server_error");
     }
   });
 
@@ -968,7 +944,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const state = req.query.state as string;
     console.log("[LINE callback/line] received", { hasCode: !!code, stateMatch: state === LINE_STATE });
     if (!code || state !== LINE_STATE) {
-      return res.send(popupCallback(null, "invalid_state"));
+      return authCallback(res, null, "invalid_state");
     }
     try {
       const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
@@ -986,7 +962,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       if (!tokenData.access_token) {
         console.error("[LINE callback] token failed", tokenData);
         const err = tokenData.error_description ?? tokenData.error ?? "token_failed";
-        return res.send(popupCallback(null, err));
+        return authCallback(res, null, err);
       }
 
       const profileRes = await fetch("https://api.line.me/v2/profile", {
@@ -995,7 +971,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const profile = await profileRes.json() as { userId?: string; displayName?: string; pictureUrl?: string };
       if (!profile.userId) {
         console.error("[LINE callback] profile failed", profile);
-        return res.send(popupCallback(null, "profile_failed"));
+        return authCallback(res, null, "profile_failed");
       }
 
       const lineId = profile.userId;
@@ -1023,10 +999,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
 
       const jwtToken = makeToken(existing.id);
-      res.send(popupCallback(jwtToken, null));
+      authCallback(res, jwtToken, null);
     } catch (err) {
       console.error("LINE callback error:", err);
-      res.send(popupCallback(null, "server_error"));
+      authCallback(res, null, "server_error");
     }
   });
 
@@ -1036,7 +1012,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const state = req.query.state as string;
     console.log("[LINE callback] received", { hasCode: !!code, stateMatch: state === LINE_STATE });
     if (!code || state !== LINE_STATE) {
-      return res.send(popupCallback(null, "invalid_state"));
+      return authCallback(res, null, "invalid_state");
     }
     try {
       const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
@@ -1054,7 +1030,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       if (!tokenData.access_token) {
         console.error("[LINE callback] token failed", tokenData);
         const err = tokenData.error_description ?? tokenData.error ?? "token_failed";
-        return res.send(popupCallback(null, err));
+        return authCallback(res, null, err);
       }
 
       const profileRes = await fetch("https://api.line.me/v2/profile", {
@@ -1063,7 +1039,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const profile = await profileRes.json() as { userId?: string; displayName?: string; pictureUrl?: string };
       if (!profile.userId) {
         console.error("[LINE callback] profile failed", profile);
-        return res.send(popupCallback(null, "profile_failed"));
+        return authCallback(res, null, "profile_failed");
       }
 
       const lineId = profile.userId;
@@ -1092,7 +1068,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
       const jwtToken = makeToken(existing.id);
       console.log("[LINE callback] success", { userId: existing.id });
-      res.send(popupCallback(jwtToken, null));
+      authCallback(res, jwtToken, null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[LINE callback] server_error", err);

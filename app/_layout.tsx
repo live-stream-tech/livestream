@@ -32,102 +32,14 @@ function useHasLineTokenInUrl(): boolean {
 }
 
 /**
- * OAuth ポップアップからの postMessage を受け取り、トークンを処理する。
- * ポップアップ方式: window.open でポップアップを開き、コールバックページが postMessage でトークンを送信する。
+ * 同一タブリダイレクト方式の認証ハンドラ。
+ * /auth/callback ページでトークン処理するため、ここでは何もしない。
  */
 function LineTokenHandler({ children }: { children: React.ReactNode }) {
   const { line_token } = useLocalSearchParams<{ line_token?: string }>();
   const { loginWithToken } = useAuth();
-  const hasLineTokenInUrl = useHasLineTokenInUrl();
-  const [webTokenProcessed, setWebTokenProcessed] = useState(false);
 
-  // Web: postMessage でポップアップからトークンを受け取る
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") return;
-    const handleMessage = async (event: MessageEvent) => {
-      // セキュリティ: 同一オリジンまたは信頼できるオリジンのみ受け付ける
-      // Vercel では API とフロントが同一オリジンのため通常は一致するが、
-      // ポップアップが別ドメインのAPIから来る場合も考慮して緩和
-      const allowedOrigins = [window.location.origin, "https://livestream-nu-ten.vercel.app"];
-      if (!allowedOrigins.includes(event.origin) && event.origin !== window.location.origin) return;
-      const data = event.data;
-      if (!data || typeof data !== "object") return;
-      if (data.type === "auth_success" && data.token) {
-        try {
-          await loginWithToken(data.token);
-          const saved = getLoginReturn();
-          let returnTo = saved ?? "/(tabs)/profile";
-          if (returnTo.startsWith("/auth/login")) returnTo = "/(tabs)/profile";
-          router.replace(returnTo as any);
-        } catch {
-          router.replace("/auth/login?line_error=me_failed" as any);
-        }
-      } else if (data.type === "auth_error" && data.error) {
-        router.replace(`/auth/login?line_error=${encodeURIComponent(data.error)}` as any);
-      }
-    };
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [loginWithToken]);
-
-  // Web: URL の line_token を処理（フォールバック: ポップアップが使えない環境向け）
-  useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const webToken = params.get("line_token");
-    const lineError = params.get("line_error");
-
-    if (lineError) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("line_error");
-      window.history.replaceState({}, "", url.toString());
-      router.replace(`/auth/login?line_error=${encodeURIComponent(lineError)}` as any);
-      return;
-    }
-    if (!webToken) {
-      setWebTokenProcessed(true);
-      return;
-    }
-    let cancelled = false;
-
-    const run = async () => {
-      try {
-        await loginWithToken(webToken);
-        if (cancelled) return;
-
-        const saved = getLoginReturn();
-        let returnTo = saved ?? "/(tabs)/profile";
-        if (returnTo.startsWith("/auth/login")) returnTo = "/(tabs)/profile";
-
-        setTimeout(() => {
-          if (cancelled) return;
-          router.replace(returnTo as any);
-          setWebTokenProcessed(true);
-        }, 100);
-      } catch {
-        if (cancelled) return;
-        setWebTokenProcessed(true);
-        router.replace("/auth/login?line_error=me_failed" as any);
-      }
-    };
-
-    run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [loginWithToken]);
-
-  // Web: line_token が URL にあるあいだはローディング表示（認証ガードでログインに飛ばされないようにする）
-  if (Platform.OS === "web" && hasLineTokenInUrl && !webTokenProcessed) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0a0a0a" }}>
-        <ActivityIndicator size="large" color="#06C755" />
-      </View>
-    );
-  }
-
-  // ネイティブ: line_token パラメータを処理
+  // ネイティブ: line_token パラメータを処理（ネイティブアプリ用）
   useEffect(() => {
     if (Platform.OS !== "web" && line_token) {
       loginWithToken(line_token as string)
@@ -154,6 +66,7 @@ function isPublicPath(pathname: string): boolean {
   // PWA スタンドアロン起動時はホームも認証必須にする
   if (pathname === "/" && !isPwaStandalone()) return true; // /(tabs)/index（ブラウザのみ公開）
   if (pathname === "/auth/login") return true;
+  if (pathname === "/auth/callback") return true; // OAuthリダイレクトコールバック
   if (pathname === "/community" || pathname.startsWith("/community/")) return true; // /(tabs)/community + 詳細 + members
   if (pathname === "/live" || pathname.startsWith("/live")) return true; // /(tabs)/live + /live/[id]
   if (pathname === "/livers" || pathname.startsWith("/livers/")) return true; // ライバー一覧・詳細（他ユーザーページ）
@@ -180,7 +93,7 @@ function ProfileSetupGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (loading || !user) return;
-    if (pathname === "/account" || pathname === "/auth/login" || pathname === "/auth/register") return;
+    if (pathname === "/account" || pathname === "/auth/login" || pathname === "/auth/register" || pathname === "/auth/callback") return;
     if (isPublicPath(pathname)) return;
     if (needsProfileSetup(user.displayName ?? user.name)) {
       router.replace("/account");
@@ -242,6 +155,7 @@ function RootLayoutNav() {
       <Stack.Screen name="settings" options={{ headerShown: false }} />
       <Stack.Screen name="payout-settings" options={{ headerShown: false }} />
       <Stack.Screen name="auth/login" options={{ headerShown: false }} />
+      <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
       <Stack.Screen name="auth/register" options={{ headerShown: false }} />
       <Stack.Screen name="terms" options={{ headerShown: false }} />
       <Stack.Screen name="privacy" options={{ headerShown: false }} />

@@ -38,33 +38,25 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const topInset = Platform.OS === "web" ? 12 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
-  // ポップアップウィンドウでOAuth認証（タブが増えない）
-  function openAuthPopup(path: string) {
+  // 同一タブでOAuth認証（ポップアップブロック問題を回避）
+  function openAuthRedirect(path: string) {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       const returnTo = window.location.pathname + window.location.search;
       saveLoginReturn(returnTo);
       const apiBase = getApiUrl();
       const url = new URL(path, apiBase).toString();
-      const w = 520;
-      const h = 640;
-      const left = Math.max(0, (window.screen.width - w) / 2);
-      const top = Math.max(0, (window.screen.height - h) / 2);
-      window.open(
-        url,
-        "oauth_popup",
-        `width=${w},height=${h},left=${left},top=${top},scrollbars=yes,resizable=yes`
-      );
+      window.location.href = url;
     } else {
       router.replace("/(tabs)");
     }
   }
 
   function handleLineLogin() {
-    openAuthPopup("/api/auth/line");
+    openAuthRedirect("/api/auth/line");
   }
 
   function handleGoogleLogin() {
-    openAuthPopup("/api/auth/google");
+    openAuthRedirect("/api/auth/google");
   }
 
   return (
