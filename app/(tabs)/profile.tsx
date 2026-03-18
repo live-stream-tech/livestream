@@ -522,12 +522,12 @@ export default function ProfileScreen() {
         </View>
 
         <Pressable style={styles.revenueBtn} onPress={() => router.push("/revenue")}>
-          <Ionicons name="wallet-outline" size={16} color="#fff" />
+          <Ionicons name="wallet-outline" size={16} color="#050505" />
           <Text style={styles.revenueBtnText}>REVENUE MANAGEMENT</Text>
         </Pressable>
 
         <Pressable style={styles.adReviewBtn} onPress={() => router.push("/community/ad-review")}>
-          <Ionicons name="megaphone-outline" size={16} color="#fff" />
+          <Ionicons name="megaphone-outline" size={16} color="#050505" />
           <Text style={styles.adReviewBtnText}>広告審査（管理人・モデレーター）</Text>
         </Pressable>
 
@@ -549,7 +549,7 @@ export default function ProfileScreen() {
               <Ionicons
                 name="color-wand-outline"
                 size={16}
-                color={roleStatus?.isEditor ? "#fff" : C.textSec}
+                color={roleStatus?.isEditor ? "#050505" : C.textSec}
               />
               <Text
                 style={[
@@ -571,7 +571,7 @@ export default function ProfileScreen() {
               <Ionicons
                 name="camera-outline"
                 size={16}
-                color={roleStatus?.isTwoshot ? "#fff" : C.textSec}
+                color={roleStatus?.isTwoshot ? "#050505" : C.textSec}
               />
               <Text
                 style={[
@@ -690,7 +690,7 @@ export default function ProfileScreen() {
             </Text>
           </View>
           <Pressable style={styles.uploadBtn} onPress={() => router.push("/upload")}>
-            <Ionicons name="add" size={16} color="#fff" />
+            <Ionicons name="add" size={16} color="#050505" />
             <Text style={styles.uploadBtnText}>投稿する</Text>
           </Pressable>
         </View>
@@ -741,7 +741,7 @@ export default function ProfileScreen() {
             </Text>
           </View>
           <Pressable style={styles.uploadBtn} onPress={() => router.push("/upload/work")}>
-            <Ionicons name="add" size={16} color="#fff" />
+            <Ionicons name="add" size={16} color="#050505" />
             <Text style={styles.uploadBtnText}>作品を投稿</Text>
           </Pressable>
         </View>
@@ -877,7 +877,24 @@ export default function ProfileScreen() {
                   )}
                 </View>
                 <Text style={styles.previewName}>{user?.name ?? user?.displayName ?? ""}</Text>
-                {user?.bio ? <Text style={styles.previewBio}>{user.bio}</Text> : null}
+                {user?.bio ? <Text style={styles.previewBio}>{user.bio}</Text> : (
+                  <Text style={styles.previewBio}>プロフィールが未設定です</Text>
+                )}
+                {/* Role badges */}
+                <View style={styles.previewRoleBadges}>
+                  {roleStatus?.isEditor && (
+                    <View style={styles.previewRoleBadge}>
+                      <Ionicons name="color-wand-outline" size={11} color={C.accent} />
+                      <Text style={styles.previewRoleBadgeText}>動画編集クリエイター</Text>
+                    </View>
+                  )}
+                  {roleStatus?.isTwoshot && (
+                    <View style={styles.previewRoleBadge}>
+                      <Ionicons name="camera-outline" size={11} color={C.accent} />
+                      <Text style={styles.previewRoleBadgeText}>個別セッションライバー</Text>
+                    </View>
+                  )}
+                </View>
                 {(user?.instagramUrl || user?.youtubeUrl || user?.xUrl) ? (
                   <View style={styles.socialLinksRow}>
                     {user?.instagramUrl && <View style={styles.socialIconBtn}><Ionicons name="logo-instagram" size={22} color="#E4405F" /></View>}
@@ -886,20 +903,16 @@ export default function ProfileScreen() {
                   </View>
                 ) : null}
               </View>
-              {user?.pinnedCommunityIds && user.pinnedCommunityIds.length > 0 && myCommunities.length > 0 && (
+               {myCommunities.length > 0 && (
                 <View style={styles.previewCommunitiesSection}>
                   <Text style={styles.previewSectionTitle}>参加コミュニティ</Text>
                   <View style={styles.previewCommunityGrid}>
-                    {user.pinnedCommunityIds.slice(0, 4).map((cid) => {
-                      const c = myCommunities.find((m) => m.id === cid);
-                      if (!c) return null;
-                      return (
-                        <Pressable key={c.id} style={styles.previewCommunityChip} onPress={() => router.push(`/community/${c.id}`)}>
-                          <Image source={{ uri: c.thumbnail }} style={styles.previewCommunityThumb} contentFit="cover" />
-                          <Text style={styles.previewCommunityName} numberOfLines={1}>{c.name}</Text>
-                        </Pressable>
-                      );
-                    })}
+                    {myCommunities.slice(0, 6).map((c) => (
+                      <Pressable key={c.id} style={styles.previewCommunityChip} onPress={() => router.push(`/community/${c.id}`)}>
+                        <Image source={{ uri: c.thumbnail }} style={styles.previewCommunityThumb} contentFit="cover" />
+                        <Text style={styles.previewCommunityName} numberOfLines={1}>{c.name}</Text>
+                      </Pressable>
+                    ))}
                   </View>
                 </View>
               )}
@@ -1404,7 +1417,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalSheet: {
-    backgroundColor: "#131E2A",
+    backgroundColor: C.surface,
     borderTopLeftRadius: 6,
     borderTopRightRadius: 6,
     padding: 20,
@@ -1431,15 +1444,18 @@ const styles = StyleSheet.create({
     backgroundColor: C.accent,
     borderRadius: 3,
   },
-  previewOpenPageText: { color: "#fff", fontSize: 12, fontWeight: "700" },
-  previewScroll: { maxHeight: 400 },
+  previewOpenPageText: { color: "#050505", fontSize: 12, fontWeight: "700" },
+  previewScroll: { flex: 1 },
   previewProfileCard: {
     alignItems: "center",
-    paddingVertical: 20,
+    paddingVertical: 24,
     paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: C.borderDim,
+    marginBottom: 16,
   },
-  previewAvatarWrap: { marginBottom: 12 },
-  previewAvatar: { width: 80, height: 80, borderRadius: 40 },
+  previewAvatarWrap: { marginBottom: 14 },
+  previewAvatar: { width: 88, height: 88, borderRadius: 44, borderWidth: 2, borderColor: C.accent },
   previewWhiteCircle: {
     width: 60,
     height: 60,
@@ -1450,8 +1466,38 @@ const styles = StyleSheet.create({
   },
   previewName: { color: C.text, fontSize: 18, fontWeight: "800", marginBottom: 8 },
   previewBio: { color: C.textSec, fontSize: 14, lineHeight: 20, textAlign: "center", marginBottom: 12 },
-  previewPostsSection: { paddingBottom: 24 },
+  previewPostsSection: { paddingHorizontal: 16, paddingBottom: 24 },
   previewPostsList: { gap: 8 },
+  previewRoleBadges: { flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center", marginBottom: 10 },
+  previewRoleBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: C.surface2,
+    borderRadius: 2,
+    borderWidth: 1,
+    borderColor: C.borderDim,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  previewRoleBadgeText: { color: C.textSec, fontSize: 10, fontWeight: "700" },
+  previewSectionTitle: { color: C.textSec, fontSize: 11, fontWeight: "700", letterSpacing: 0.8, marginBottom: 10, marginTop: 4 },
+  previewCommunitiesSection: { paddingHorizontal: 16, marginBottom: 20 },
+  previewCommunityGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  previewCommunityChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: C.surface2,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: C.borderDim,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    width: "47%",
+  },
+  previewCommunityThumb: { width: 28, height: 28, borderRadius: 2 },
+  previewCommunityName: { color: C.text, fontSize: 11, fontWeight: "700", flex: 1 },
   previewPostItem: {
     flexDirection: "row",
     alignItems: "center",
