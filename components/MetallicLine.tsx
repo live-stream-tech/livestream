@@ -11,7 +11,7 @@ type Props = {
   style?: any;
 };
 
-const METALLIC_COLORS = ["#4A5568", "#9CA3AF", "#E5E7EB", "#9CA3AF"] as const;
+const METALLIC_COLORS = ["#00ffcc22", "#00ffcc", "#00ffcccc", "#00ffcc22"] as const;
 
 /**
  * グレー〜白のグラデーションでメタリックな線を描画

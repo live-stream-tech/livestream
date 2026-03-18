@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1B2838"
+      "backgroundColor": "#050505"
     },
     "ios": {
       "supportsTablet": false,
@@ -33,8 +33,8 @@
       "name": "LiveStage",
       "shortName": "LiveStage",
       "description": "ライブ配信・有料動画プラットフォーム",
-      "themeColor": "#1B2838",
-      "backgroundColor": "#1B2838",
+      "themeColor": "#00ffcc",
+      "backgroundColor": "#050505",
       "startUrl": "/",
       "display": "standalone",
       "orientation": "portrait",
@@ -42,7 +42,12 @@
       "scope": "/"
     },
     "plugins": [
-      ["expo-router", { "root": "./app" }],
+      [
+        "expo-router",
+        {
+          "root": "./app"
+        }
+      ],
       "expo-font",
       "expo-web-browser",
       "expo-image"
@@ -50,6 +55,7 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "backgroundColor": "#050505"
   }
 }

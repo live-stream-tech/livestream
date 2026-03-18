@@ -47,7 +47,7 @@ const COMMUNITY_ADS: Record<string, AdData> = {
     sub: "4/1 超次元ライブ • 先行販売中",
     cta: "購入する",
     bg: "#08122a",
-    accent: "#29B6CF",
+    accent: "#00ffcc",
     thumb: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120&h=80&fit=crop",
   },
   "インフル": {
@@ -846,7 +846,7 @@ export default function CommunityDetailScreen() {
             <Pressable style={styles.backBtn} onPress={() => router.back()}>
               <Ionicons name="chevron-back" size={22} color="#fff" />
             </Pressable>
-            <AppLogo width={120} />
+            <AppLogo height={36} />
           </View>
         </View>
 

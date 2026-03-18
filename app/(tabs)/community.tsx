@@ -171,7 +171,7 @@ export default function CommunityScreen() {
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-        <AppLogo width={140} />
+        <AppLogo height={36} />
         <View style={styles.searchRow}>
           <View style={styles.searchWrap}>
             <Ionicons name="search-outline" size={16} color={C.textMuted} style={styles.searchIcon} />

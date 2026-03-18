@@ -2,19 +2,25 @@ import React from "react";
 import { View, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 
+const ICON_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663449879480/Y3Yn5f8wK9BzVPCXiSHai5/logo-icon-UtffSyBQcbbEmRWixUFkkb.webp";
+const TEXT_URL = "https://d2xsxph8kpxj0f.cloudfront.net/310519663449879480/Y3Yn5f8wK9BzVPCXiSHai5/logo-raw-stock_9e50ecdf.png";
+
 type Props = {
-  /** 横幅。200x70 を基準に縦横比を維持して縮小します。 */
-  width?: number;
+  /** アイコン高さ基準（デフォルト36px） */
+  height?: number;
 };
 
-export function AppLogo({ width = 200 }: Props) {
-  const height = (70 / 200) * width;
-
+export function AppLogo({ height = 36 }: Props) {
   return (
     <View style={styles.wrap}>
       <Image
-        source={require("../logo-200x70-v2.png")}
-        style={{ width, height }}
+        source={{ uri: ICON_URL }}
+        style={{ width: height, height: height }}
+        contentFit="contain"
+      />
+      <Image
+        source={{ uri: TEXT_URL }}
+        style={{ height: height * 0.65, width: height * 3.2 }}
         contentFit="contain"
       />
     </View>
@@ -23,7 +29,8 @@ export function AppLogo({ width = 200 }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 8,
   },
 });

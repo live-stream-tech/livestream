@@ -168,7 +168,7 @@ export default function AdminReportsScreen() {
                     disabled={r.status === "reviewed"}
                     onPress={() => handleDismiss(r.id)}
                   >
-                    <Ionicons name="checkmark-circle-outline" size={16} color="#1B2838" />
+                    <Ionicons name="checkmark-circle-outline" size={16} color="#050505" />
                     <Text style={[styles.actionText, styles.okText]}>問題なし</Text>
                   </Pressable>
                 </View>
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   okText: {
-    color: "#1B2838",
+    color: "#050505",
   },
 });
 

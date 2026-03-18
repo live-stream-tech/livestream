@@ -8,7 +8,7 @@ export default function Root({ children }: PropsWithChildren) {
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" content="#1B2838" />
+        <meta name="theme-color" content="#050505" />
         <meta name="application-name" content="RawStock" />
         <meta name="description" content="ライブ配信・有料動画プラットフォーム" />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -19,7 +19,7 @@ export default function Root({ children }: PropsWithChildren) {
         <link rel="icon" type="image/png" href="/favi.png" />
         <link rel="apple-touch-icon" href="/favi.png" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600;800&family=DM+Serif+Display:ital@0;1&family=Noto+Sans+JP:wght@400;500;700&family=Bebas+Neue&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Courier+Prime:wght@400;700&family=Noto+Sans+JP:wght@400;500;700&display=swap"
           rel="stylesheet"
         />
         <ScrollViewStyleReset />
@@ -27,7 +27,24 @@ export default function Root({ children }: PropsWithChildren) {
           html, body, #root {
             height: 100%;
             overflow: hidden;
-            background-color: #1B2838;
+            background-color: #050505;
+          }
+          * { font-family: 'Courier Prime', monospace; }
+          h1, h2, h3, h4, h5, h6, .display { font-family: 'Barlow Condensed', sans-serif !important; }
+          /* スキャンライン効果 */
+          body::after {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(
+              0deg,
+              transparent,
+              transparent 2px,
+              rgba(0, 255, 204, 0.015) 2px,
+              rgba(0, 255, 204, 0.015) 4px
+            );
+            pointer-events: none;
+            z-index: 9999;
           }
           /* PWA スタンドアロン時: ノッチ・ステータスバー分の余白 */
           body {

@@ -465,8 +465,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: "#E5393522",
+    borderColor: "#ff4d0022",
   },
-  stopDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#E53935" },
-  stopBtnText: { color: "#E53935", fontSize: 15, fontWeight: "700" },
+  stopDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#ff4d00" },
+  stopBtnText: { color: "#ff4d00", fontSize: 15, fontWeight: "700" },
 });

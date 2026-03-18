@@ -81,7 +81,7 @@ export default function LoginScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.logoWrap}>
-        <AppLogo width={200} />
+        <AppLogo height={36} />
         <Text style={styles.tagline}>生ライブレポ＆生配信LIVEをストック資産に</Text>
       </View>
 

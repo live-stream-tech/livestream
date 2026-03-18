@@ -129,7 +129,7 @@ export default function GenreScreen() {
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-        <AppLogo width={120} />
+        <AppLogo height={36} />
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={22} color={C.text} />
         </Pressable>

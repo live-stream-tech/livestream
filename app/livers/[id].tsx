@@ -311,7 +311,7 @@ export default function LiverDetailScreen() {
                 style={styles.musicBtn}
                 onPress={() => Linking.openURL(displayLiver.bandcampUrl as string)}
               >
-                <Ionicons name="logo-soundcloud" size={16} color="#29B6CF" />
+                <Ionicons name="logo-soundcloud" size={16} color="#00ffcc" />
                 <Text style={styles.musicBtnText}>Bandcamp で聴く / 買う</Text>
               </Pressable>
             )}

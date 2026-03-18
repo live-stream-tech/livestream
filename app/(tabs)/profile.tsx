@@ -53,7 +53,7 @@ type MyCommunity = {
 };
 
 const ENNEAGRAM_TYPES = [
-  { label: "完璧主義者", num: 1, color: "#E53935" },
+  { label: "完璧主義者", num: 1, color: "#ff4d00" },
   { label: "世話好き", num: 2, color: "#FB8C00" },
   { label: "達成者", num: 3, color: "#F9A825" },
   { label: "個人主義者", num: 4, color: "#8E24AA" },
@@ -425,7 +425,7 @@ export default function ProfileScreen() {
       <View style={[styles.container, styles.guestContainer, { paddingTop: topInset + 40 }]}>
         <Ionicons name="person-circle-outline" size={80} color={C.textMuted} />
         <View style={styles.guestLogoWrap}>
-          <AppLogo width={180} />
+          <AppLogo height={36} />
         </View>
         <Text style={styles.guestSub}>ログインしてマイページを確認しよう</Text>
         <Pressable style={styles.lineLoginBtn} onPress={handleLineLogin}>
@@ -439,7 +439,7 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-        <AppLogo width={140} />
+        <AppLogo height={36} />
         <View style={styles.headerRight}>
           <Pressable style={styles.identityBtn}>
             <Ionicons name="shield-checkmark-outline" size={13} color={C.orange} />

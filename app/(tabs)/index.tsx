@@ -465,7 +465,7 @@ export default function HomeScreen() {
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-        <AppLogo width={160} />
+        <AppLogo height={36} />
         <View style={styles.headerRight}>
           <Pressable style={styles.notifButton} onPress={() => router.push("/notifications?filter=purchase")}>
             <Ionicons name="notifications-outline" size={22} color={C.text} />
@@ -576,7 +576,7 @@ export default function HomeScreen() {
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionHeaderLeft}>
             <Ionicons name="sparkles" size={16} color={C.accent} />
-            <Text style={[styles.sectionTitle, { color: "#E53935" }]}>New</Text>
+            <Text style={[styles.sectionTitle, { color: "#ff4d00" }]}>New</Text>
           </View>
           <FeedTabRow activeTab={videoFeedTab} onTabChange={setVideoFeedTab} inline />
         </View>
@@ -594,7 +594,7 @@ export default function HomeScreen() {
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionHeaderLeft}>
             <Ionicons name="radio" size={16} color={C.live} />
-            <Text style={[styles.sectionTitle, { color: "#E53935" }]}>Now</Text>
+            <Text style={[styles.sectionTitle, { color: "#ff4d00" }]}>Now</Text>
           </View>
           <View style={styles.feedTabRowWithViewAllRight}>
             <FeedTabRow activeTab={liveFeedTab} onTabChange={setLiveFeedTab} inline />

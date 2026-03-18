@@ -3,7 +3,7 @@ import Svg, { Polygon, Circle, Line, Text as SvgText } from "react-native-svg";
 import { C } from "@/constants/colors";
 
 const ENNEAGRAM_TYPES = [
-  { label: "完璧主義者", num: 1, color: "#E53935" },
+  { label: "完璧主義者", num: 1, color: "#ff4d00" },
   { label: "世話好き", num: 2, color: "#FB8C00" },
   { label: "達成者", num: 3, color: "#F9A825" },
   { label: "個人主義者", num: 4, color: "#8E24AA" },

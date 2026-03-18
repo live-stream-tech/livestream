@@ -32,7 +32,7 @@ const 個別セッション_CATEGORY_ICONS: Record<string, string> = {
 };
 
 const 個別セッション_CATEGORY_COLORS: Record<string, string> = {
-  english: "#29B6CF",
+  english: "#00ffcc",
   counselor: "#EC407A",
   fortune: "#7C4DFF",
   idol: "#FF4081",

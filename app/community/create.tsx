@@ -159,7 +159,7 @@ export default function CreateCommunityScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-        <AppLogo width={120} />
+        <AppLogo height={36} />
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={22} color={C.text} />
         </Pressable>
