@@ -15,7 +15,7 @@ export function AppLogo({ height = 36 }: Props) {
     <View style={styles.wrap}>
       <Image
         source={{ uri: ICON_URL }}
-        style={{ width: height, height: height, marginLeft: 6 }}
+        style={{ width: height, height: height, marginLeft: 14 }}
         contentFit="contain"
       />
       <Image
