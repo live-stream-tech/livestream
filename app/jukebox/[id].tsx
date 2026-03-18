@@ -440,7 +440,7 @@ export default function JukeboxScreen() {
   const { data } = useQuery<JukeboxData>({
     queryKey: jukeboxKey,
     refetchInterval: (query) =>
-      (query.state.data as JukeboxData)?.state?.isPlaying ? 15000 : false,
+      (query.state.data as JukeboxData)?.state?.isPlaying ? 5000 : 10000,
   });
 
   const { data: myVideos = [] } = useQuery<Video[]>({

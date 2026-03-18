@@ -189,7 +189,7 @@ function EmbeddedJukebox({ communityId }: { communityId: number }) {
   const { data } = useQuery<JukeboxData>({
     queryKey: [`/api/jukebox/${communityId}`],
     refetchInterval: (query) =>
-      (query.state.data as JukeboxData)?.state?.isPlaying ? 15000 : false,
+      (query.state.data as JukeboxData)?.state?.isPlaying ? 5000 : 10000,
   });
 
   const state = data?.state ?? null;
@@ -724,10 +724,12 @@ export default function CommunityDetailScreen() {
   const { data: threads = [], refetch: refetchThreads } = useQuery<ThreadItem[]>({
     queryKey: [`/api/communities/${communityId}/threads`],
     enabled: activeTab === "掲示板" && communityId > 0,
+    refetchInterval: activeTab === "掲示板" ? 30000 : false,
   });
   const { data: threadDetail, refetch: refetchThreadDetail } = useQuery<ThreadDetail>({
     queryKey: [`/api/communities/${communityId}/threads/${selectedThreadId}`],
     enabled: !!selectedThreadId && communityId > 0,
+    refetchInterval: !!selectedThreadId ? 15000 : false,
   });
 
   const usingDemoVideos = apiVideos.length === 0;
