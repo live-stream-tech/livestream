@@ -31,6 +31,6 @@ const styles = StyleSheet.create({
   wrap: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 10,
   },
 });

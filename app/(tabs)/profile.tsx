@@ -8,7 +8,6 @@ import {
   TextInput,
   Modal,
   Platform,
-  Animated,
   Alert,
   ActivityIndicator,
   Linking,
@@ -18,14 +17,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "@/lib/auth";
 import { C } from "@/constants/colors";
 import { getTabTopInset, getTabBottomInset } from "@/constants/layout";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { AppLogo } from "@/components/AppLogo";
 import { MetallicLine } from "@/components/MetallicLine";
-import { EnneagramChart } from "@/components/EnneagramChart";
 import { saveLoginReturn } from "@/lib/login-return";
 
 type Notif = { id: number; isRead: boolean };
@@ -52,20 +49,6 @@ type MyCommunity = {
   category: string;
 };
 
-const ENNEAGRAM_TYPES = [
-  { label: "完璧主義者", num: 1, color: "#ff4d00" },
-  { label: "世話好き", num: 2, color: "#FB8C00" },
-  { label: "達成者", num: 3, color: "#F9A825" },
-  { label: "個人主義者", num: 4, color: "#8E24AA" },
-  { label: "研究家", num: 5, color: "#1E88E5" },
-  { label: "忠実者", num: 6, color: "#00ACC1" },
-  { label: "楽観主義者", num: 7, color: "#43A047" },
-  { label: "挑戦者", num: 8, color: "#E91E63" },
-  { label: "平和主義者", num: 9, color: "#9E9E9E" },
-];
-
-const STORAGE_KEY = "enneagram_scores";
-const DEFAULT_SCORES = [6, 5, 7, 4, 8, 5, 6, 4, 7];
 
 /** 公開プロフィール用の投稿一覧（プレビュー用） */
 function ProfilePreviewPosts({ userId }: { userId: number }) {
@@ -206,11 +189,6 @@ export default function ProfileScreen() {
   const { user, token, loading: authLoading, logout, updateProfile } = useAuth();
   const queryClient = useQueryClient();
 
-  // Enneagram state
-  const [scores, setScores] = useState<number[]>(DEFAULT_SCORES);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editScores, setEditScores] = useState<number[]>(DEFAULT_SCORES);
-  const slideAnim = useRef(new Animated.Value(0)).current;
 
   // Profile edit state
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -283,60 +261,11 @@ export default function ProfileScreen() {
     enabled: searchDebounced.length > 0,
   });
 
-  useEffect(() => {
-    if (user?.enneagramScores && user.enneagramScores.length === 9) {
-      setScores(user.enneagramScores);
-      setEditScores(user.enneagramScores);
-      return;
-    }
-    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length === 9) {
-            setScores(parsed);
-            setEditScores(parsed);
-          }
-        } catch {}
-      }
-    });
-  }, [user?.enneagramScores]);
 
-  function openEdit() {
-    setEditScores([...scores]);
-    setShowEditModal(true);
-    Animated.spring(slideAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-      tension: 60,
-      friction: 10,
-    }).start();
-  }
 
-  function closeEdit() {
-    Animated.timing(slideAnim, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => setShowEditModal(false));
-  }
 
-  async function saveScores() {
-    setScores([...editScores]);
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(editScores));
-    try {
-      await updateProfile({ enneagramScores: editScores });
-    } catch {}
-    closeEdit();
-  }
 
-  function changeScore(index: number, delta: number) {
-    setEditScores((prev) => {
-      const next = [...prev];
-      next[index] = Math.max(0, Math.min(10, next[index] + delta));
-      return next;
-    });
-  }
+
 
   function openProfileEdit() {
     setEditName(user?.name ?? user?.displayName ?? "");
@@ -400,8 +329,6 @@ export default function ProfileScreen() {
     }
   }
 
-  const dominantIdx = scores.indexOf(Math.max(...scores));
-  const dominantType = ENNEAGRAM_TYPES[dominantIdx];
 
   // Not logged in state: LINEログインボタンを表示
   if (!authLoading && !user) {
@@ -576,13 +503,7 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        <View style={styles.tagsRow}>
-          <View style={[styles.tag, { borderColor: dominantType.color + "66" }]}>
-            <Text style={[styles.tagText, { color: dominantType.color }]}>
-              TYPE {dominantType.num}：{dominantType.label}
-            </Text>
-          </View>
-        </View>
+
 
         {/* Supporter Level */}
         <View style={styles.supporterCard}>
@@ -862,45 +783,13 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Enneagram Card */}
-        <View style={styles.enneagramCard}>
-          <View style={styles.enneagramHeader}>
-            <Ionicons name="analytics-outline" size={15} color={C.accent} />
-            <Text style={styles.enneagramTitle}>ENNEAGRAM</Text>
-            <Pressable style={styles.enneagramEditBtn} onPress={openEdit}>
-              <Ionicons name="create-outline" size={14} color={C.textMuted} />
-              <Text style={styles.enneagramEditText}>編集</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.enneagramBody}>
-            <EnneagramChart scores={scores} />
-            <View style={styles.enneagramLegend}>
-              {ENNEAGRAM_TYPES.map((t, i) => (
-                <View key={i} style={styles.legendRow}>
-                  <View style={[styles.legendDot, { backgroundColor: t.color }]} />
-                  <Text style={styles.legendNum}>{t.num}</Text>
-                  <Text style={styles.legendLabel}>{t.label}</Text>
-                  <View style={styles.legendBarBg}>
-                    <View
-                      style={[
-                        styles.legendBarFill,
-                        { width: `${scores[i] * 10}%` as any, backgroundColor: t.color },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.legendScore}>{scores[i]}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </View>
+   
 
         <View style={{ height: 120 }} />
       </ScrollView>
 
       <Pressable style={[styles.startFab, { bottom: bottomInset + 80 }]}>
-        <Ionicons name="radio" size={16} color="#fff" />
+        <Ionicons name="radio" size={16} color="#050505" />
         <Text style={styles.startFabText}>START</Text>
       </Pressable>
 
@@ -1014,12 +903,7 @@ export default function ProfileScreen() {
                   </View>
                 </View>
               )}
-              <View style={styles.previewEnneagramSection}>
-                <Text style={styles.previewSectionTitle}>ENNEAGRAM</Text>
-                <View style={styles.previewEnneagramWrap}>
-                  <EnneagramChart scores={scores} />
-                </View>
-              </View>
+
               <View style={styles.previewPostsSection}>
                 <Text style={styles.postsTitle}>投稿</Text>
                 <ProfilePreviewPosts userId={user?.id ?? 0} />
@@ -1108,84 +992,7 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      {/* Enneagram Edit Modal */}
-      <Modal visible={showEditModal} transparent animationType="none">
-        <Pressable style={styles.modalBg} onPress={closeEdit}>
-          <Animated.View
-            style={[
-              styles.modalSheet,
-              { paddingBottom: getTabBottomInset(insets) + 16 },
-              {
-                transform: [
-                  {
-                    translateY: slideAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [600, 0],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <Pressable onPress={() => {}}>
-              <View style={styles.modalHandle} />
-              <View style={styles.modalTitleRow}>
-                <Ionicons name="analytics" size={18} color={C.accent} />
-                <Text style={styles.modalTitle}>エニアグラムを設定</Text>
-              </View>
-              <Text style={styles.modalSub}>各タイプの強さを 0〜10 で入力してください</Text>
 
-              <ScrollView
-                style={styles.modalScroll}
-                showsVerticalScrollIndicator={false}
-                nestedScrollEnabled
-              >
-                {ENNEAGRAM_TYPES.map((t, i) => (
-                  <View key={i} style={styles.editRow}>
-                    <View style={styles.editRowLeft}>
-                      <View style={[styles.editTypeBadge, { backgroundColor: t.color + "22", borderColor: t.color + "55" }]}>
-                        <Text style={[styles.editTypeNum, { color: t.color }]}>{t.num}</Text>
-                      </View>
-                      <Text style={styles.editTypeLabel}>{t.label}</Text>
-                    </View>
-                    <View style={styles.editRowRight}>
-                      <Pressable
-                        style={styles.stepBtn}
-                        onPress={() => changeScore(i, -1)}
-                        testID={`minus-${i}`}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      >
-                        <Ionicons name="remove" size={16} color={C.textSec} />
-                      </Pressable>
-                      <View style={[styles.scoreBox, { borderColor: t.color + "66" }]} testID={`score-${i}`}>
-                        <Text style={[styles.scoreText, { color: t.color }]}>{editScores[i]}</Text>
-                      </View>
-                      <Pressable
-                        style={styles.stepBtn}
-                        onPress={() => changeScore(i, 1)}
-                        testID={`plus-${i}`}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      >
-                        <Ionicons name="add" size={16} color={C.textSec} />
-                      </Pressable>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
-
-              <View style={styles.modalActions}>
-                <Pressable style={styles.cancelBtn} onPress={closeEdit}>
-                  <Text style={styles.cancelBtnText}>キャンセル</Text>
-                </Pressable>
-                <Pressable style={styles.saveBtn} onPress={saveScores}>
-                  <Ionicons name="checkmark" size={16} color="#fff" />
-                  <Text style={styles.saveBtnText}>保存する</Text>
-                </Pressable>
-              </View>
-            </Pressable>
-          </Animated.View>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -1298,52 +1105,6 @@ const styles = StyleSheet.create({
   },
   tagText: { color: C.textSec, fontSize: 12, fontWeight: "600" },
 
-  enneagramCard: {
-    marginHorizontal: 16,
-    backgroundColor: C.surface,
-    borderRadius: 3,
-    padding: 16,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  enneagramHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 14,
-  },
-  enneagramTitle: { color: C.accent, fontSize: 12, fontWeight: "800", letterSpacing: 1, flex: 1 },
-  enneagramEditBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 2,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  enneagramEditText: { color: C.textMuted, fontSize: 11, fontWeight: "600" },
-  enneagramBody: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  enneagramLegend: { flex: 1, gap: 5, justifyContent: "center" },
-  legendRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  legendDot: { width: 6, height: 6, borderRadius: 2 },
-  legendNum: { color: C.textMuted, fontSize: 9, fontWeight: "700", width: 10 },
-  legendLabel: { color: C.textSec, fontSize: 9, flex: 1 },
-  legendBarBg: {
-    width: 40,
-    height: 4,
-    backgroundColor: C.surface2,
-    borderRadius: 2,
-    overflow: "hidden",
-  },
-  legendBarFill: { height: "100%", borderRadius: 2 },
-  legendScore: { color: C.textMuted, fontSize: 9, fontWeight: "700", width: 14, textAlign: "right" },
 
   supporterCard: {
     marginHorizontal: 16,
@@ -1397,7 +1158,7 @@ const styles = StyleSheet.create({
     borderColor: C.accent,
   },
   roleButtonText: { color: C.textSec, fontSize: 12, fontWeight: "700" },
-  roleButtonTextActive: { color: "#fff" },
+  roleButtonTextActive: { color: "#050505" },
   revenueBtn: {
     marginHorizontal: 16,
     backgroundColor: C.green,
@@ -1409,7 +1170,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 20,
   },
-  revenueBtnText: { color: "#fff", fontSize: 14, fontWeight: "800", letterSpacing: 0.5 },
+  revenueBtnText: { color: "#050505", fontSize: 14, fontWeight: "800", letterSpacing: 0.5 },
   adReviewBtn: {
     marginHorizontal: 16,
     backgroundColor: C.orange,
@@ -1421,7 +1182,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 20,
   },
-  adReviewBtnText: { color: "#fff", fontSize: 14, fontWeight: "800", letterSpacing: 0.5 },
+  adReviewBtnText: { color: "#050505", fontSize: 14, fontWeight: "800", letterSpacing: 0.5 },
   searchResults: {
     marginHorizontal: 16,
     marginBottom: 16,
@@ -1464,7 +1225,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  uploadBtnText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  uploadBtnText: { color: "#050505", fontSize: 12, fontWeight: "700" },
   postsTitle: { color: C.text, fontSize: 13, fontWeight: "800", letterSpacing: 1 },
   postsCount: { color: C.textMuted, fontSize: 12, fontWeight: "600" },
   timelineList: { paddingHorizontal: 16, gap: 6, marginBottom: 12 },
@@ -1635,7 +1396,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  startFabText: { color: "#fff", fontSize: 13, fontWeight: "800", letterSpacing: 0.5 },
+  startFabText: { color: "#050505", fontSize: 13, fontWeight: "800", letterSpacing: 0.5 },
 
   modalBg: {
     flex: 1,
@@ -1707,44 +1468,6 @@ const styles = StyleSheet.create({
   modalSub: { color: C.textMuted, fontSize: 12, marginBottom: 20 },
   profileEditHint: { color: C.textMuted, fontSize: 11, lineHeight: 16, marginBottom: 16 },
   modalScroll: { maxHeight: 380 },
-  editRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  editRowLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  editTypeBadge: {
-    width: 30,
-    height: 30,
-    borderRadius: 3,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  editTypeNum: { fontSize: 13, fontWeight: "800" },
-  editTypeLabel: { color: C.textSec, fontSize: 13 },
-  editRowRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  stepBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 2,
-    backgroundColor: C.surface2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scoreBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 3,
-    borderWidth: 1.5,
-    backgroundColor: C.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  scoreText: { fontSize: 16, fontWeight: "800" },
   modalActions: { flexDirection: "row", gap: 12, marginTop: 20 },
   cancelBtn: {
     flex: 1,
@@ -1765,7 +1488,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 6,
   },
-  saveBtnText: { color: "#fff", fontSize: 14, fontWeight: "800" },
+  saveBtnText: { color: "#050505", fontSize: 14, fontWeight: "800" },
 
   // Guest / not logged in
   guestContainer: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingHorizontal: 40 },
@@ -1795,7 +1518,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   lineIcon: { width: 22, height: 22 },
-  lineLoginText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  lineLoginText: { color: "#050505", fontSize: 16, fontWeight: "800" },
 
   pwaFab: {
     position: "absolute",

@@ -15,6 +15,8 @@ export const C = {
   orangeLight: "#ff7033",
   green: "#00ffcc",
   yellow: "#e8e4dc",
+  /** 3色目: ハイコントラスト・アンバーゴールド。黒背景のボタン文字・バッジに使用 */
+  amber: "#f5c842",
   tabBg: "#050505",
   premium: "#0d0d0d",
 };
