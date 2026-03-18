@@ -110,6 +110,7 @@ export default function NotificationsScreen() {
 
   const { data: notifs = [] } = useQuery<Notif[]>({
     queryKey: ["/api/notifications"],
+    refetchInterval: 30_000,
   });
 
   const filteredNotifs = filter === "all"

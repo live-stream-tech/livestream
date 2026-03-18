@@ -2893,18 +2893,27 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // ── Notifications ─────────────────────────────────────────────────
   app.get("/api/notifications", async (req: Request, res: Response) => {
+    const me = (req as any).user;
+    if (!me) return res.status(401).json({ error: "Unauthorized" });
     const type = queryStr(req, "type");
+    const baseWhere = eq(notifications.userId, me.id);
     const rows = type && type !== "all"
-      ? await db.select().from(notifications).where(eq(notifications.type, type)).orderBy(desc(notifications.createdAt))
-      : await db.select().from(notifications).orderBy(desc(notifications.createdAt));
+      ? await db.select().from(notifications).where(and(baseWhere, eq(notifications.type, type))).orderBy(desc(notifications.createdAt)).limit(50)
+      : await db.select().from(notifications).where(baseWhere).orderBy(desc(notifications.createdAt)).limit(50);
     res.json(rows);
   });
-
-  app.post("/api/notifications/read-all", async (_req: Request, res: Response) => {
-    await db.update(notifications).set({ isRead: true } as Partial<typeof notifications.$inferInsert>);
+  app.get("/api/notifications/unread-count", async (req: Request, res: Response) => {
+    const me = (req as any).user;
+    if (!me) return res.json({ count: 0 });
+    const rows = await db.select({ id: notifications.id }).from(notifications).where(and(eq(notifications.userId, me.id), eq(notifications.isRead, false)));
+    res.json({ count: rows.length });
+  });
+  app.post("/api/notifications/read-all", async (req: Request, res: Response) => {
+    const me = (req as any).user;
+    if (!me) return res.status(401).json({ error: "Unauthorized" });
+    await db.update(notifications).set({ isRead: true } as Partial<typeof notifications.$inferInsert>).where(eq(notifications.userId, me.id));
     res.json({ ok: true });
   });
-
   app.post("/api/notifications/:id/read", async (req: Request, res: Response) => {
     const id = paramNum(req, "id");
     const [updated] = await db
@@ -2914,7 +2923,6 @@ export async function registerRoutes(app: Express): Promise<void> {
       .returning();
     res.json(updated);
   });
-
   // ── Live Stream single + chat ─────────────────────────────────────
   app.get("/api/live-streams/:id", async (req: Request, res: Response) => {
     const id = paramNum(req, "id");
@@ -4200,6 +4208,20 @@ export async function registerRoutes(app: Express): Promise<void> {
       await db.execute(
         sql`UPDATE users SET following_count = following_count + 1 WHERE id = ${me.id}`
       );
+      // フォロー通知を生成
+      try {
+        await db.insert(notifications).values({
+          userId: followingId,
+          type: "follow",
+          title: `${me.displayName ?? "ユーザー"}さんがフォローしました`,
+          body: "新しいフォロワーがいます",
+          avatar: me.profileImageUrl ?? null,
+          thumbnail: null,
+          amount: null,
+          isRead: false,
+          timeAgo: "たった今",
+        } as typeof notifications.$inferInsert);
+      } catch {}
       res.json({ ok: true });
     } catch (e) {
       res.status(500).json({ error: "Failed" });

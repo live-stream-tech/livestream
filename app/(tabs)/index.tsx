@@ -26,8 +26,11 @@ type FeedTab = "all" | "following" | "recommended";
 type Notif = { id: number; isRead: boolean };
 
 function useUnreadCount() {
-  const { data = [] } = useQuery<Notif[]>({ queryKey: ["/api/notifications"] });
-  return (data as Notif[]).filter((n) => !n.isRead).length;
+  const { data } = useQuery<{ count: number }>({
+    queryKey: ["/api/notifications/unread-count"],
+    refetchInterval: 30_000,
+  });
+  return data?.count ?? 0;
 }
 
 function formatNumber(n: number): string {
