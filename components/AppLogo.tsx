@@ -15,12 +15,12 @@ export function AppLogo({ height = 36 }: Props) {
     <View style={styles.wrap}>
       <Image
         source={{ uri: ICON_URL }}
-        style={{ width: height, height: height, marginLeft: 14 }}
+        style={{ width: height, height: height }}
         contentFit="contain"
       />
       <Image
         source={{ uri: TEXT_URL }}
-        style={{ height: height * 0.9, width: height * 4.5, marginLeft: -4 }}
+        style={{ height: height * 0.9, width: height * 4.5, marginLeft: -8 }}
         contentFit="contain"
       />
     </View>
@@ -31,6 +31,6 @@ const styles = StyleSheet.create({
   wrap: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 0,
   },
 });
