@@ -1,6 +1,6 @@
 {
-  "name": "LiveStage",
-  "short_name": "LiveStage",
+  "name": "RawStock",
+  "short_name": "RawStock",
   "description": "ライブ配信・有料動画プラットフォーム",
   "start_url": "/",
   "display": "standalone",

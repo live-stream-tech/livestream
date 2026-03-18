@@ -18,6 +18,7 @@ import {
   jukeboxQueue,
   jukeboxChat,
   liveStreamChat,
+  dmConversations,
   dmConversationMessages,
   twoshotBookings,
   earnings,
@@ -52,7 +53,7 @@ import { createSignedUploadUrl } from "./r2";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
-const JWT_SECRET = process.env.SESSION_SECRET ?? "livestage-dev-secret";
+const JWT_SECRET = process.env.SESSION_SECRET ?? "rawstock-dev-secret";
 const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? "";
 const CLOUDFLARE_STREAM_TOKEN = process.env.CLOUDFLARE_STREAM_TOKEN ?? "";
 
@@ -631,14 +632,14 @@ export async function registerRoutes(app: Express): Promise<void> {
       })();
     <\/script><p style="color:#fff;background:#050505;font-family:monospace;padding:20px">認証中...</p></body></html>`;
   };
-  const LINE_STATE = "livestage-line-state";
+  const LINE_STATE = "rawstock-line-state";
 
   // ── Google OAuth ──────────────────────────────────────────────────
   const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
   const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
   const GOOGLE_CALLBACK_URL =
     process.env.GOOGLE_CALLBACK_URL ?? "https://livestream-nu-ten.vercel.app/api/auth/google-callback";
-  const GOOGLE_STATE = "livestage-google-state";
+  const GOOGLE_STATE = "rawstock-google-state";
   const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY ?? "";
 
   app.get("/api/auth/status", (_req: Request, res: Response) => {
@@ -2876,21 +2877,46 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // ── DM Messages ───────────────────────────────────────────────────
-  app.get("/api/dm-messages", async (_req: Request, res: Response) => {
-    const rows = await db.select().from(dmMessages).orderBy(asc(dmMessages.sortOrder));
-    res.json(rows);
+  // ── DM List（実ユーザー対応）──────────────────────────────────────
+  app.get("/api/dm-messages", async (req: Request, res: Response) => {
+    const me = (req as any).user;
+    if (!me) return res.status(401).json({ error: "Unauthorized" });
+    const convs = await db.select().from(dmConversations)
+      .where(or(eq(dmConversations.user1Id, me.id), eq(dmConversations.user2Id, me.id)))
+      .orderBy(desc(dmConversations.lastMessageAt));
+    const result = await Promise.all(convs.map(async (c) => {
+      const otherId = c.user1Id === me.id ? c.user2Id : c.user1Id;
+      const [other] = await db.select({ id: users.id, displayName: users.displayName, profileImageUrl: users.profileImageUrl }).from(users).where(eq(users.id, otherId));
+      const unread = c.user1Id === me.id ? (c.unreadCount1 ?? 0) : (c.unreadCount2 ?? 0);
+      return { id: c.id, name: other?.displayName ?? "ユーザー", avatar: other?.profileImageUrl ?? null, lastMessage: c.lastMessage ?? "", time: c.lastMessageAt ? new Date(c.lastMessageAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) : "", unread, online: false, otherUserId: otherId };
+    }));
+    res.json(result);
   });
-
+  app.post("/api/dm-messages/start", async (req: Request, res: Response) => {
+    const me = (req as any).user;
+    if (!me) return res.status(401).json({ error: "Unauthorized" });
+    const { targetUserId } = req.body as { targetUserId: number };
+    if (!targetUserId || targetUserId === me.id) return res.status(400).json({ error: "Invalid target" });
+    const u1 = Math.min(me.id, targetUserId);
+    const u2 = Math.max(me.id, targetUserId);
+    let [conv] = await db.select().from(dmConversations).where(and(eq(dmConversations.user1Id, u1), eq(dmConversations.user2Id, u2)));
+    if (!conv) {
+      [conv] = await db.insert(dmConversations).values({ user1Id: u1, user2Id: u2 } as typeof dmConversations.$inferInsert).returning();
+    }
+    res.json({ id: conv.id });
+  });
   app.post("/api/dm-messages/:id/read", async (req: Request, res: Response) => {
+    const me = (req as any).user;
     const id = paramNum(req, "id");
-    const [updated] = await db
-      .update(dmMessages)
-      .set({ unread: 0 } as Partial<typeof dmMessages.$inferInsert>)
-      .where(eq(dmMessages.id, id))
-      .returning();
-    res.json(updated);
+    if (me) {
+      const [conv] = await db.select().from(dmConversations).where(eq(dmConversations.id, id));
+      if (conv) {
+        if (conv.user1Id === me.id) await db.update(dmConversations).set({ unreadCount1: 0 } as Partial<typeof dmConversations.$inferInsert>).where(eq(dmConversations.id, id));
+        else await db.update(dmConversations).set({ unreadCount2: 0 } as Partial<typeof dmConversations.$inferInsert>).where(eq(dmConversations.id, id));
+      }
+    }
+    res.json({ ok: true });
   });
-
   // ── Notifications ─────────────────────────────────────────────────
   app.get("/api/notifications", async (req: Request, res: Response) => {
     const me = (req as any).user;
@@ -2954,21 +2980,31 @@ export async function registerRoutes(app: Express): Promise<void> {
     const id = paramNum(req, "id");
     const msgs = await db.select().from(dmConversationMessages)
       .where(eq(dmConversationMessages.dmId, id))
-      .orderBy(asc(dmConversationMessages.createdAt));
+      .orderBy(asc(dmConversationMessages.createdAt))
+      .limit(100);
     res.json(msgs);
   });
-
   app.post("/api/dm-messages/:id/conversation", async (req: Request, res: Response) => {
+    const me = (req as any).user;
     const id = paramNum(req, "id");
-    const { text } = req.body;
+    const { text, imageUrl } = req.body;
+    if (!text && !imageUrl) return res.status(400).json({ error: "text or imageUrl required" });
+    const senderName = me?.displayName ?? "ユーザー";
     const [msg] = await db.insert(dmConversationMessages).values({
-      dmId: id, sender: "me", text, isRead: true,
+      dmId: id, senderId: me?.id ?? null, sender: senderName, text: text ?? null, imageUrl: imageUrl ?? null, isRead: false,
     } as typeof dmConversationMessages.$inferInsert).returning();
-    // Update last message in dm_messages
-    await db.update(dmMessages).set({ lastMessage: text, unread: 0 } as Partial<typeof dmMessages.$inferInsert>).where(eq(dmMessages.id, id));
+    // 会話の最終メッセージを更新し、相手の未読カウントを増やす
+    const [conv] = await db.select().from(dmConversations).where(eq(dmConversations.id, id));
+    if (conv && me) {
+      const isUser1 = conv.user1Id === me.id;
+      await db.update(dmConversations).set({
+        lastMessage: text ?? "📷 画像",
+        lastMessageAt: new Date(),
+        ...(isUser1 ? { unreadCount2: (conv.unreadCount2 ?? 0) + 1 } : { unreadCount1: (conv.unreadCount1 ?? 0) + 1 }),
+      } as Partial<typeof dmConversations.$inferInsert>).where(eq(dmConversations.id, id));
+    }
     res.json(msg);
   });
-
   // ── Jukebox ───────────────────────────────────────────────────────
   app.get("/api/jukebox/:communityId", async (req: Request, res: Response) => {
     const communityId = paramNum(req, "communityId");

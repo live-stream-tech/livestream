@@ -226,7 +226,7 @@ export default function TwoshotBookingScreen() {
                 ["提供時期", "予約したライブ配信中・順番が回ってきた時"],
                 ["キャンセル規定", "お客様都合のキャンセルは原則返金不可。クリエイター側事由の場合は全額返金。"],
                 ["決済方法", "クレジットカード（Stripe決済）"],
-                ["お問い合わせ", "support@livestage-app.jp"],
+                ["お問い合わせ", "support@rawstock-app.jp"],
               ].map(([label, value]) => (
                 <View key={label} style={styles.tokushoRow}>
                   <Text style={styles.tokushoLabel}>{label}</Text>

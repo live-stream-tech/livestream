@@ -328,11 +328,23 @@ export const liveStreamChat = pgTable("live_stream_chat", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const dmConversations = pgTable("dm_conversations", {
+  id: serial("id").primaryKey(),
+  user1Id: integer("user1_id").notNull(),
+  user2Id: integer("user2_id").notNull(),
+  lastMessage: text("last_message").default(""),
+  lastMessageAt: timestamp("last_message_at").defaultNow(),
+  unreadCount1: integer("unread_count1").default(0),
+  unreadCount2: integer("unread_count2").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 export const dmConversationMessages = pgTable("dm_conversation_messages", {
   id: serial("id").primaryKey(),
   dmId: integer("dm_id").notNull(),
+  senderId: integer("sender_id"),
   sender: text("sender").notNull(),
-  text: text("text").notNull(),
+  text: text("text"),
+  imageUrl: text("image_url"),
   isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
