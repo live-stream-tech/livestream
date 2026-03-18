@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { db } from "./db";
 import {
   communities,
+  follows,
   communityModerators,
   communityMembers,
   videos,
@@ -163,6 +164,8 @@ export async function registerRoutes(app: Express): Promise<void> {
     const [u] = await db.select({
       enneagramScores: users.enneagramScores,
       pinnedCommunityIds: users.pinnedCommunityIds,
+      followersCount: users.followersCount,
+      followingCount: users.followingCount,
     }).from(users).where(eq(users.id, user.id));
     let enneagramScores: number[] | null = null;
     let pinnedCommunityIds: number[] = [];
@@ -198,6 +201,8 @@ export async function registerRoutes(app: Express): Promise<void> {
       phoneNumber: (user as any).phoneNumber ?? null,
       enneagramScores,
       pinnedCommunityIds,
+      followersCount: (u as any)?.followersCount ?? 0,
+      followingCount: (u as any)?.followingCount ?? 0,
     });
   });
 
@@ -529,6 +534,8 @@ export async function registerRoutes(app: Express): Promise<void> {
       bandcampUrl: users.bandcampUrl,
       enneagramScores: users.enneagramScores,
       pinnedCommunityIds: users.pinnedCommunityIds,
+      followersCount: users.followersCount,
+      followingCount: users.followingCount,
     }).from(users).where(eq(users.id, id));
     if (!u) return res.status(404).json({ error: "Not found" });
 
@@ -576,6 +583,8 @@ export async function registerRoutes(app: Express): Promise<void> {
       bandcampUrl: (u as any).bandcampUrl ?? null,
       enneagramScores,
       pinnedCommunities,
+      followersCount: (u as any).followersCount ?? 0,
+      followingCount: (u as any).followingCount ?? 0,
     });
   });
 
@@ -4171,4 +4180,128 @@ export async function registerRoutes(app: Express): Promise<void> {
     await db.insert(videoEditors).values(demoEditors);
     res.json({ ok: true, count: demoEditors.length });
   });
+
+  // ============================================================
+  // フォロー / フォロワー API
+  // ============================================================
+
+  /** フォローする */
+  app.post("/api/users/:id/follow", async (req: Request, res: Response) => {
+    const me = (req as any).user;
+    if (!me) return res.status(401).json({ error: "Unauthorized" });
+    const followingId = parseInt(req.params.id);
+    if (isNaN(followingId) || followingId === me.id)
+      return res.status(400).json({ error: "Invalid" });
+    try {
+      await db.insert(follows).values({ followerId: me.id, followingId }).onConflictDoNothing();
+      await db.execute(
+        sql`UPDATE users SET followers_count = followers_count + 1 WHERE id = ${followingId}`
+      );
+      await db.execute(
+        sql`UPDATE users SET following_count = following_count + 1 WHERE id = ${me.id}`
+      );
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  /** アンフォローする */
+  app.delete("/api/users/:id/follow", async (req: Request, res: Response) => {
+    const me = (req as any).user;
+    if (!me) return res.status(401).json({ error: "Unauthorized" });
+    const followingId = parseInt(req.params.id);
+    if (isNaN(followingId)) return res.status(400).json({ error: "Invalid" });
+    try {
+      const result = await db
+        .delete(follows)
+        .where(and(eq(follows.followerId, me.id), eq(follows.followingId, followingId)))
+        .returning();
+      if (result.length > 0) {
+        await db.execute(
+          sql`UPDATE users SET followers_count = GREATEST(followers_count - 1, 0) WHERE id = ${followingId}`
+        );
+        await db.execute(
+          sql`UPDATE users SET following_count = GREATEST(following_count - 1, 0) WHERE id = ${me.id}`
+        );
+      }
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  /** フォロー状態を確認する */
+  app.get("/api/users/:id/follow-status", async (req: Request, res: Response) => {
+    const me = (req as any).user;
+    if (!me) return res.json({ isFollowing: false });
+    const followingId = parseInt(req.params.id);
+    if (isNaN(followingId)) return res.json({ isFollowing: false });
+    const row = await db
+      .select()
+      .from(follows)
+      .where(and(eq(follows.followerId, me.id), eq(follows.followingId, followingId)))
+      .limit(1);
+    res.json({ isFollowing: row.length > 0 });
+  });
+
+  /** フォロワー一覧 */
+  app.get("/api/users/:id/followers", async (req: Request, res: Response) => {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) return res.status(400).json({ error: "Invalid" });
+    const rows = await db
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        profileImageUrl: users.profileImageUrl,
+        bio: users.bio,
+        followersCount: users.followersCount,
+      })
+      .from(follows)
+      .innerJoin(users, eq(follows.followerId, users.id))
+      .where(eq(follows.followingId, userId))
+      .orderBy(desc(follows.createdAt))
+      .limit(100);
+    res.json(rows);
+  });
+
+  /** フォロー中一覧 */
+  app.get("/api/users/:id/following", async (req: Request, res: Response) => {
+    const userId = parseInt(req.params.id);
+    if (isNaN(userId)) return res.status(400).json({ error: "Invalid" });
+    const rows = await db
+      .select({
+        id: users.id,
+        displayName: users.displayName,
+        profileImageUrl: users.profileImageUrl,
+        bio: users.bio,
+        followersCount: users.followersCount,
+      })
+      .from(follows)
+      .innerJoin(users, eq(follows.followingId, users.id))
+      .where(eq(follows.followerId, userId))
+      .orderBy(desc(follows.createdAt))
+      .limit(100);
+    res.json(rows);
+  });
+
+  /** フォロー中ユーザーの動画フィード */
+  app.get("/api/feed/following", async (req: Request, res: Response) => {
+    const me = (req as any).user;
+    if (!me) return res.json([]);
+    const followingIds = await db
+      .select({ followingId: follows.followingId })
+      .from(follows)
+      .where(eq(follows.followerId, me.id));
+    if (followingIds.length === 0) return res.json([]);
+    const ids = followingIds.map((r) => r.followingId);
+    const feed = await db
+      .select()
+      .from(videos)
+      .where(and(inArray(videos.userId, ids), eq(videos.hidden, false)))
+      .orderBy(desc(videos.createdAt))
+      .limit(50);
+    res.json(feed);
+  });
+
 }

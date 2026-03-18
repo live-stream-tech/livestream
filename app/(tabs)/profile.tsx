@@ -473,6 +473,16 @@ export default function ProfileScreen() {
         </View>
 
         {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
+        <View style={styles.followRow}>
+          <Pressable style={styles.followStat} onPress={() => router.push(`/user/${user?.id}/followers`)}>
+            <Text style={styles.followStatValue}>{user?.followersCount ?? 0}</Text>
+            <Text style={styles.followStatLabel}>フォロワー</Text>
+          </Pressable>
+          <Pressable style={styles.followStat} onPress={() => router.push(`/user/${user?.id}/following`)}>
+            <Text style={styles.followStatValue}>{user?.followingCount ?? 0}</Text>
+            <Text style={styles.followStatLabel}>フォロー中</Text>
+          </Pressable>
+        </View>
 
         {(user?.instagramUrl || user?.youtubeUrl || user?.xUrl) ? (
           <View style={styles.socialLinksRow}>
@@ -1075,8 +1085,10 @@ const styles = StyleSheet.create({
   avatar: { width: 66, height: 66, borderRadius: 33 },
   profileInfo: { gap: 6 },
   profileName: { color: C.text, fontSize: 18, fontWeight: "800" },
-  followRow: { flexDirection: "row", gap: 16 },
-  followStat: { alignItems: "center", gap: 1 },
+  followRow: { flexDirection: "row", gap: 24, marginTop: 10, marginBottom: 4 },
+  followStat: { alignItems: "center" as const, gap: 2 },
+  followStatValue: { fontSize: 18, fontWeight: "700" as const, color: C.text },
+  followStatLabel: { fontSize: 11, color: C.textMuted },
   followNumber: { color: C.text, fontSize: 14, fontWeight: "700" },
   followLabel: { color: C.textMuted, fontSize: 9, fontWeight: "600", letterSpacing: 0.3 },
   editBtn: {

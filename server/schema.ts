@@ -275,6 +275,8 @@ export const creators = pgTable("creators", {
   revenue: integer("revenue").notNull().default(0),
   streamCount: integer("stream_count").notNull().default(0),
   followers: integer("followers").notNull().default(0),
+  followersCount: integer("followers_count").notNull().default(0),
+  followingCount: integer("following_count").notNull().default(0),
   revenueShare: integer("revenue_share").notNull().default(80),
   satisfactionScore: real("satisfaction_score").notNull().default(0),
   attendanceRate: real("attendance_rate").notNull().default(0),
@@ -580,5 +582,12 @@ export const announcements = pgTable("announcements", {
   isPinned: boolean("is_pinned").notNull().default(false),
   startAt: timestamp("start_at"),
   endAt: timestamp("end_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const follows = pgTable("follows", {
+  id: serial("id").primaryKey(),
+  followerId: integer("follower_id").notNull(), // フォローする側
+  followingId: integer("following_id").notNull(), // フォローされる側
   createdAt: timestamp("created_at").defaultNow(),
 });

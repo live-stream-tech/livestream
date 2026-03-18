@@ -23,6 +23,8 @@ export type User = {
   phoneNumber?: string | null;
   enneagramScores?: number[] | null;
   pinnedCommunityIds?: number[];
+  followersCount?: number;
+  followingCount?: number;
 };
 
 type AuthCtx = {

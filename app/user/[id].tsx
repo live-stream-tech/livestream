@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,15 +6,17 @@ import {
   StyleSheet,
   Pressable,
   Platform,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { Linking } from "react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/lib/auth";
+import { getApiUrl } from "@/lib/apiUrl";
 import { C } from "@/constants/colors";
-import { EnneagramChart } from "@/components/EnneagramChart";
 
 type PinnedCommunity = {
   id: number;
@@ -35,6 +37,8 @@ type UserProfile = {
   xUrl?: string | null;
   enneagramScores?: number[] | null;
   pinnedCommunities?: PinnedCommunity[];
+  followersCount?: number;
+  followingCount?: number;
 };
 
 type VideoItem = {
@@ -45,12 +49,48 @@ type VideoItem = {
   timeAgo?: string;
 };
 
-const DEFAULT_ENNEAGRAM = [6, 5, 7, 4, 8, 5, 6, 4, 7];
 
 export default function UserProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const userId = parseInt(id ?? "0");
   const insets = useSafeAreaInsets();
+  const { user: me, token } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: followStatus, refetch: refetchFollowStatus } = useQuery<{ isFollowing: boolean }>({
+    queryKey: [`/api/users/${userId}/follow-status`],
+    enabled: userId > 0 && !!me,
+    queryFn: async () => {
+      const baseUrl = getApiUrl();
+      const res = await fetch(new URL(`/api/users/${userId}/follow-status`, baseUrl).toString(), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      return res.json();
+    },
+  });
+  const isFollowing = followStatus?.isFollowing ?? false;
+  const followMutation = useMutation({
+    mutationFn: async () => {
+      const baseUrl = getApiUrl();
+      const method = isFollowing ? "DELETE" : "POST";
+      const res = await fetch(new URL(`/api/users/${userId}/follow`, baseUrl).toString(), {
+        method,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchFollowStatus();
+      queryClient.invalidateQueries({ queryKey: [`/api/users/${userId}`] });
+    },
+  });
+  const handleFollow = useCallback(() => {
+    if (!me) {
+      Alert.alert("ログインが必要です", "フォローするにはログインしてください");
+      return;
+    }
+    followMutation.mutate();
+  }, [me, followMutation]);
   const topInset = Platform.OS === "web" ? 67 : insets.top;
 
   const { data: profile, isLoading, isError } = useQuery<UserProfile>({
@@ -97,7 +137,6 @@ export default function UserProfileScreen() {
   }
 
   const avatar = profile.avatar ?? profile.profileImageUrl ?? null;
-  const enneagramScores = profile.enneagramScores ?? DEFAULT_ENNEAGRAM;
   const pinnedCommunities = profile.pinnedCommunities ?? [];
 
   return (
@@ -124,6 +163,29 @@ export default function UserProfileScreen() {
           </View>
           <Text style={styles.name}>{profile.name}</Text>
           {profile.bio ? <Text style={styles.bio}>{profile.bio}</Text> : null}
+          {/* フォロー数 */}
+          <View style={styles.followStatsRow}>
+            <Pressable style={styles.followStat} onPress={() => router.push(`/user/${userId}/followers`)}>
+              <Text style={styles.followStatValue}>{profile.followersCount ?? 0}</Text>
+              <Text style={styles.followStatLabel}>フォロワー</Text>
+            </Pressable>
+            <Pressable style={styles.followStat} onPress={() => router.push(`/user/${userId}/following`)}>
+              <Text style={styles.followStatValue}>{profile.followingCount ?? 0}</Text>
+              <Text style={styles.followStatLabel}>フォロー中</Text>
+            </Pressable>
+          </View>
+          {/* フォローボタン（自分以外） */}
+          {me && me.id !== userId && (
+            <Pressable
+              style={[styles.followBtn, isFollowing && styles.followBtnActive]}
+              onPress={handleFollow}
+              disabled={followMutation.isPending}
+            >
+              <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
+                {followMutation.isPending ? "..." : isFollowing ? "フォロー中" : "フォローする"}
+              </Text>
+            </Pressable>
+          )}
 
           {(profile.instagramUrl || profile.youtubeUrl || profile.xUrl) ? (
             <View style={styles.socialRow}>
@@ -166,13 +228,7 @@ export default function UserProfileScreen() {
           </View>
         )}
 
-        {/* エニアグラム */}
-        <View style={styles.enneagramSection}>
-          <Text style={styles.sectionTitle}>ENNEAGRAM</Text>
-          <View style={styles.enneagramWrap}>
-            <EnneagramChart scores={enneagramScores} />
-          </View>
-        </View>
+
 
         {/* 投稿一覧 */}
         <View style={styles.postsSection}>
@@ -236,6 +292,14 @@ const styles = StyleSheet.create({
   name: { color: C.text, fontSize: 20, fontWeight: "800", marginBottom: 8 },
   bio: { color: C.textSec, fontSize: 14, lineHeight: 22, textAlign: "center", maxWidth: "100%" },
   socialRow: { flexDirection: "row", gap: 12, marginTop: 12 },
+  followStatsRow: { flexDirection: "row", gap: 24, marginTop: 12, marginBottom: 4 },
+  followStat: { alignItems: "center" as const, gap: 2 },
+  followStatValue: { fontSize: 18, fontWeight: "700" as const, color: C.text },
+  followStatLabel: { fontSize: 11, color: C.textMuted },
+  followBtn: { marginTop: 12, paddingVertical: 10, paddingHorizontal: 32, borderRadius: 24, borderWidth: 1.5, borderColor: C.accent, alignSelf: "center" as const },
+  followBtnActive: { backgroundColor: C.accent, borderColor: C.accent },
+  followBtnText: { fontSize: 14, fontWeight: "600" as const, color: C.accent },
+  followBtnTextActive: { color: "#050505" },
   socialBtn: { padding: 8 },
   sectionTitle: {
     color: C.textSec,
