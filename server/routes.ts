@@ -2428,7 +2428,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
       const existing = await db.select().from(genreOwners).where(eq(genreOwners.genreId, gid)).limit(1);
       if (existing.length > 0) {
-        await db.update(genreOwners).set({ ownerUserId: top.adminId, updatedAt: sql`now()` } as Partial<typeof genreOwners.$inferInsert>).where(eq(genreOwners.genreId, gid));
+        await db.update(genreOwners).set({ ownerUserId: top.adminId, updatedAt: sql`now()` } as unknown as Partial<typeof genreOwners.$inferInsert>).where(eq(genreOwners.genreId, gid));
       } else {
         await db.insert(genreOwners).values({ genreId: gid, ownerUserId: top.adminId } as typeof genreOwners.$inferInsert);
       }
@@ -2686,7 +2686,6 @@ export async function registerRoutes(app: Express): Promise<void> {
           user.profileImageUrl ??
           user.avatar ??
           "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop",
-        isRanked: false,
         concertId: concertId ?? null,
         userId: user.id,
         visibility: vis,
