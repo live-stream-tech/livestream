@@ -1,6 +1,6 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, ActivityIndicator, Platform } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import { useAuth } from "@/lib/auth";
 import { getLoginReturn } from "@/lib/login-return";
 import { C } from "@/constants/colors";
@@ -8,15 +8,25 @@ import { C } from "@/constants/colors";
 /**
  * 同一タブリダイレクト方式のOAuth認証コールバックページ。
  * サーバーが /auth/callback?token=xxx にリダイレクトしてくる。
- * tokenを受け取ってloginWithTokenを呼び、元のページへ遷移する。
+ * Expo RouterのuseLocalSearchParamsは初回レンダリング時にundefinedになることがあるため、
+ * window.location.searchから直接tokenを取得する。
  */
 export default function AuthCallbackScreen() {
-  const { token } = useLocalSearchParams<{ token?: string }>();
   const { loginWithToken } = useAuth();
+  const [status, setStatus] = useState<"loading" | "error">("loading");
 
   useEffect(() => {
-    if (Platform.OS !== "web" || !token) {
+    if (Platform.OS !== "web" || typeof window === "undefined") {
       router.replace("/auth/login" as any);
+      return;
+    }
+
+    // URLSearchParamsから直接tokenを取得（Expo Routerの遅延を回避）
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+
+    if (!token) {
+      router.replace("/auth/login?line_error=me_failed" as any);
       return;
     }
 
@@ -29,15 +39,21 @@ export default function AuthCallbackScreen() {
         let returnTo = saved ?? "/(tabs)/profile";
         if (returnTo.startsWith("/auth/")) returnTo = "/(tabs)/profile";
         router.replace(returnTo as any);
-      } catch {
-        if (!cancelled) router.replace("/auth/login?line_error=me_failed" as any);
+      } catch (e) {
+        console.error("[auth/callback] loginWithToken failed:", e);
+        if (!cancelled) {
+          setStatus("error");
+          setTimeout(() => {
+            router.replace("/auth/login?line_error=me_failed" as any);
+          }, 1500);
+        }
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [token, loginWithToken]);
+  }, [loginWithToken]);
 
   return (
     <View
@@ -52,12 +68,12 @@ export default function AuthCallbackScreen() {
       <ActivityIndicator color={C.accent} size="large" />
       <Text
         style={{
-          color: C.textMuted,
+          color: status === "error" ? "#ef4444" : C.textMuted,
           fontSize: 13,
           fontFamily: "Courier Prime",
         }}
       >
-        ログイン処理中...
+        {status === "error" ? "ログインに失敗しました。再度お試しください..." : "ログイン処理中..."}
       </Text>
     </View>
   );
