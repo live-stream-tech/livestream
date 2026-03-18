@@ -23,6 +23,8 @@
     { "source": "/api/auth/status", "destination": "/api/auth/status" },
     { "source": "/api/auth/line-callback", "destination": "/api/auth/line-callback" },
     { "source": "/api/auth/line", "destination": "/api/auth/line" },
+    { "source": "/api/auth/google", "destination": "/api/auth/google" },
+    { "source": "/api/auth/google-callback", "destination": "/api/auth/google-callback" },
     { "source": "/api/(.*)", "destination": "/api/[...path]" }
   ]
 }

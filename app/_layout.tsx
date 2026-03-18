@@ -45,8 +45,11 @@ function LineTokenHandler({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") return;
     const handleMessage = async (event: MessageEvent) => {
-      // セキュリティ: 同一オリジンのみ受け付ける
-      if (event.origin !== window.location.origin) return;
+      // セキュリティ: 同一オリジンまたは信頼できるオリジンのみ受け付ける
+      // Vercel では API とフロントが同一オリジンのため通常は一致するが、
+      // ポップアップが別ドメインのAPIから来る場合も考慮して緩和
+      const allowedOrigins = [window.location.origin, "https://livestream-nu-ten.vercel.app"];
+      if (!allowedOrigins.includes(event.origin) && event.origin !== window.location.origin) return;
       const data = event.data;
       if (!data || typeof data !== "object") return;
       if (data.type === "auth_success" && data.token) {
