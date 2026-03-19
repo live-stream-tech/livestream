@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Animated,
 } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -23,9 +24,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppLogo } from "@/components/AppLogo";
 import { useAuth } from "@/lib/auth";
 
-type FeedTab = "all" | "following" | "recommended";
+const { width: SCREEN_W } = Dimensions.get("window");
+const PANEL_W = Math.round(SCREEN_W * 0.72);
+const HERO_H = Math.round(SCREEN_W * 0.56);
+const MENTOR_W = 200;
 
-type Notif = { id: number; isRead: boolean };
+type FeedTab = "all" | "following" | "recommended";
 
 function useUnreadCount() {
   const { data } = useQuery<{ count: number }>({
@@ -40,85 +44,169 @@ function formatNumber(n: number): string {
   return n.toLocaleString();
 }
 
-function VideoCard({ item, isDemo, panelWidth }: { item: any; isDemo: boolean; panelWidth: number }) {
-  const isPhotoPost = !item.duration || item.duration === "00:00";
+// ─── Live Dot ────────────────────────────────────────────────────────────────
+function LiveDot() {
+  const pulse = useRef(new Animated.Value(1)).current;
+  React.useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.2, duration: 600, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+  return (
+    <Animated.View style={[styles.liveDotAnim, { opacity: pulse }]} />
+  );
+}
+
+// ─── Section Header ───────────────────────────────────────────────────────────
+function SectionHeader({
+  title,
+  accent,
+  right,
+}: {
+  title: string;
+  accent?: boolean;
+  right?: React.ReactNode;
+}) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionHeaderLeft}>
+        <View style={[styles.sectionAccentBar, { backgroundColor: accent ? C.live : C.accent }]} />
+        <Text style={[styles.sectionTitle, accent && { color: C.live }]}>{title}</Text>
+      </View>
+      {right && <View style={styles.sectionHeaderRight}>{right}</View>}
+    </View>
+  );
+}
+
+// ─── Hero Carousel ────────────────────────────────────────────────────────────
+function HeroCard({ item, isDemo }: { item: any; isDemo: boolean }) {
   return (
     <Pressable
-      style={[styles.panelCard, { width: panelWidth }]}
+      style={[styles.heroCard, { width: SCREEN_W }]}
       onPress={() =>
         router.push(isDemo ? (`/video/${item.id}?demo=1` as any) : (`/video/${item.id}` as any))
       }
     >
-      <View style={[styles.panelThumbWrap, { width: panelWidth }]}>
-        {item.thumbnail ? (
-          <Image source={{ uri: item.thumbnail }} style={[styles.panelThumb, { width: panelWidth }]} contentFit="cover" />
-        ) : (
-          <View style={[styles.panelThumb, styles.noThumbPlaceholder, { width: panelWidth }]}>
-            <Ionicons name="document-text-outline" size={28} color={C.textMuted} />
-          </View>
-        )}
-        {isPhotoPost ? (
-          <View style={styles.photoBadge}>
-            <Ionicons name="image-outline" size={11} color="#fff" />
-            <Text style={styles.photoBadgeText}>写真</Text>
-          </View>
-        ) : (
-          <View style={styles.durationBadge}>
-            <Text style={styles.durationText}>{item.duration}</Text>
-          </View>
-        )}
-        {/* 画像内オーバーレイ: 視聴数・価格 */}
-        <View style={styles.panelThumbOverlay}>
-          <View style={styles.panelThumbOverlayRight}>
-            <Ionicons name="eye-outline" size={9} color="rgba(255,255,255,0.9)" />
-            <Text style={styles.overlayMetaText}>{formatNumber(item.views)}</Text>
-            {item.price != null && item.price > 0 ? (
-              <Text style={styles.overlayPriceText}>¥{item.price.toLocaleString()}</Text>
-            ) : (
-              <Text style={styles.overlayFreeText}>無料</Text>
-            )}
-          </View>
+      {item.thumbnail ? (
+        <Image source={{ uri: item.thumbnail }} style={styles.heroThumb} contentFit="cover" />
+      ) : (
+        <View style={[styles.heroThumb, { backgroundColor: C.surface2 }]} />
+      )}
+      <LinearGradient
+        colors={["transparent", "rgba(0,0,0,0.55)", "rgba(0,0,0,0.92)"]}
+        style={styles.heroGradient}
+      />
+      <View style={styles.heroInfo}>
+        <View style={styles.heroMeta}>
+          <Image source={{ uri: item.avatar }} style={styles.heroAvatar} contentFit="cover" />
+          <Text style={styles.heroCommunity} numberOfLines={1}>{item.community}</Text>
+          {item.price != null && item.price > 0 ? (
+            <View style={styles.heroPriceBadge}>
+              <Text style={styles.heroPriceText}>¥{item.price.toLocaleString()}</Text>
+            </View>
+          ) : (
+            <View style={[styles.heroPriceBadge, { backgroundColor: C.green }]}>
+              <Text style={styles.heroPriceText}>FREE</Text>
+            </View>
+          )}
         </View>
-        {/* サムネ境界用: 内側右・下に黒の影 */}
-        <View style={styles.panelThumbInnerShadowRight} />
-        <View style={styles.panelThumbInnerShadowBottom} />
-      </View>
-      <View style={styles.panelInfo}>
-        <View style={styles.creatorRow}>
-          <Image source={{ uri: item.avatar }} style={styles.smallAvatar} contentFit="cover" />
-          <Text style={styles.communityText} numberOfLines={1}>{item.community}</Text>
-          <Text style={styles.videoTimeAgo} numberOfLines={1}>{item.timeAgo}</Text>
+        <Text style={styles.heroTitle} numberOfLines={2}>{item.title}</Text>
+        <View style={styles.heroStats}>
+          <Ionicons name="eye-outline" size={11} color="rgba(255,255,255,0.6)" />
+          <Text style={styles.heroStatText}>{formatNumber(item.views)}</Text>
+          <Text style={styles.heroStatDot}>·</Text>
+          <Text style={styles.heroStatText}>{item.timeAgo}</Text>
         </View>
-        <Text style={styles.videoTitle} numberOfLines={1}>{item.title}</Text>
       </View>
     </Pressable>
   );
 }
 
-function LiveCard({ item, panelWidth }: { item: any; panelWidth: number }) {
+// ─── Video Card ───────────────────────────────────────────────────────────────
+function VideoCard({ item, isDemo }: { item: any; isDemo: boolean }) {
+  const isPhoto = !item.duration || item.duration === "00:00";
   return (
-    <Pressable style={[styles.panelCard, { width: panelWidth }]} onPress={() => router.push(`/live/${item.id}`)}>
-      <View style={[styles.panelThumbWrap, { width: panelWidth }]}>
-        <Image source={{ uri: item.thumbnail }} style={[styles.panelThumb, { width: panelWidth }]} contentFit="cover" />
+    <Pressable
+      style={styles.videoCard}
+      onPress={() =>
+        router.push(isDemo ? (`/video/${item.id}?demo=1` as any) : (`/video/${item.id}` as any))
+      }
+    >
+      <View style={styles.videoThumbWrap}>
+        {item.thumbnail ? (
+          <Image source={{ uri: item.thumbnail }} style={styles.videoThumb} contentFit="cover" />
+        ) : (
+          <View style={[styles.videoThumb, { backgroundColor: C.surface2, alignItems: "center", justifyContent: "center" }]}>
+            <Ionicons name="document-text-outline" size={24} color={C.textMuted} />
+          </View>
+        )}
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.7)"]}
+          style={styles.videoThumbGradient}
+        />
+        <View style={styles.videoThumbBadgeRow}>
+          {isPhoto ? (
+            <View style={styles.typeBadge}>
+              <Ionicons name="image-outline" size={9} color="#fff" />
+              <Text style={styles.typeBadgeText}>写真</Text>
+            </View>
+          ) : (
+            <View style={styles.typeBadge}>
+              <Text style={styles.typeBadgeText}>{item.duration}</Text>
+            </View>
+          )}
+          {item.price != null && item.price > 0 ? (
+            <View style={[styles.typeBadge, { backgroundColor: C.accent }]}>
+              <Text style={[styles.typeBadgeText, { color: "#000" }]}>¥{item.price.toLocaleString()}</Text>
+            </View>
+          ) : (
+            <View style={[styles.typeBadge, { backgroundColor: C.green }]}>
+              <Text style={styles.typeBadgeText}>FREE</Text>
+            </View>
+          )}
+        </View>
+      </View>
+      <View style={styles.videoInfo}>
+        <View style={styles.creatorRow}>
+          <Image source={{ uri: item.avatar }} style={styles.smallAvatar} contentFit="cover" />
+          <Text style={styles.communityText} numberOfLines={1}>{item.community}</Text>
+          <Text style={styles.timeAgoText}>{item.timeAgo}</Text>
+        </View>
+        <Text style={styles.videoTitle} numberOfLines={2}>{item.title}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+// ─── Live Card ────────────────────────────────────────────────────────────────
+function LiveCard({ item }: { item: any }) {
+  return (
+    <Pressable style={styles.liveCard} onPress={() => router.push(`/live/${item.id}`)}>
+      <View style={styles.liveThumbWrap}>
+        <Image source={{ uri: item.thumbnail }} style={styles.liveThumb} contentFit="cover" />
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.75)"]}
+          style={styles.liveThumbGradient}
+        />
         {item.isDemo ? (
-          <View style={styles.comingSoonRibbon}>
+          <View style={styles.comingSoonBadge}>
             <Text style={styles.comingSoonText}>COMING SOON</Text>
           </View>
         ) : (
           <View style={styles.liveBadge}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>LIVE</Text>
+            <LiveDot />
+            <Text style={styles.liveBadgeText}>LIVE</Text>
           </View>
         )}
         <View style={styles.viewerBadge}>
-          <Ionicons name="eye-outline" size={11} color="#fff" />
+          <Ionicons name="eye-outline" size={10} color="#fff" />
           <Text style={styles.viewerText}>{formatNumber(item.viewers)}</Text>
         </View>
-        {/* サムネ境界用: 内側右・下に黒の影 */}
-        <View style={styles.panelThumbInnerShadowRight} />
-        <View style={styles.panelThumbInnerShadowBottom} />
       </View>
-      <View style={styles.panelInfo}>
+      <View style={styles.liveInfo}>
         <View style={styles.creatorRow}>
           <Image source={{ uri: item.avatar }} style={styles.smallAvatar} contentFit="cover" />
           <Text style={styles.communityText} numberOfLines={1}>{item.community}</Text>
@@ -129,7 +217,45 @@ function LiveCard({ item, panelWidth }: { item: any; panelWidth: number }) {
   );
 }
 
-function RankedVideoCard({ item, isDemo }: { item: any; isDemo: boolean }) {
+// ─── Mentor Card ──────────────────────────────────────────────────────────────
+function MentorCard({ item }: { item: any }) {
+  return (
+    <Pressable
+      style={styles.mentorCard}
+      onPress={() => router.push(`/twoshot-booking/${item.id}`)}
+    >
+      <View style={styles.mentorThumbWrap}>
+        <Image source={{ uri: item.thumbnail }} style={styles.mentorThumb} contentFit="cover" />
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.8)"]}
+          style={styles.mentorThumbGradient}
+        />
+        <View style={styles.mentorBadge}>
+          <Text style={styles.mentorBadgeText}>{item.categoryLabel ?? "メンター"}</Text>
+        </View>
+        <View style={styles.mentorPriceOverlay}>
+          <Text style={styles.mentorPriceText}>¥{item.price?.toLocaleString()}</Text>
+        </View>
+      </View>
+      <View style={styles.mentorInfo}>
+        <View style={styles.creatorRow}>
+          <Image source={{ uri: item.avatar }} style={styles.smallAvatar} contentFit="cover" />
+          <Text style={styles.communityText} numberOfLines={1}>{item.creator}</Text>
+        </View>
+        <Text style={styles.mentorTitle} numberOfLines={2}>{item.title}</Text>
+        <View style={styles.mentorMeta}>
+          <Ionicons name="time-outline" size={10} color={C.textMuted} />
+          <Text style={styles.mentorMetaText}>{item.duration}</Text>
+          <Text style={styles.mentorMetaDot}>·</Text>
+          <Text style={styles.mentorMetaText}>残り{item.spotsLeft}枠</Text>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+// ─── Ranked Video Card ────────────────────────────────────────────────────────
+function RankedVideoCard({ item, isDemo, rank }: { item: any; isDemo: boolean; rank: number }) {
   return (
     <Pressable
       style={styles.rankedCard}
@@ -137,245 +263,131 @@ function RankedVideoCard({ item, isDemo }: { item: any; isDemo: boolean }) {
         router.push(isDemo ? (`/video/${item.id}?demo=1` as any) : (`/video/${item.id}` as any))
       }
     >
-      <View style={styles.videoThumbContainer}>
+      <View style={styles.rankedThumbWrap}>
         <Image source={{ uri: item.thumbnail }} style={styles.rankedThumb} contentFit="cover" />
-        <View style={styles.durationBadge}>
-          <Text style={styles.durationText}>{item.duration}</Text>
-        </View>
-        <View style={styles.rankBadge}>
-          <Text style={styles.rankText}>{item.rank}</Text>
+        <LinearGradient colors={["transparent", "rgba(0,0,0,0.7)"]} style={styles.rankedGradient} />
+        <View style={[styles.rankNumBadge, rank <= 3 && { backgroundColor: C.orange }]}>
+          <Text style={styles.rankNumText}>{rank}</Text>
         </View>
       </View>
-      <View style={styles.creatorRow}>
-        <Image source={{ uri: item.avatar }} style={styles.smallAvatar} contentFit="cover" />
-        <Text style={styles.communityText} numberOfLines={1}>{item.community}</Text>
+      <View style={styles.rankedInfo}>
+        <View style={styles.creatorRow}>
+          <Image source={{ uri: item.avatar }} style={styles.smallAvatar} contentFit="cover" />
+          <Text style={styles.communityText} numberOfLines={1}>{item.community}</Text>
+        </View>
+        <Text style={styles.videoTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.rankedPrice}>¥{item.price?.toLocaleString()}</Text>
       </View>
-      <Text style={styles.videoTitle} numberOfLines={2}>{item.title}</Text>
-      <View style={styles.videoMeta}>
-        <Ionicons name="eye-outline" size={11} color={C.textMuted} />
-        <Text style={styles.metaText}>{formatNumber(item.views)}</Text>
-        <Ionicons name="time-outline" size={11} color={C.textMuted} />
-        <Text style={styles.metaText}>{item.timeAgo}</Text>
-      </View>
-      <Text style={styles.priceText}>¥{item.price?.toLocaleString()}</Text>
     </Pressable>
   );
 }
 
+// ─── Creator Rank Card ────────────────────────────────────────────────────────
 function CreatorRankCard({ item }: { item: any }) {
-  const borderColor =
-    item.rank === 1 ? C.orange : item.rank === 2 ? C.textSec : item.rank === 3 ? C.orangeLight : C.border;
+  const borderColor = item.rank === 1 ? C.orange : item.rank === 2 ? C.textSec : item.rank === 3 ? "#cd7f32" : C.border;
   return (
-    <Pressable style={[styles.creatorCard, { borderColor }]} onPress={() => router.push(`/livers/${item.id}`)}>
+    <Pressable
+      style={[styles.creatorCard, { borderColor }]}
+      onPress={() => router.push(`/livers/${item.id}`)}
+    >
       <View style={styles.creatorHeader}>
         <View style={[styles.rankCircle, { backgroundColor: item.rank <= 3 ? C.orange : C.surface3 }]}>
           <Text style={styles.rankCircleText}>{item.rank}</Text>
         </View>
         <Image source={{ uri: item.avatar }} style={styles.creatorAvatar} contentFit="cover" />
-        <View style={styles.creatorNameBlock}>
+        <View style={{ flex: 1 }}>
           <Text style={styles.creatorName} numberOfLines={1}>{item.name}</Text>
           <Text style={styles.creatorCommunity} numberOfLines={1}>{item.community}</Text>
         </View>
       </View>
       <View style={styles.heatRow}>
-        <Ionicons name="flame" size={13} color={C.orange} />
+        <Ionicons name="flame" size={12} color={C.orange} />
         <Text style={styles.heatLabel}>経済的熱量</Text>
         <Text style={styles.heatValue}>{item.heatScore}B</Text>
       </View>
       <View style={styles.creatorStats}>
-        <View style={styles.statRow}>
-          <Ionicons name="radio-outline" size={13} color={C.textSec} />
-          <Text style={styles.statLabel}>累計視聴数</Text>
-          <Text style={styles.statValue}>{item.totalViews.toLocaleString()}</Text>
-        </View>
-        <View style={styles.statRow}>
-          <Ionicons name="cash-outline" size={13} color={C.textSec} />
-          <Text style={styles.statLabel}>総収益</Text>
-          <Text style={styles.statValue}>¥{item.revenue.toLocaleString()}</Text>
-        </View>
-        <View style={styles.statRow}>
-          <Ionicons name="trending-up-outline" size={13} color={C.textSec} />
-          <Text style={styles.statLabel}>配信回数</Text>
-          <Text style={styles.statValue}>{item.streamCount}回</Text>
-        </View>
-        <View style={styles.statRow}>
-          <Ionicons name="people-outline" size={13} color={C.textSec} />
-          <Text style={styles.statLabel}>フォロワー</Text>
-          <Text style={styles.statValue}>{formatNumber(item.followers)}</Text>
-        </View>
-      </View>
-      <View style={styles.revenueShareRow}>
-        <Text style={styles.revenueShareLabel}>レベニューシェア</Text>
-        <Text style={styles.revenueShareValue}>{item.revenueShare}%</Text>
+        {[
+          { icon: "eye-outline", label: "累計視聴", value: formatNumber(item.totalViews) },
+          { icon: "cash-outline", label: "総収益", value: `¥${item.revenue.toLocaleString()}` },
+          { icon: "people-outline", label: "フォロワー", value: formatNumber(item.followers) },
+        ].map((r) => (
+          <View key={r.label} style={styles.statRow}>
+            <Ionicons name={r.icon as any} size={11} color={C.textSec} />
+            <Text style={styles.statLabel}>{r.label}</Text>
+            <Text style={styles.statValue}>{r.value}</Text>
+          </View>
+        ))}
       </View>
     </Pressable>
   );
 }
 
-const DUMMY_VIDEOS = [
-  { id: 1, thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&h=200&fit=crop", duration: "12:34", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", community: "地下アイドル界隈", title: "【アイドル】初めての生配信！みんなとお話したい♪", views: 12400, timeAgo: "2時間前", price: null },
-  { id: 2, thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&h=200&fit=crop", duration: "28:15", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop", community: "キャバ嬢・ホスト界隈", title: "今夜のトーク！恋愛相談なんでも聞くよ✨", views: 8900, timeAgo: "4時間前", price: 500 },
-  { id: 3, thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=200&fit=crop", duration: "45:00", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop", community: "英会話クラブ", title: "TOEIC満点講師が教える！ビジネス英語入門", views: 31200, timeAgo: "6時間前", price: 1000 },
-  { id: 4, thumbnail: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&h=200&fit=crop", duration: "00:00", avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=40&h=40&fit=crop", community: "JK日常界隈", title: "今日のコーデ公開📸 秋冬パーカーコーデ", views: 5600, timeAgo: "8時間前", price: null },
-  { id: 5, thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=200&fit=crop", duration: "33:20", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop", community: "占いサロン", title: "【タロット占い】今週のあなたの運勢を読み解く", views: 19800, timeAgo: "12時間前", price: 300 },
-];
-
-const DUMMY_LIVE = [
-  {
-    id: 1,
-    thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=300&h=200&fit=crop",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop",
-    community: "地下アイドル界隈",
-    title: "星空みゆ♪ 歌とダンスでお届け！",
-    viewers: 1240,
-    timeAgo: "配信予定",
-    isDemo: true,
-  },
-  {
-    id: 2,
-    thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&h=200&fit=crop",
-    avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop",
-    community: "キャバ嬢・ホスト界隈",
-    title: "麗華の夜トーク【本音で語るよ】",
-    viewers: 890,
-    timeAgo: "配信予定",
-    isDemo: true,
-  },
-  {
-    id: 3,
-    thumbnail: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&h=200&fit=crop",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop",
-    community: "フィットネス部",
-    title: "朝活！一緒にヨガしよう🧘",
-    viewers: 420,
-    timeAgo: "配信予定",
-    isDemo: true,
-  },
-  {
-    id: 4,
-    thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=200&fit=crop",
-    avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop",
-    community: "占いサロン",
-    title: "神崎リナ【深夜の占いタイム🔮】",
-    viewers: 312,
-    timeAgo: "配信予定",
-    isDemo: true,
-  },
-];
-
-const DUMMY_RANKED: Record<string, any[]> = {
-  WEEKLY: [
-    { id: 1, thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&h=150&fit=crop", duration: "42:00", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop", community: "キャバ嬢・ホスト界隈", title: "麗華の本音トーク！週間1位", views: 88400, timeAgo: "1日前", price: 500, rank: 1 },
-    { id: 2, thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=150&fit=crop", duration: "60:00", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop", community: "英会話クラブ", title: "完全マスター！TOEIC900点の英語術", views: 54200, timeAgo: "2日前", price: 1000, rank: 2 },
-    { id: 3, thumbnail: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=150&fit=crop", duration: "28:30", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", community: "地下アイドル界隈", title: "みゆの歌唱力全開スペシャル✨", views: 41000, timeAgo: "3日前", price: 300, rank: 3 },
-    { id: 4, thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=150&fit=crop", duration: "50:00", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop", community: "占いサロン", title: "【限定公開】2025年運勢大鑑定", views: 36700, timeAgo: "4日前", price: 800, rank: 4 },
-  ],
-  MONTHLY: [
-    { id: 5, thumbnail: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=150&fit=crop", duration: "55:00", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop", community: "フィットネス部", title: "月間1位！脂肪燃焼フルプログラム", views: 210000, timeAgo: "2週間前", price: 1500, rank: 1 },
-    { id: 6, thumbnail: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=150&fit=crop", duration: "90:00", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=40&h=40&fit=crop", community: "カウンセリングルーム", title: "心の整え方 〜ストレスを手放すヒント〜", views: 175000, timeAgo: "3週間前", price: 2000, rank: 2 },
-    { id: 7, thumbnail: "https://images.unsplash.com/photo-1502767089025-6572583495b9?w=200&h=150&fit=crop", duration: "38:00", avatar: "https://images.unsplash.com/photo-1502767089025-6572583495b9?w=40&h=40&fit=crop", community: "料理教室", title: "フレンチのきほん！本格ソースの作り方", views: 142000, timeAgo: "3週間前", price: 800, rank: 3 },
-    { id: 8, thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=200&h=150&fit=crop", duration: "42:00", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop", community: "キャバ嬢・ホスト界隈", title: "麗華の恋愛講座 第3弾", views: 128000, timeAgo: "1ヶ月前", price: 500, rank: 4 },
-  ],
-  ALL: [
-    { id: 9, thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=150&fit=crop", duration: "120:00", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop", community: "英会話クラブ", title: "【殿堂入り】英語習得の全ロードマップ", views: 850000, timeAgo: "半年前", price: 3000, rank: 1 },
-    { id: 10, thumbnail: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=150&fit=crop", duration: "180:00", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=40&h=40&fit=crop", community: "カウンセリングルーム", title: "人生を変える心理学の授業【全集】", views: 720000, timeAgo: "1年前", price: 5000, rank: 2 },
-    { id: 11, thumbnail: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=150&fit=crop", duration: "60:00", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", community: "地下アイドル界隈", title: "みゆ1st記念ライブ完全版", views: 654000, timeAgo: "8ヶ月前", price: 1000, rank: 3 },
-    { id: 12, thumbnail: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=150&fit=crop", duration: "90:00", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=40&h=40&fit=crop", community: "フィットネス部", title: "【総集編】完全版ボディメイクプログラム", views: 590000, timeAgo: "10ヶ月前", price: 2000, rank: 4 },
-  ],
-};
-
-const DUMMY_CREATORS: Record<string, any[]> = {
-  WEEKLY: [
-    { id: 1, name: "麗華 -REIKA-", community: "キャバ嬢・ホスト界隈", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=80&h=80&fit=crop", rank: 1, heatScore: 1414, totalViews: 164800, revenue: 165000, streamCount: 52, followers: 67000, revenueShare: 80 },
-    { id: 2, name: "星空みゆ", community: "地下アイドル界隈", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop", rank: 2, heatScore: 1090, totalViews: 185320, revenue: 173000, streamCount: 34, followers: 48000, revenueShare: 80 },
-    { id: 3, name: "コンビ芸人「ダブルパンチ」", community: "お笑い芸人界隈", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop", rank: 3, heatScore: 923, totalViews: 172450, revenue: 119000, streamCount: 45, followers: 92000, revenueShare: 80 },
-    { id: 4, name: "まいまい17歳", community: "JK日常界隈", avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=80&h=80&fit=crop", rank: 4, heatScore: 865, totalViews: 148900, revenue: 85500, streamCount: 68, followers: 52000, revenueShare: 80 },
-  ],
-  MONTHLY: [
-    { id: 5, name: "桜井 みなみ", community: "アイドル部", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop", rank: 1, heatScore: 4.8, totalViews: 125000, revenue: 980000, streamCount: 87, followers: 15200, revenueShare: 80 },
-    { id: 6, name: "田中 ゆうき", community: "英会話クラブ", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop", rank: 2, heatScore: 4.6, totalViews: 89000, revenue: 650000, streamCount: 62, followers: 9800, revenueShare: 80 },
-    { id: 7, name: "伊藤 さやか", community: "カウンセリングルーム", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&h=80&fit=crop", rank: 3, heatScore: 4.7, totalViews: 41000, revenue: 380000, streamCount: 29, followers: 4200, revenueShare: 80 },
-    { id: 8, name: "神崎 リナ", community: "占いサロン", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop", rank: 4, heatScore: 4.5, totalViews: 73000, revenue: 520000, streamCount: 45, followers: 7600, revenueShare: 80 },
-  ],
-  ALL: [
-    { id: 9, name: "田中 ゆうき", community: "英会話クラブ", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop", rank: 1, heatScore: 9999, totalViews: 890000, revenue: 6500000, streamCount: 312, followers: 98000, revenueShare: 80 },
-    { id: 10, name: "麗華 -REIKA-", community: "キャバ嬢・ホスト界隈", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=80&h=80&fit=crop", rank: 2, heatScore: 8821, totalViews: 740000, revenue: 5200000, streamCount: 280, followers: 670000, revenueShare: 80 },
-    { id: 11, name: "星空みゆ", community: "地下アイドル界隈", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop", rank: 3, heatScore: 7540, totalViews: 620000, revenue: 4100000, streamCount: 201, followers: 480000, revenueShare: 80 },
-    { id: 12, name: "伊藤 さやか", community: "カウンセリングルーム", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&h=80&fit=crop", rank: 4, heatScore: 6320, totalViews: 510000, revenue: 3800000, streamCount: 145, followers: 210000, revenueShare: 80 },
-  ],
-};
-
-const SCREEN_WIDTH = Dimensions.get("window").width;
-// PC表示時は430pxコンテナに収めているため上限を設定
-const EFFECTIVE_WIDTH = Math.min(SCREEN_WIDTH, 430);
-/** サムネ幅（やや大きめ。右端に次のパネルが少し見える） */
-const PANEL_WIDTH = Math.floor(EFFECTIVE_WIDTH * 0.75);
-
-/** NOW セクション用: 赤く点滅するライブドット */
-function LiveDot() {
-  const opacity = React.useRef(new Animated.Value(1)).current;
-  React.useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.2, duration: 600, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1, duration: 600, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, [opacity]);
-  return (
-    <Animated.View
-      style={{
-        width: 7,
-        height: 7,
-        borderRadius: 4,
-        backgroundColor: C.live,
-        opacity,
-        marginRight: 2,
-      }}
-    />
-  );
-}
-
-function FeedTabRow({
-  activeTab,
-  onTabChange,
-  inline,
-}: {
-  activeTab: FeedTab;
-  onTabChange: (t: FeedTab) => void;
-  inline?: boolean;
-}) {
+// ─── Feed Tab Row ─────────────────────────────────────────────────────────────
+function FeedTabRow({ activeTab, onTabChange }: { activeTab: FeedTab; onTabChange: (t: FeedTab) => void }) {
   const tabs: { key: FeedTab; label: string }[] = [
-    { key: "all", label: "すべて" },
-    { key: "following", label: "フォロー中" },
-    { key: "recommended", label: "おすすめ" },
+    { key: "all", label: "ALL" },
+    { key: "following", label: "FOLLOWING" },
+    { key: "recommended", label: "HOT" },
   ];
   return (
-    <View style={[styles.feedTabRow, inline && styles.feedTabRowInline]}>
+    <View style={styles.feedTabRow}>
       {tabs.map((t) => (
-        <Pressable
-          key={t.key}
-          style={[styles.feedTab, activeTab === t.key && styles.feedTabActive]}
-          onPress={() => onTabChange(t.key)}
-        >
-          <Text style={[styles.feedTabText, activeTab === t.key && styles.feedTabTextActive]}>
-            {t.label}
-          </Text>
+        <Pressable key={t.key} style={[styles.feedTab, activeTab === t.key && styles.feedTabActive]} onPress={() => onTabChange(t.key)}>
+          <Text style={[styles.feedTabText, activeTab === t.key && styles.feedTabTextActive]}>{t.label}</Text>
         </Pressable>
       ))}
     </View>
   );
 }
 
+// ─── Dummy Data ───────────────────────────────────────────────────────────────
+const DUMMY_VIDEOS = [
+  { id: 1, thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=225&fit=crop", duration: "12:34", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", community: "地下アイドル界隈", title: "初めての生配信！みんなとお話したい♪", views: 12400, timeAgo: "2時間前", price: null },
+  { id: 2, thumbnail: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=400&h=225&fit=crop", duration: "28:15", avatar: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=40&h=40&fit=crop", community: "キャバ嬢・ホスト界隈", title: "今夜のトーク！恋愛相談なんでも聞くよ✨", views: 8900, timeAgo: "4時間前", price: 500 },
+  { id: 3, thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=225&fit=crop", duration: "45:00", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop", community: "英会話クラブ", title: "TOEIC満点講師が教える！ビジネス英語入門", views: 31200, timeAgo: "6時間前", price: 1000 },
+  { id: 4, thumbnail: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=225&fit=crop", duration: "00:00", avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=40&h=40&fit=crop", community: "JK日常界隈", title: "今日のコーデ公開📸 秋冬パーカーコーデ", views: 5600, timeAgo: "8時間前", price: null },
+  { id: 5, thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=225&fit=crop", duration: "33:20", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop", community: "占いサロン", title: "【タロット占い】今週のあなたの運勢を読み解く", views: 19800, timeAgo: "12時間前", price: 300 },
+];
+
+const DUMMY_LIVE = [
+  { id: 1, thumbnail: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=400&h=225&fit=crop", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", community: "地下アイドル界隈", title: "スタジオ練習 垂れ流し", viewers: 47, isDemo: true },
+  { id: 2, thumbnail: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&h=225&fit=crop", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop", community: "D&Bシーン", title: "JAMセッション LIVE", viewers: 23, isDemo: true },
+];
+
+const DUMMY_MENTORS = [
+  { id: 1, thumbnail: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&h=169&fit=crop", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop", creator: "Yuki", title: "なんでも話せる悩み相談", categoryLabel: "悩み相談", price: 2000, duration: "30分", spotsLeft: 3 },
+  { id: 2, thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=169&fit=crop", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop", creator: "Kenji", title: "ビジネス英会話 集中レッスン", categoryLabel: "英会話", price: 3500, duration: "45分", spotsLeft: 5 },
+  { id: 3, thumbnail: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=169&fit=crop", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=40&h=40&fit=crop", creator: "Hana", title: "ギター基礎から教えます", categoryLabel: "音楽レッスン", price: 2500, duration: "30分", spotsLeft: 2 },
+];
+
+const DUMMY_RANKED: Record<string, any[]> = {
+  WEEKLY: DUMMY_VIDEOS.slice(0, 5).map((v, i) => ({ ...v, rank: i + 1 })),
+  MONTHLY: [...DUMMY_VIDEOS].reverse().slice(0, 5).map((v, i) => ({ ...v, rank: i + 1 })),
+  ALL: DUMMY_VIDEOS.slice(0, 5).map((v, i) => ({ ...v, rank: i + 1 })),
+};
+
+const DUMMY_CREATORS: Record<string, any[]> = {
+  WEEKLY: [
+    { id: 1, rank: 1, avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&h=60&fit=crop", name: "Yuki", community: "地下アイドル界隈", heatScore: 9840, totalViews: 124000, revenue: 480000, streamCount: 32, followers: 8900, revenueShare: 95 },
+    { id: 2, rank: 2, avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=60&h=60&fit=crop", name: "Kenji", community: "英会話クラブ", heatScore: 7210, totalViews: 98000, revenue: 320000, streamCount: 18, followers: 5400, revenueShare: 95 },
+    { id: 3, rank: 3, avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=60&h=60&fit=crop", name: "Hana", community: "占いサロン", heatScore: 5630, totalViews: 76000, revenue: 210000, streamCount: 24, followers: 4200, revenueShare: 95 },
+  ],
+  MONTHLY: [
+    { id: 1, rank: 1, avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&h=60&fit=crop", name: "Yuki", community: "地下アイドル界隈", heatScore: 42000, totalViews: 520000, revenue: 1800000, streamCount: 120, followers: 8900, revenueShare: 95 },
+    { id: 2, rank: 2, avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=60&h=60&fit=crop", name: "Kenji", community: "英会話クラブ", heatScore: 31000, totalViews: 410000, revenue: 1200000, streamCount: 72, followers: 5400, revenueShare: 95 },
+  ],
+  ALL: [
+    { id: 1, rank: 1, avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&h=60&fit=crop", name: "Yuki", community: "地下アイドル界隈", heatScore: 198000, totalViews: 2400000, revenue: 8200000, streamCount: 480, followers: 8900, revenueShare: 95 },
+  ],
+};
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [rankFilter, setRankFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("ALL");
+  const [rankFilter, setRankFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("WEEKLY");
   const [creatorFilter, setCreatorFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("MONTHLY");
   const [videoFeedTab, setVideoFeedTab] = useState<FeedTab>("all");
-  const [liveFeedTab, setLiveFeedTab] = useState<FeedTab>("all");
   const [showAnnouncementsModal, setShowAnnouncementsModal] = useState(false);
 
   const { data: apiVideos = [] } = useQuery<any[]>({ queryKey: ["/api/videos"] });
@@ -401,39 +413,17 @@ export default function HomeScreen() {
   });
   const { data: apiRanked = [] } = useQuery<any[]>({ queryKey: ["/api/videos/ranked"] });
   type BookingSession = {
-    id: number;
-    creator: string;
-    category: string;
-    categoryLabel: string;
-    title: string;
-    avatar: string;
-    thumbnail: string;
-    date: string;
-    time: string;
-    duration: string;
-    price: number;
-    spotsTotal: number;
-    spotsLeft: number;
-    rating: number;
-    reviewCount: number;
-    tag: string | null;
+    id: number; creator: string; category: string; categoryLabel: string; title: string;
+    avatar: string; thumbnail: string; date: string; time: string; duration: string;
+    price: number; spotsTotal: number; spotsLeft: number; rating: number; reviewCount: number; tag: string | null;
   };
-  const { data: twoshotSessions = [] } = useQuery<BookingSession[]>({
-    queryKey: ["/api/booking-sessions"],
-  });
+  const { data: twoshotSessions = [] } = useQuery<BookingSession[]>({ queryKey: ["/api/booking-sessions"] });
   const unreadCount = useUnreadCount();
   type Announcement = { id: number; title: string; body: string; type: string; isPinned: boolean; createdAt: string };
   const { data: announcements = [] } = useQuery<Announcement[]>({ queryKey: ["/api/announcements"] });
 
   const DUMMY_ANNOUNCEMENT: Announcement[] = [
-    {
-      id: 0,
-      title: "【イベント】「アイドル界隈コミュニティ」で賞金100万円イベント開催中",
-      body: "",
-      type: "event",
-      isPinned: true,
-      createdAt: "",
-    },
+    { id: 0, title: "【イベント】賞金100万円イベント開催中", body: "", type: "event", isPinned: true, createdAt: "" },
   ];
   const displayAnnouncements = announcements.length > 0 ? announcements : DUMMY_ANNOUNCEMENT;
 
@@ -447,20 +437,14 @@ export default function HomeScreen() {
   const [randomCommunity, setRandomCommunity] = useState<{ id: number; name: string } | null>(null);
   useFocusEffect(
     useCallback(() => {
-      if (myCommunities.length === 0) {
-        setRandomCommunity(null);
-        return;
-      }
+      if (myCommunities.length === 0) { setRandomCommunity(null); return; }
       const idx = Math.floor(Math.random() * myCommunities.length);
       setRandomCommunity(myCommunities[idx]);
     }, [myCommunities])
   );
   const randomCommunityId = randomCommunity?.id ?? null;
 
-  type JukeboxData = {
-    state: { currentVideoTitle: string | null; isPlaying: boolean } | null;
-    queue: unknown[];
-  };
+  type JukeboxData = { state: { currentVideoTitle: string | null; isPlaying: boolean } | null; queue: unknown[] };
   const { data: jukeboxData } = useQuery<JukeboxData>({
     queryKey: randomCommunityId ? [`/api/jukebox/${randomCommunityId}`] : ["jukebox:none"],
     enabled: !!randomCommunityId && !!user,
@@ -469,39 +453,37 @@ export default function HomeScreen() {
   const videos = useMemo(() => {
     let list = [...allVideos];
     if (videoFeedTab === "following" && user) {
-      list = list.filter(
-        (v) =>
-          (v.communityId && communityIds.has(v.communityId)) ||
-          (v.community && communityNames.has(v.community))
-      );
+      list = list.filter((v) => (v.communityId && communityIds.has(v.communityId)) || (v.community && communityNames.has(v.community)));
     } else if (videoFeedTab === "recommended") {
       list = [...list].sort((a, b) => (b.views ?? 0) - (a.views ?? 0));
     }
     return list;
   }, [allVideos, videoFeedTab, user, communityIds, communityNames]);
 
-  const liveStreams = useMemo(() => {
-    let list = [...allLiveStreams];
-    if (liveFeedTab === "following" && user) {
-      list = list.filter((s) => s.community && communityNames.has(s.community));
-    } else if (liveFeedTab === "recommended") {
-      list = [...list].sort((a, b) => (b.viewers ?? 0) - (a.viewers ?? 0));
-    }
-    return list;
-  }, [allLiveStreams, liveFeedTab, user, communityNames]);
   const usingDemoRanked = apiRanked.length === 0;
   const rankedVideos = usingDemoRanked ? DUMMY_RANKED[rankFilter] : apiRanked;
   const creators = DUMMY_CREATORS[creatorFilter];
+  const mentors = twoshotSessions.length > 0 ? twoshotSessions : DUMMY_MENTORS;
 
   const topInset = getTabTopInset(insets);
   const bottomInset = getTabBottomInset();
 
+  // Hero = first 3 videos
+  const heroVideos = videos.slice(0, 3);
+
   return (
     <View style={[styles.container, { paddingBottom: bottomInset }]}>
-      <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-        <AppLogo height={36} />
+      {/* ── Header ── */}
+      <View style={[styles.header, { paddingTop: topInset + 8 }]}>
+        <AppLogo height={32} />
         <View style={styles.headerRight}>
-          <Pressable style={styles.notifButton} onPress={() => router.push("/notifications?filter=purchase")}>
+          {user && (
+            <Pressable style={styles.broadcastBtn} onPress={() => router.push("/broadcast" as any)}>
+              <LiveDot />
+              <Text style={styles.broadcastBtnText}>LIVE</Text>
+            </Pressable>
+          )}
+          <Pressable style={styles.iconBtn} onPress={() => router.push("/notifications?filter=purchase")}>
             <Ionicons name="notifications-outline" size={22} color={C.text} />
             {unreadCount > 0 && (
               <View style={styles.notifBadge}>
@@ -509,981 +491,554 @@ export default function HomeScreen() {
               </View>
             )}
           </Pressable>
+          <Pressable style={styles.iconBtn} onPress={() => router.push("/dm" as any)}>
+            <Ionicons name="chatbubble-outline" size={22} color={C.text} />
+          </Pressable>
         </View>
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* 運営からのお知らせ */}
-        <Pressable
-          style={styles.announcementSection}
-          onPress={() => displayAnnouncements.length > 0 && setShowAnnouncementsModal(true)}
-        >
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
 
-          {displayAnnouncements.length === 0 ? (
-            <View style={styles.announcementCard}>
-              <Text style={styles.announcementBody}>現在お知らせはありません</Text>
-            </View>
-          ) : (
-            <>
-              {displayAnnouncements.slice(0, 3).map((a) => (
-                <View key={a.id} style={styles.announcementCard}>
-                  <View style={styles.announcementCardRow}>
-                    {a.isPinned && (
-                      <View style={styles.announcementPinned}>
-                        <Ionicons name="pin" size={10} color={C.orange} />
-                        <Text style={styles.announcementPinnedText}>固定</Text>
-                      </View>
-                    )}
-                    <Text style={styles.announcementTitle} numberOfLines={1}>{a.title}</Text>
-                  </View>
-                </View>
-              ))}
-              {displayAnnouncements.length > 3 && (
-                <Text style={styles.announcementMore}>タップして全て表示 ({displayAnnouncements.length}件)</Text>
-              )}
-            </>
-          )}
-        </Pressable>
-
-        {/* お知らせ一覧モーダル */}
-        <Modal visible={showAnnouncementsModal} transparent animationType="slide">
-          <Pressable style={styles.modalOverlay} onPress={() => setShowAnnouncementsModal(false)}>
-            <Pressable style={styles.announcementModalSheet} onPress={(e) => e.stopPropagation()}>
-              <View style={styles.announcementModalHeader}>
-                <Text style={styles.announcementModalTitle}>運営からのお知らせ</Text>
-                <Pressable onPress={() => setShowAnnouncementsModal(false)} hitSlop={8}>
-                  <Ionicons name="close" size={24} color={C.textMuted} />
-                </Pressable>
-              </View>
-              <ScrollView style={styles.announcementModalScroll} showsVerticalScrollIndicator={false}>
-                {displayAnnouncements.map((a) => (
-                  <View key={a.id} style={styles.announcementCard}>
-                    <View style={styles.announcementCardRow}>
-                      {a.isPinned && (
-                        <View style={styles.announcementPinned}>
-                          <Ionicons name="pin" size={10} color={C.orange} />
-                          <Text style={styles.announcementPinnedText}>固定</Text>
-                        </View>
-                      )}
-                      <Text style={styles.announcementTitle} numberOfLines={1}>{a.title}</Text>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
-            </Pressable>
-          </Pressable>
-        </Modal>
-
-        {/* Juke bot - 再生中のみ表示 */}
-        {user && randomCommunityId && randomCommunity && jukeboxData?.state?.isPlaying && (
+        {/* ── Announcement Banner ── */}
+        {displayAnnouncements.length > 0 && (
           <Pressable
-            style={styles.jukeBotCard}
-            onPress={() => router.push(`/jukebox/${randomCommunityId}`)}
+            style={styles.announcementBanner}
+            onPress={() => setShowAnnouncementsModal(true)}
           >
-            <View style={styles.jukeBotLeft}>
-              <View style={styles.jukeBotIcon}>
-                <Ionicons name="musical-notes" size={18} color={C.accent} />
-              </View>
-              <View>
-                <Text style={styles.jukeBotLabel}>Juke bot</Text>
-                <Text style={styles.jukeBotCommunity} numberOfLines={1}>
-                  {randomCommunity.name}
-                </Text>
-                <Text style={styles.jukeBotNowPlaying} numberOfLines={2}>
-                  {jukeboxData?.state?.isPlaying && jukeboxData?.state?.currentVideoTitle
-                    ? `再生中: ${jukeboxData.state.currentVideoTitle}`
-                    : "キューを開く"}
-                </Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={C.textMuted} />
+            <Ionicons name="megaphone-outline" size={13} color={C.orange} />
+            <Text style={styles.announcementBannerText} numberOfLines={1}>
+              {displayAnnouncements[0].title}
+            </Text>
+            <Ionicons name="chevron-forward" size={13} color={C.textMuted} />
           </Pressable>
         )}
 
-        {/* 新着動画 */}
-        <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionHeaderLeft}>
-            <Text style={styles.sectionTitle}>New</Text>
-            <View style={styles.sectionTitleLine} />
-          </View>
-          <FeedTabRow activeTab={videoFeedTab} onTabChange={setVideoFeedTab} inline />
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.panelScroll}
-        >
+        {/* ── Jukebox Banner ── */}
+        {user && randomCommunityId && randomCommunity && jukeboxData?.state?.isPlaying && (
+          <Pressable style={styles.jukeBanner} onPress={() => router.push(`/jukebox/${randomCommunityId}`)}>
+            <View style={styles.jukeBannerLeft}>
+              <Ionicons name="musical-notes" size={16} color={C.accent} />
+              <View>
+                <Text style={styles.jukeBannerLabel}>JUKE BOT</Text>
+                <Text style={styles.jukeBannerTrack} numberOfLines={1}>
+                  {jukeboxData.state?.currentVideoTitle ?? "再生中"}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={C.textMuted} />
+          </Pressable>
+        )}
+
+        {/* ── Hero Carousel ── */}
+        {heroVideos.length > 0 && (
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            style={styles.heroScroll}
+          >
+            {heroVideos.map((v) => (
+              <HeroCard key={v.id} item={v} isDemo={usingDemoVideos} />
+            ))}
+          </ScrollView>
+        )}
+
+        {/* ── Videos ── */}
+        <View style={styles.sectionGap} />
+        <SectionHeader
+          title="VIDEOS"
+          right={<FeedTabRow activeTab={videoFeedTab} onTabChange={setVideoFeedTab} />}
+        />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
           {videos.map((v) => (
-            <VideoCard key={v.id} item={v} isDemo={usingDemoVideos} panelWidth={PANEL_WIDTH} />
+            <VideoCard key={v.id} item={v} isDemo={usingDemoVideos} />
           ))}
         </ScrollView>
 
-        {/* 現在ライブ中 */}
-        <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionHeaderLeft}>
-            <LiveDot />
-            <Text style={[styles.sectionTitle, styles.sectionTitleLive]}>Now</Text>
-            <View style={styles.sectionTitleLine} />
-          </View>
-          <View style={styles.feedTabRowWithViewAllRight}>
-            <FeedTabRow activeTab={liveFeedTab} onTabChange={setLiveFeedTab} inline />
-            <Pressable style={styles.viewAllBtn}>
+        {/* ── Now Live ── */}
+        <View style={styles.sectionGap} />
+        <View style={styles.sectionDivider} />
+        <View style={styles.sectionGap} />
+        <SectionHeader
+          title="NOW LIVE"
+          accent
+          right={
+            <Pressable onPress={() => router.push("/live" as any)}>
               <Text style={styles.viewAllText}>VIEW ALL</Text>
             </Pressable>
-          </View>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.panelScroll}
-        >
-          {liveStreams.map((s) => (
-            <LiveCard key={s.id} item={s} panelWidth={PANEL_WIDTH} />
+          }
+        />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+          {allLiveStreams.map((s) => (
+            <LiveCard key={s.id} item={s} />
           ))}
         </ScrollView>
 
-        {/* 有料動画ランキング */}
-        <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionHeaderLeft}>
-            <View style={[styles.liveDotInline, { backgroundColor: C.accent }]} />
-            <Text style={styles.sectionTitle}>有料動画ランキング</Text>
-          </View>
-          <View style={styles.filterPills}>
-            {(["WEEKLY", "MONTHLY", "ALL"] as const).map((f) => (
-              <Pressable
-                key={f}
-                style={[styles.filterPill, rankFilter === f && styles.filterPillActive]}
-                onPress={() => setRankFilter(f)}
-              >
-                <Text style={[styles.filterPillText, rankFilter === f && styles.filterPillTextActive]}>
-                  {f}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
+        {/* ── Mentor Sessions ── */}
+        <View style={styles.sectionGap} />
+        <View style={styles.sectionDivider} />
+        <View style={styles.sectionGap} />
+        <SectionHeader
+          title="MENTOR"
+          right={
+            <Pressable onPress={() => router.push("/mentor-manage" as any)}>
+              <Text style={styles.viewAllText}>VIEW ALL</Text>
+            </Pressable>
+          }
+        />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-          {rankedVideos.map((v) => (
-            <RankedVideoCard key={v.id} item={v} isDemo={usingDemoRanked} />
+          {mentors.map((s: any) => (
+            <MentorCard key={s.id} item={s} />
           ))}
         </ScrollView>
 
-        {/* 配信者ランキング */}
-        <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionHeaderLeft}>
-            <View style={[styles.liveDotInline, { backgroundColor: C.orange }]} />
-            <Text style={styles.sectionTitle}>配信者ランキング</Text>
-          </View>
-          <View style={styles.filterPills}>
-            {(["WEEKLY", "MONTHLY", "ALL"] as const).map((f) => (
-              <Pressable
-                key={f}
-                style={[styles.filterPill, creatorFilter === f && styles.filterPillActive]}
-                onPress={() => setCreatorFilter(f)}
-              >
-                <Text style={[styles.filterPillText, creatorFilter === f && styles.filterPillTextActive]}>
-                  {f}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
+        {/* ── Video Ranking ── */}
+        <View style={styles.sectionGap} />
+        <View style={styles.sectionDivider} />
+        <View style={styles.sectionGap} />
+        <SectionHeader
+          title="RANKING"
+          right={
+            <View style={styles.filterPills}>
+              {(["WEEKLY", "MONTHLY", "ALL"] as const).map((f) => (
+                <Pressable
+                  key={f}
+                  style={[styles.filterPill, rankFilter === f && styles.filterPillActive]}
+                  onPress={() => setRankFilter(f)}
+                >
+                  <Text style={[styles.filterPillText, rankFilter === f && styles.filterPillTextActive]}>{f}</Text>
+                </Pressable>
+              ))}
+            </View>
+          }
+        />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-          {creators.map((c) => (
+          {rankedVideos.map((v: any, i: number) => (
+            <RankedVideoCard key={v.id} item={v} isDemo={usingDemoRanked} rank={i + 1} />
+          ))}
+        </ScrollView>
+
+        {/* ── Creator Ranking ── */}
+        <View style={styles.sectionGap} />
+        <View style={styles.sectionDivider} />
+        <View style={styles.sectionGap} />
+        <SectionHeader
+          title="CREATORS"
+          right={
+            <View style={styles.filterPills}>
+              {(["WEEKLY", "MONTHLY", "ALL"] as const).map((f) => (
+                <Pressable
+                  key={f}
+                  style={[styles.filterPill, creatorFilter === f && styles.filterPillActive]}
+                  onPress={() => setCreatorFilter(f)}
+                >
+                  <Text style={[styles.filterPillText, creatorFilter === f && styles.filterPillTextActive]}>{f}</Text>
+                </Pressable>
+              ))}
+            </View>
+          }
+        />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
+          {creators.map((c: any) => (
             <CreatorRankCard key={c.id} item={c} />
           ))}
         </ScrollView>
 
-        {/* メンターランキング */}
-        <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionHeaderLeft}>
-            <View style={[styles.liveDotInline, { backgroundColor: C.accent }]} />
-            <Text style={styles.sectionTitle}>メンターランキング</Text>
-          </View>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-          {twoshotSessions.map((s) => (
-            <Pressable
-              key={s.id}
-              style={styles.twoshotCard}
-              onPress={() => router.push(`/twoshot-booking/${s.id}`)}
-            >
-              <View style={styles.twoshotThumbWrap}>
-                <Image source={{ uri: s.thumbnail }} style={styles.twoshotThumb} contentFit="cover" />
-                <View style={styles.twoshotBadge}>
-                  <Ionicons name="camera-outline" size={10} color="#fff" />
-                  <Text style={styles.twoshotBadgeText}>メンターセッション</Text>
-                </View>
-              </View>
-              <View style={styles.twoshotBody}>
-                <Text style={styles.twoshotCreator} numberOfLines={1}>
-                  {s.creator}
-                </Text>
-                <Text style={styles.twoshotTitle} numberOfLines={2}>
-                  {s.title}
-                </Text>
-                <Text style={styles.twoshotMeta}>
-                  {s.date} {s.time} · 残り{s.spotsLeft}枠
-                </Text>
-              </View>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        <View style={{ height: 100 }} />
+        <View style={{ height: 80 }} />
       </ScrollView>
+
+      {/* ── Announcements Modal ── */}
+      <Modal visible={showAnnouncementsModal} transparent animationType="slide">
+        <Pressable style={styles.modalOverlay} onPress={() => setShowAnnouncementsModal(false)}>
+          <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>お知らせ</Text>
+              <Pressable onPress={() => setShowAnnouncementsModal(false)} hitSlop={8}>
+                <Ionicons name="close" size={22} color={C.textMuted} />
+              </Pressable>
+            </View>
+            <ScrollView style={{ paddingHorizontal: 16, paddingVertical: 12 }} showsVerticalScrollIndicator={false}>
+              {displayAnnouncements.map((a) => (
+                <View key={a.id} style={styles.modalAnnouncementItem}>
+                  {a.isPinned && (
+                    <View style={styles.pinnedBadge}>
+                      <Ionicons name="pin" size={9} color={C.orange} />
+                      <Text style={styles.pinnedText}>固定</Text>
+                    </View>
+                  )}
+                  <Text style={styles.modalAnnouncementTitle}>{a.title}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: C.bg,
-  },
+  container: { flex: 1, backgroundColor: C.bg },
+
+  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 10,
     backgroundColor: C.bg,
   },
-  headerRight: {
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+  broadcastBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-  },
-  liveButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
+    gap: 5,
     borderWidth: 1,
-    borderColor: C.accent,
-    borderRadius: 3,
+    borderColor: C.live,
+    borderRadius: 2,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  liveButtonText: {
-    color: C.accent,
-    fontSize: 11,
-    fontWeight: "400",
+  broadcastBtnText: {
+    color: C.live,
+    fontSize: 10,
     fontFamily: F.mono,
-    letterSpacing: 1.2,
+    letterSpacing: 1.5,
+    fontWeight: "400",
   },
-  notifButton: {
-    position: "relative",
-  },
+  iconBtn: { position: "relative" },
   notifBadge: {
     position: "absolute",
     top: -4,
     right: -4,
     backgroundColor: C.live,
     borderRadius: 2,
-    minWidth: 16,
-    height: 16,
+    minWidth: 15,
+    height: 15,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 3,
+    paddingHorizontal: 2,
   },
-  notifBadgeText: {
-    color: "#fff",
-    fontSize: 9,
-    fontWeight: "700",
-  },
-  scroll: {
-    flex: 1,
-  },
-  announcementSection: {
-    marginHorizontal: 16,
-    marginBottom: 20,
-  },
-  announcementSectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 10,
-  },
-  announcementSectionTitle: {
-    color: C.textSec,
-    fontSize: 10,
-    fontWeight: "400",
-    fontFamily: F.mono,
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-  },
-  announcementCard: {
-    backgroundColor: C.surface,
-    borderRadius: 3,
-    padding: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  announcementCardRow: {
+  notifBadgeText: { color: "#fff", fontSize: 8, fontWeight: "700" },
+
+  scroll: { flex: 1 },
+
+  // Announcement Banner
+  announcementBanner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-  },
-  announcementPinned: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  announcementPinnedText: {
-    color: C.orange,
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  announcementTitle: {
-    flex: 1,
-    color: C.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  announcementMore: {
-    color: C.accent,
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 8,
-    textAlign: "center",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  announcementModalSheet: {
-    backgroundColor: C.bg,
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
-    maxHeight: "80%",
-  },
-  announcementModalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  announcementModalTitle: {
-    color: C.text,
-    fontSize: 18,
-    fontWeight: "800",
-    fontFamily: F.display,
-    letterSpacing: 1,
-  },
-  announcementModalScroll: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    paddingBottom: 40,
-  },
-  jukeBotCard: {
     marginHorizontal: 16,
-    marginBottom: 20,
+    marginBottom: 12,
     backgroundColor: C.surface,
-    borderRadius: 3,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    borderRadius: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
     borderWidth: 1,
     borderColor: C.border,
   },
-  jukeBotLeft: {
+  announcementBannerText: {
+    flex: 1,
+    color: C.text,
+    fontSize: 12,
+    fontFamily: F.mono,
+    letterSpacing: 0.3,
+  },
+
+  // Jukebox Banner
+  jukeBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    flex: 1,
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: C.surface,
+    borderRadius: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: C.accent,
   },
-  jukeBotIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 3,
-    backgroundColor: C.surface2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  jukeBotLabel: {
+  jukeBannerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  jukeBannerLabel: {
     color: C.accent,
     fontSize: 9,
-    fontWeight: "400",
     fontFamily: F.mono,
     letterSpacing: 1.5,
     textTransform: "uppercase",
     marginBottom: 2,
   },
-  jukeBotCommunity: {
-    color: C.text,
-    fontSize: 15,
-    fontWeight: "700",
-    fontFamily: F.display,
-    letterSpacing: 0.5,
+  jukeBannerTrack: { color: C.text, fontSize: 13, fontFamily: F.display, fontWeight: "700" },
+
+  // Hero
+  heroScroll: { marginBottom: 0 },
+  heroCard: { height: HERO_H, position: "relative" },
+  heroThumb: { width: SCREEN_W, height: HERO_H },
+  heroGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: HERO_H * 0.7,
   },
-  jukeBotNowPlaying: {
-    color: C.textMuted,
-    fontSize: 12,
-    marginTop: 2,
+  heroInfo: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    gap: 6,
+  },
+  heroMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
+  heroAvatar: { width: 22, height: 22, borderRadius: 2 },
+  heroCommunity: { color: "rgba(255,255,255,0.75)", fontSize: 11, fontFamily: F.mono, flex: 1 },
+  heroPriceBadge: {
+    backgroundColor: C.accent,
+    borderRadius: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  heroPriceText: { color: "#000", fontSize: 10, fontFamily: F.mono, fontWeight: "700" },
+  heroTitle: {
+    color: "#fff",
+    fontSize: 20,
+    fontFamily: F.display,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    lineHeight: 24,
+  },
+  heroStats: { flexDirection: "row", alignItems: "center", gap: 4 },
+  heroStatText: { color: "rgba(255,255,255,0.55)", fontSize: 10, fontFamily: F.mono },
+  heroStatDot: { color: "rgba(255,255,255,0.3)", fontSize: 10 },
+
+  // Section
+  sectionGap: { height: 20 },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: C.border,
+    marginHorizontal: 16,
   },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     marginBottom: 12,
   },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    marginBottom: 8,
-    marginTop: 20,
-  },
-  sectionHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
+  sectionHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  sectionHeaderRight: {},
+  sectionAccentBar: { width: 3, height: 20, borderRadius: 1 },
   sectionTitle: {
     color: C.text,
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 22,
     fontFamily: F.display,
-    letterSpacing: 1.5,
+    fontWeight: "800",
+    letterSpacing: 2,
     textTransform: "uppercase",
   },
-  sectionTitleLive: {
-    color: C.live,
-  },
-  sectionTitleLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: C.border,
-    marginLeft: 8,
-    maxWidth: 24,
-  },
-  liveDotInline: {
-    width: 8,
-    height: 8,
-    borderRadius: 2,
-    backgroundColor: C.live,
-  },
-  viewAllBtn: {
-    marginLeft: "auto",
-  },
-  viewAllText: {
-    color: C.accent,
-    fontSize: 10,
-    fontWeight: "400",
-    fontFamily: F.mono,
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-  },
-  filterPills: {
-    flexDirection: "row",
-    gap: 4,
-  },
-  filterPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 2,
-    backgroundColor: C.surface2,
-  },
-  filterPillActive: {
-    backgroundColor: C.accent,
-  },
-  filterPillText: {
-    color: C.textSec,
-    fontSize: 9,
-    fontWeight: "400",
-    fontFamily: F.mono,
-    letterSpacing: 1,
-  },
-  filterPillTextActive: {
-    color: "#fff",
-  },
-  hScroll: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    gap: 12,
-  },
-  feedTabRow: {
-    flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 16,
-    marginBottom: 10,
-  },
-  feedTabRowInline: {
-    paddingHorizontal: 0,
-    marginBottom: 0,
-  },
-  feedTabRowWithViewAll: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    marginBottom: 10,
-  },
-  feedTabRowWithViewAllLeft: {
-    flex: 1,
-  },
-  feedTabRowWithViewAllRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  feedTab: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  feedTabActive: {
-    borderBottomWidth: 2,
-    borderBottomColor: C.accent,
-  },
-  feedTabText: {
-    color: C.textMuted,
-    fontSize: 11,
-    fontWeight: "400",
-    fontFamily: F.mono,
-    letterSpacing: 0.5,
-  },
-  feedTabTextActive: {
-    color: C.accent,
-    fontWeight: "700",
-  },
-  panelScroll: {
-    paddingBottom: 16,
-    gap: 0,
-  },
-  panelCard: {
-    marginRight: 0,
-    overflow: "hidden",
-    backgroundColor: C.surface,
-  },
-  panelThumbWrap: {
-    position: "relative",
-    overflow: "hidden",
-    aspectRatio: 16 / 9,
-  },
-  panelThumb: {
-    aspectRatio: 16 / 9,
-  },
-  panelThumbInnerShadowRight: {
+
+  // Feed Tabs
+  feedTabRow: { flexDirection: "row", gap: 2 },
+  feedTab: { paddingHorizontal: 8, paddingVertical: 4 },
+  feedTabActive: { borderBottomWidth: 1.5, borderBottomColor: C.accent },
+  feedTabText: { color: C.textMuted, fontSize: 9, fontFamily: F.mono, letterSpacing: 0.8 },
+  feedTabTextActive: { color: C.accent },
+
+  // Filter Pills
+  filterPills: { flexDirection: "row", gap: 4 },
+  filterPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2, backgroundColor: C.surface2 },
+  filterPillActive: { backgroundColor: C.accent },
+  filterPillText: { color: C.textSec, fontSize: 9, fontFamily: F.mono, letterSpacing: 0.8 },
+  filterPillTextActive: { color: "#000" },
+
+  viewAllText: { color: C.accent, fontSize: 9, fontFamily: F.mono, letterSpacing: 1.2, textTransform: "uppercase" },
+
+  hScroll: { paddingHorizontal: 16, paddingBottom: 4, gap: 12 },
+
+  // Video Card
+  videoCard: { width: PANEL_W, overflow: "hidden", backgroundColor: C.surface },
+  videoThumbWrap: { position: "relative", overflow: "hidden", aspectRatio: 16 / 9 },
+  videoThumb: { width: PANEL_W, aspectRatio: 16 / 9 },
+  videoThumbGradient: { position: "absolute", left: 0, right: 0, bottom: 0, height: "60%" },
+  videoThumbBadgeRow: {
     position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 2,
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  panelThumbInnerShadowBottom: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 2,
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  panelThumbOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    backgroundColor: "rgba(0,0,0,0.55)",
-  },
-  panelThumbOverlayRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  overlayMetaText: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 9,
-  },
-  overlayPriceText: {
-    color: C.accent,
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  overlayFreeText: {
-    color: "#4CAF50",
-    fontSize: 9,
-    fontWeight: "700",
-  },
-  panelInfo: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: C.surface,
-    gap: 2,
-  },
-  twoshotCard: {
-    width: 220,
-    backgroundColor: C.surface,
-    borderRadius: 3,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  twoshotThumbWrap: {
-    position: "relative",
-    overflow: "hidden",
-  },
-  twoshotThumb: {
-    width: 220,
-    aspectRatio: 16 / 9,
-  },
-  twoshotBadge: {
-    position: "absolute",
-    top: 6,
+    bottom: 6,
     left: 6,
-    backgroundColor: C.accent,
+    right: 6,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+  typeBadge: {
+    backgroundColor: "rgba(0,0,0,0.7)",
     borderRadius: 2,
-    paddingHorizontal: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  typeBadgeText: { color: "#fff", fontSize: 9, fontFamily: F.mono },
+  videoInfo: { paddingHorizontal: 10, paddingVertical: 8, gap: 4, backgroundColor: C.surface },
+
+  // Live Card
+  liveCard: { width: PANEL_W, overflow: "hidden", backgroundColor: C.surface },
+  liveThumbWrap: { position: "relative", overflow: "hidden", aspectRatio: 16 / 9 },
+  liveThumb: { width: PANEL_W, aspectRatio: 16 / 9 },
+  liveThumbGradient: { position: "absolute", left: 0, right: 0, bottom: 0, height: "60%" },
+  liveBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: C.live,
+    borderRadius: 2,
+    paddingHorizontal: 7,
     paddingVertical: 3,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  twoshotBadgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  twoshotBody: {
-    padding: 10,
-    gap: 3,
-  },
-  twoshotCreator: {
-    color: C.textSec,
-    fontSize: 11,
-  },
-  twoshotTitle: {
-    color: C.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  twoshotMeta: {
-    color: C.textMuted,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  videoCard: {
-    width: 180,
-  },
-  videoThumbContainer: {
-    position: "relative",
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  videoThumb: {
-    width: 180,
-    height: 101,
-    borderRadius: 3,
-  },
-  durationBadge: {
-    position: "absolute",
-    bottom: 6,
-    right: 6,
-    backgroundColor: "rgba(0,0,0,0.75)",
-    borderRadius: 0,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-  },
-  durationText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  photoBadge: {
-    position: "absolute",
-    bottom: 6,
-    right: 6,
-    backgroundColor: "rgba(41,182,207,0.85)",
-    borderRadius: 0,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-  photoBadgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "600",
-  },
-  noThumbPlaceholder: {
-    backgroundColor: C.surface2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  videoInfo: {
-    marginTop: 8,
-    gap: 3,
-  },
-  creatorRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
   },
-  smallAvatar: {
-    width: 18,
-    height: 18,
+  liveBadgeText: { color: "#fff", fontSize: 10, fontFamily: F.mono, fontWeight: "700", letterSpacing: 1 },
+  comingSoonBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: "rgba(0,0,0,0.65)",
     borderRadius: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  communityText: {
-    color: C.textSec,
-    fontSize: 11,
-    flex: 1,
-  },
-  videoTitle: {
-    color: C.text,
-    fontSize: 11,
-    fontWeight: "600",
-    lineHeight: 15,
-  },
-  videoTimeAgo: {
-    color: C.textMuted,
-    fontSize: 9,
-    flexShrink: 0,
-    marginLeft: 4,
-  },
-  videoMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
-  },
-  metaText: {
-    color: C.textMuted,
-    fontSize: 10,
-    marginRight: 4,
-  },
-  priceText: {
-    color: C.accent,
-    fontSize: 13,
-    fontWeight: "700",
-    marginTop: 2,
-  },
-  freeBadge: {
-    backgroundColor: C.green,
+  comingSoonText: { color: "rgba(255,255,255,0.7)", fontSize: 9, fontFamily: F.mono, letterSpacing: 1.5 },
+  viewerBadge: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    backgroundColor: "rgba(0,0,0,0.65)",
     borderRadius: 2,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    alignSelf: "flex-start",
-    marginTop: 2,
-  },
-  freeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  liveCard: {
-    width: 180,
-  },
-  liveThumbContainer: {
-    position: "relative",
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  liveThumb: {
-    width: 180,
-    height: 101,
-    borderRadius: 3,
-  },
-  comingSoonRibbon: {
-    position: "absolute",
-    top: 12,
-    left: -40,
-    paddingHorizontal: 40,
-    paddingVertical: 4,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    transform: [{ rotate: "-25deg" }],
-  },
-  comingSoonText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  liveBadge: {
-    position: "absolute",
-    top: 6,
-    left: 6,
-    backgroundColor: C.live,
-    borderRadius: 0,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
-  liveDot: {
-    width: 6,
-    height: 6,
+  viewerText: { color: "#fff", fontSize: 10, fontFamily: F.mono },
+  liveInfo: { paddingHorizontal: 10, paddingVertical: 8, gap: 4, backgroundColor: C.surface },
+
+  // Mentor Card
+  mentorCard: { width: MENTOR_W, overflow: "hidden", backgroundColor: C.surface },
+  mentorThumbWrap: { position: "relative", overflow: "hidden", aspectRatio: 16 / 9 },
+  mentorThumb: { width: MENTOR_W, aspectRatio: 16 / 9 },
+  mentorThumbGradient: { position: "absolute", left: 0, right: 0, bottom: 0, height: "70%" },
+  mentorBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    backgroundColor: C.accent,
     borderRadius: 2,
-    backgroundColor: "#fff",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
   },
-  liveText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  viewerBadge: {
+  mentorBadgeText: { color: "#000", fontSize: 9, fontFamily: F.mono, fontWeight: "700" },
+  mentorPriceOverlay: {
     position: "absolute",
     bottom: 6,
     right: 6,
-    backgroundColor: "rgba(0,0,0,0.65)",
-    borderRadius: 0,
-    paddingHorizontal: 5,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    borderRadius: 2,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 3,
   },
-  viewerText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "600",
-  },
-  liveInfo: {
-    marginTop: 8,
-    gap: 3,
-  },
-  rankedCard: {
-    width: 180,
-  },
-  rankedThumb: {
-    width: 180,
-    aspectRatio: 16 / 9,
-    borderRadius: 3,
-  },
-  rankBadge: {
+  mentorPriceText: { color: C.accent, fontSize: 11, fontFamily: F.mono, fontWeight: "700" },
+  mentorInfo: { paddingHorizontal: 10, paddingVertical: 8, gap: 4, backgroundColor: C.surface },
+  mentorTitle: { color: C.text, fontSize: 12, fontWeight: "600", lineHeight: 16 },
+  mentorMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
+  mentorMetaText: { color: C.textMuted, fontSize: 10, fontFamily: F.mono },
+  mentorMetaDot: { color: C.textMuted, fontSize: 10 },
+
+  // Ranked Card
+  rankedCard: { width: 180, overflow: "hidden" },
+  rankedThumbWrap: { position: "relative", overflow: "hidden", borderRadius: 2 },
+  rankedThumb: { width: 180, aspectRatio: 16 / 9 },
+  rankedGradient: { position: "absolute", left: 0, right: 0, bottom: 0, height: "60%" },
+  rankNumBadge: {
     position: "absolute",
-    top: 8,
-    left: 8,
-    backgroundColor: C.orange,
+    top: 6,
+    left: 6,
+    backgroundColor: C.surface3,
     width: 28,
     height: 28,
-    borderRadius: 3,
+    borderRadius: 2,
     alignItems: "center",
     justifyContent: "center",
   },
-  rankText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "800",
-    fontFamily: F.display,
-  },
+  rankNumText: { color: "#fff", fontSize: 14, fontFamily: F.display, fontWeight: "800" },
+  rankedInfo: { paddingTop: 8, gap: 3 },
+  rankedPrice: { color: C.accent, fontSize: 13, fontFamily: F.mono, fontWeight: "700", marginTop: 2 },
+
+  // Creator Card
   creatorCard: {
     width: 220,
     backgroundColor: C.surface,
-    borderRadius: 3,
+    borderRadius: 2,
     padding: 14,
     borderWidth: 1.5,
     gap: 8,
   },
-  creatorHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
+  creatorHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
   rankCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 3,
+    width: 30,
+    height: 30,
+    borderRadius: 2,
     alignItems: "center",
     justifyContent: "center",
   },
-  rankCircleText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "800",
-    fontFamily: F.display,
-  },
-  creatorAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 3,
-    borderWidth: 2,
-    borderColor: C.accent,
-  },
-  creatorNameBlock: {
-    flex: 1,
-  },
-  creatorName: {
-    color: C.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  creatorCommunity: {
-    color: C.textSec,
-    fontSize: 11,
-    marginTop: 2,
-  },
+  rankCircleText: { color: "#fff", fontSize: 15, fontFamily: F.display, fontWeight: "800" },
+  creatorAvatar: { width: 42, height: 42, borderRadius: 2, borderWidth: 1.5, borderColor: C.accent },
+  creatorName: { color: C.text, fontSize: 13, fontWeight: "700", fontFamily: F.display },
+  creatorCommunity: { color: C.textSec, fontSize: 10, marginTop: 2, fontFamily: F.mono },
   heatRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
     backgroundColor: C.surface2,
-    borderRadius: 3,
-    padding: 10,
+    borderRadius: 2,
+    padding: 8,
   },
-  heatLabel: {
-    color: C.textSec,
-    fontSize: 11,
-    flex: 1,
-  },
-  heatValue: {
-    color: C.orange,
-    fontSize: 20,
-    fontWeight: "800",
-    fontFamily: F.display,
-    letterSpacing: 0.5,
-  },
-  creatorStats: {
-    gap: 6,
-  },
-  statRow: {
+  heatLabel: { color: C.textSec, fontSize: 10, flex: 1, fontFamily: F.mono },
+  heatValue: { color: C.orange, fontSize: 18, fontFamily: F.display, fontWeight: "800" },
+  creatorStats: { gap: 5 },
+  statRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  statLabel: { color: C.textSec, fontSize: 11, flex: 1 },
+  statValue: { color: C.text, fontSize: 12, fontWeight: "700" },
+
+  // Shared
+  creatorRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  smallAvatar: { width: 18, height: 18, borderRadius: 2 },
+  communityText: { color: C.textSec, fontSize: 10, fontFamily: F.mono, flex: 1 },
+  timeAgoText: { color: C.textMuted, fontSize: 9, fontFamily: F.mono, flexShrink: 0 },
+  videoTitle: { color: C.text, fontSize: 12, fontWeight: "600", lineHeight: 16 },
+
+  // Live Dot
+  liveDotAnim: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.live },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  modalSheet: { backgroundColor: C.bg, borderTopLeftRadius: 6, borderTopRightRadius: 6, maxHeight: "75%" },
+  modalHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
   },
-  statLabel: {
-    color: C.textSec,
-    fontSize: 12,
-    flex: 1,
-  },
-  statValue: {
-    color: C.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  revenueShareRow: {
-    backgroundColor: "#0A0A0A",
-    borderRadius: 3,
-    padding: 10,
-    alignItems: "center",
-    gap: 4,
-  },
-  revenueShareLabel: {
-    color: C.textSec,
-    fontSize: 11,
-  },
-  revenueShareValue: {
-    color: C.text,
-    fontSize: 24,
-    fontWeight: "800",
-    fontFamily: F.display,
-    letterSpacing: 1,
-  },
+  modalTitle: { color: C.text, fontSize: 16, fontFamily: F.display, fontWeight: "800", letterSpacing: 1 },
+  modalAnnouncementItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border, gap: 4 },
+  pinnedBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
+  pinnedText: { color: C.orange, fontSize: 10, fontFamily: F.mono },
+  modalAnnouncementTitle: { color: C.text, fontSize: 13 },
 });
