@@ -196,14 +196,29 @@ export function GlobalJukeboxPlayer() {
   const isOnJukeboxPage = pathname?.match(/^\/jukebox\/\d+/) != null;
 
   // jukebox ページから離脱したらミニプレイヤーを自動表示（Spotify 風）
+  // 「一度でもジュークボックスページを訪問した」フラグ
+  const hasVisitedJukeboxRef = useRef(isOnJukeboxPage);
   const prevIsOnJukeboxPageRef = useRef(isOnJukeboxPage);
   useEffect(() => {
+    if (isOnJukeboxPage) hasVisitedJukeboxRef.current = true;
     const wasOnJukebox = prevIsOnJukeboxPageRef.current;
     prevIsOnJukeboxPageRef.current = isOnJukeboxPage;
+    // jukebox ページから離脱 → 再生中ならミニプレイヤーを表示
     if (wasOnJukebox && !isOnJukeboxPage && state?.isPlaying) {
       setDismissed(false);
     }
   }, [isOnJukeboxPage, state?.isPlaying]);
+
+  // 再生終了（isPlaying=false かつ currentVideoTitle=null）→ 即座に非表示
+  const prevIsPlayingRef = useRef(state?.isPlaying);
+  useEffect(() => {
+    const wasPlaying = prevIsPlayingRef.current;
+    prevIsPlayingRef.current = state?.isPlaying;
+    // 再生中 → 停止 かつ 次の動画もない → ミニプレイヤーを隠す
+    if (wasPlaying && !state?.isPlaying && !state?.currentVideoTitle) {
+      setDismissed(true);
+    }
+  }, [state?.isPlaying, state?.currentVideoTitle]);
 
   // jukeboxIsActive をコンテキストに反映（MyListPlayer との位置調整用）
   useEffect(() => {
