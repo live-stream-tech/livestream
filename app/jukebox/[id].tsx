@@ -397,7 +397,11 @@ function QueueRow({
             </View>
           </View>
         ))}
-        <Pressable style={styles.addQueueBtn} onPress={onAdd}>
+        <Pressable
+          style={styles.addQueueBtn}
+          onPress={onAdd}
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+        >
           <Ionicons name="add" size={24} color={C.accent} />
           <Text style={styles.addQueueText}>動画を追加</Text>
         </Pressable>

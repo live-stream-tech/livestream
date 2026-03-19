@@ -2995,7 +2995,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const queue = await db
       .select()
       .from(jukeboxQueue)
-      .where(eq(jukeboxQueue.communityId, communityId))
+      .where(and(eq(jukeboxQueue.communityId, communityId), eq(jukeboxQueue.isPlayed, false)))
       .orderBy(asc(jukeboxQueue.position));
 
     let state = stateRaw ?? null;
@@ -3078,7 +3078,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       ? await db
           .select()
           .from(jukeboxQueue)
-          .where(eq(jukeboxQueue.communityId, communityId))
+          .where(and(eq(jukeboxQueue.communityId, communityId), eq(jukeboxQueue.isPlayed, false)))
           .orderBy(asc(jukeboxQueue.position))
       : queue;
 
