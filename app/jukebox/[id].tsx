@@ -1265,7 +1265,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     paddingTop: 12,
     paddingHorizontal: 16,
-    maxHeight: "75%",
+    maxHeight: Platform.OS === "web" ? 560 : "65%",
   },
   modalHandle: {
     width: 36,
@@ -1343,7 +1343,9 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
   },
-  modalList: {},
+  modalList: {
+    maxHeight: 200,
+  },
   modalItem: {
     flexDirection: "row",
     alignItems: "center",

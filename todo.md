@@ -15,3 +15,4 @@
   - [x] GlobalMyListPlayer: ページ離脱後も自動表示（dismissed=false）
   - [x] Spotify風バーUI（画面下部固定）に改善
 - [x] PC表示時に最大幅430pxでセンタリング表示（左右余白あり）
+- [x] Jukebox動画追加モーダルのサイズ修正（modalList maxHeight追加、modalSheet縮小）
