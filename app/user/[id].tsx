@@ -17,6 +17,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { getApiUrl } from "@/lib/query-client";
 import { C } from "@/constants/colors";
+import { F } from "@/constants/fonts";
 
 type PinnedCommunity = {
   id: number;
@@ -41,6 +42,16 @@ type UserProfile = {
   followingCount?: number;
 };
 
+type MentorSession = {
+  id: number;
+  title: string;
+  category: string;
+  description: string;
+  price: number;
+  duration: number;
+  maxParticipants: number;
+};
+
 type VideoItem = {
   id: number;
   title: string;
@@ -56,6 +67,16 @@ export default function UserProfileScreen() {
   const insets = useSafeAreaInsets();
   const { user: me, token } = useAuth();
   const queryClient = useQueryClient();
+  const { data: mentorSessions } = useQuery<MentorSession[]>({
+    queryKey: [`/api/mentor/sessions/${userId}`],
+    enabled: userId > 0,
+    queryFn: async () => {
+      const baseUrl = getApiUrl();
+      const res = await fetch(new URL(`/api/mentor/sessions/${userId}`, baseUrl).toString());
+      return res.json();
+    },
+  });
+
   const { data: followStatus, refetch: refetchFollowStatus } = useQuery<{ isFollowing: boolean }>({
     queryKey: [`/api/users/${userId}/follow-status`],
     enabled: userId > 0 && !!me,
@@ -214,6 +235,39 @@ export default function UserProfileScreen() {
           ) : null}
         </View>
 
+        {/* メンターセッション */}
+        {mentorSessions && mentorSessions.length > 0 && (
+          <View style={styles.mentorSection}>
+            <Text style={styles.sectionTitle}>MENTOR SESSION</Text>
+            {mentorSessions.map(s => (
+              <Pressable
+                key={s.id}
+                style={styles.mentorCard}
+                onPress={() => router.push(`/mentor-book/${s.id}`)}
+              >
+                <View style={styles.mentorCardLeft}>
+                  <View style={styles.mentorCatBadge}>
+                    <Text style={styles.mentorCatText}>{s.category}</Text>
+                  </View>
+                  <Text style={styles.mentorTitle}>{s.title}</Text>
+                  <Text style={styles.mentorDesc} numberOfLines={2}>{s.description}</Text>
+                  <View style={styles.mentorMeta}>
+                    <Text style={styles.mentorMetaText}>{s.duration}分</Text>
+                    <Text style={styles.mentorMetaDot}>·</Text>
+                    <Text style={styles.mentorMetaText}>最大{s.maxParticipants}名</Text>
+                  </View>
+                </View>
+                <View style={styles.mentorCardRight}>
+                  <Text style={styles.mentorPrice}>¥{s.price.toLocaleString()}</Text>
+                  <View style={styles.bookBtn}>
+                    <Text style={styles.bookBtnText}>予約</Text>
+                  </View>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
         {/* 参加コミュニティ厳選4つ（パネル表示） */}
         {pinnedCommunities.length > 0 && (
           <View style={styles.communitiesSection}>
@@ -363,4 +417,29 @@ const styles = StyleSheet.create({
   postBody: { flex: 1 },
   postTitle: { color: C.text, fontSize: 14, fontWeight: "600" },
   postMeta: { color: C.textMuted, fontSize: 12, marginTop: 2 },
+  // メンターセッション
+  mentorSection: { paddingHorizontal: 16, paddingBottom: 24 },
+  mentorCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    backgroundColor: C.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: C.borderDim,
+    padding: 14,
+    marginBottom: 10,
+  },
+  mentorCardLeft: { flex: 1, marginRight: 12 },
+  mentorCardRight: { alignItems: "flex-end", gap: 8 },
+  mentorCatBadge: { backgroundColor: C.borderDim, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2, alignSelf: "flex-start", marginBottom: 6 },
+  mentorCatText: { fontFamily: F.mono, fontSize: 10, color: C.accent },
+  mentorTitle: { fontFamily: F.display, fontSize: 15, fontWeight: "700", color: C.text, marginBottom: 4 },
+  mentorDesc: { fontFamily: F.mono, fontSize: 11, color: C.textSec, marginBottom: 6 },
+  mentorMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
+  mentorMetaText: { fontFamily: F.mono, fontSize: 11, color: C.textMuted },
+  mentorMetaDot: { color: C.textMuted, fontSize: 11 },
+  mentorPrice: { fontFamily: F.display, fontSize: 16, fontWeight: "800", color: C.accent },
+  bookBtn: { backgroundColor: C.accent, borderRadius: 4, paddingHorizontal: 14, paddingVertical: 8 },
+  bookBtnText: { fontFamily: F.display, fontSize: 13, fontWeight: "700", color: C.bg },
 });

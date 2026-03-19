@@ -620,3 +620,43 @@ export const follows = pgTable("follows", {
   followingId: integer("following_id").notNull(), // フォローされる側
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ─── メンターセッション（常時予約） ───────────────────────────────────────────
+
+export const mentorSessions = pgTable("mentor_sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),           // クリエイターのユーザーID
+  title: text("title").notNull(),                 // セッション名
+  category: text("category").notNull().default("counselor"), // english/counselor/coaching/idol/yoga/fortune/other
+  description: text("description").notNull().default(""),
+  price: integer("price").notNull(),              // 円
+  duration: integer("duration").notNull().default(30), // 分
+  maxParticipants: integer("max_participants").notNull().default(1), // 1=1対1, 最大20
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const mentorBookings = pgTable("mentor_bookings", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").notNull(),     // mentor_sessions.id
+  slotId: integer("slot_id"),                     // liver_availability.id（日時スロット）
+  userId: integer("user_id").notNull(),           // 予約者
+  userName: text("user_name").notNull(),
+  userAvatar: text("user_avatar"),
+  scheduledAt: timestamp("scheduled_at").notNull(), // 予約日時（UTC）
+  price: integer("price").notNull(),
+  stripeSessionId: text("stripe_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  status: text("status").notNull().default("pending"), // pending/confirmed/in_progress/completed/cancelled
+  // Cloudflare Stream Live Input（1対1ビデオ通話用）
+  cfLiveInputId: text("cf_live_input_id"),
+  whipUrl: text("whip_url"),                      // メンター側（配信）
+  whepUrl: text("whep_url"),                      // 参加者側（視聴）
+  rtmpsUrl: text("rtmps_url"),
+  rtmpsKey: text("rtmps_key"),
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
+  cancelReason: text("cancel_reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+});

@@ -44,6 +44,8 @@ import {
   genreOwners,
   concerts,
   concertStaff,
+  mentorSessions,
+  mentorBookings,
 } from "./schema";
 import { eq, asc, desc, count, sql, and, or, gte, lte, isNull, inArray } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey, createConnectExpressAccount, createConnectAccountLink, getConnectAccount, createBannerPaymentIntent, getPaymentIntentStatus } from "./stripeClient";
@@ -4442,8 +4444,303 @@ export async function registerRoutes(app: Express): Promise<void> {
       .from(videos)
       .where(and(inArray(videos.userId, ids), eq(videos.hidden, false)))
       .orderBy(desc(videos.createdAt))
-      .limit(50);
+       .limit(50);
     res.json(feed);
   });
 
+  // ─── メンターセッション API ──────────────────────────────────────────────────
+
+  /** クリエイターがセッション商品を登録 */
+  app.post("/api/mentor/sessions", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const { title, category, description, price, duration, maxParticipants } = req.body as {
+      title?: string; category?: string; description?: string;
+      price?: number; duration?: number; maxParticipants?: number;
+    };
+    if (!title || !price) return res.status(400).json({ error: "title と price は必須です" });
+    const [row] = await db.insert(mentorSessions).values({
+      userId: user.id,
+      title,
+      category: category ?? "counselor",
+      description: description ?? "",
+      price: Number(price),
+      duration: Number(duration ?? 30),
+      maxParticipants: Number(maxParticipants ?? 1),
+      isActive: true,
+    } as typeof mentorSessions.$inferInsert).returning();
+    res.json(row);
+  });
+
+  /** クリエイターのセッション一覧取得 */
+  app.get("/api/mentor/sessions/:userId", async (req: Request, res: Response) => {
+    const userId = paramNum(req, "userId");
+    const sessions = await db
+      .select()
+      .from(mentorSessions)
+      .where(and(eq(mentorSessions.userId, userId), eq(mentorSessions.isActive, true)))
+      .orderBy(asc(mentorSessions.createdAt));
+    res.json(sessions);
+  });
+
+  /** セッション単体取得 */
+  app.get("/api/mentor/session/:id", async (req: Request, res: Response) => {
+    const sessionId = paramNum(req, "id");
+    const [s] = await db.select().from(mentorSessions).where(eq(mentorSessions.id, sessionId)).limit(1);
+    if (!s) return res.status(404).json({ error: "not found" });
+    res.json(s);
+  });
+  /** 自分のセッション一覧（クリエイター管理用） */
+  app.get("/api/mentor/my-sessions", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const sessions = await db
+      .select()
+      .from(mentorSessions)
+      .where(eq(mentorSessions.userId, user.id))
+      .orderBy(desc(mentorSessions.createdAt));
+    res.json(sessions);
+  });
+
+  /** セッション更新 */
+  app.put("/api/mentor/sessions/:id", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const id = paramNum(req, "id");
+    const [existing] = await db.select().from(mentorSessions).where(eq(mentorSessions.id, id));
+    if (!existing) return res.status(404).json({ error: "セッションが見つかりません" });
+    if (existing.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
+    const { title, category, description, price, duration, maxParticipants, isActive } = req.body as Partial<typeof mentorSessions.$inferInsert>;
+    const [updated] = await db.update(mentorSessions)
+      .set({ title, category, description, price, duration, maxParticipants, isActive, updatedAt: new Date() } as Partial<typeof mentorSessions.$inferInsert>)
+      .where(eq(mentorSessions.id, id))
+      .returning();
+    res.json(updated);
+  });
+
+  /** セッション削除（非公開化） */
+  app.delete("/api/mentor/sessions/:id", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const id = paramNum(req, "id");
+    const [existing] = await db.select().from(mentorSessions).where(eq(mentorSessions.id, id));
+    if (!existing) return res.status(404).json({ error: "セッションが見つかりません" });
+    if (existing.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
+    await db.update(mentorSessions).set({ isActive: false } as Partial<typeof mentorSessions.$inferInsert>).where(eq(mentorSessions.id, id));
+    res.json({ ok: true });
+  });
+
+  /** 予約作成（Stripe Checkout セッション発行） */
+  app.post("/api/mentor/bookings", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const { sessionId, slotId, scheduledAt } = req.body as {
+      sessionId?: number; slotId?: number; scheduledAt?: string;
+    };
+    if (!sessionId || !scheduledAt) return res.status(400).json({ error: "sessionId と scheduledAt は必須です" });
+
+    const [session] = await db.select().from(mentorSessions).where(eq(mentorSessions.id, Number(sessionId)));
+    if (!session || !session.isActive) return res.status(404).json({ error: "セッションが見つかりません" });
+
+    // クリエイターの Stripe Connect 確認
+    const [creator] = await db.select().from(users).where(eq(users.id, session.userId));
+    if (!creator?.stripeConnectId) {
+      return res.status(400).json({ error: "creator_not_connected", message: "このクリエイターはまだ受取り設定を完了していません" });
+    }
+    const stripe = getUncachableStripeClient();
+    const account = await stripe.accounts.retrieve(creator.stripeConnectId);
+    if (!account.charges_enabled) {
+      return res.status(400).json({ error: "creator_not_connected", message: "このクリエイターはまだ受取り設定を完了していません" });
+    }
+
+    // スロットの空き確認（slotIdがある場合）
+    if (slotId) {
+      const [slot] = await db.select().from(liverAvailability).where(eq(liverAvailability.id, Number(slotId)));
+      if (!slot) return res.status(404).json({ error: "スロットが見つかりません" });
+      if (slot.bookedSlots >= slot.maxSlots) return res.status(400).json({ error: "このスロットは満席です" });
+    }
+
+    // Cloudflare Stream Live Input を作成（1対1ビデオ通話用）
+    let cfLiveInputId = "";
+    let whipUrl = "";
+    let whepUrl = "";
+    let rtmpsUrl = "";
+    let rtmpsKey = "";
+    if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_STREAM_TOKEN) {
+      try {
+        const cfRes = await fetch(
+          `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/stream/live_inputs`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${CLOUDFLARE_STREAM_TOKEN}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              meta: { name: `mentor-${sessionId}-${Date.now()}` },
+              recording: { mode: "off" },
+            }),
+          }
+        );
+        const cfData = (await cfRes.json()) as any;
+        if (cfData.success) {
+          cfLiveInputId = cfData.result.uid;
+          whipUrl = `https://customer-${CLOUDFLARE_ACCOUNT_ID}.cloudflarestream.com/${cfLiveInputId}/webRTC/publish`;
+          whepUrl = `https://customer-${CLOUDFLARE_ACCOUNT_ID}.cloudflarestream.com/${cfLiveInputId}/webRTC/play`;
+          rtmpsUrl = cfData.result.rtmps?.url ?? "";
+          rtmpsKey = cfData.result.rtmps?.streamKey ?? "";
+        }
+      } catch (e) {
+        console.error("CF Stream Live Input error:", e);
+      }
+    }
+
+    // Stripe Checkout セッション作成（transfer_data でクリエイターへ直接送金）
+    const platformFee = Math.round(session.price * 0.2);
+    const origin = (req.headers.origin as string) ?? "";
+    const checkoutSession = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [{
+        price_data: {
+          currency: "jpy",
+          product_data: { name: `${session.title}（${session.duration}分）` },
+          unit_amount: session.price,
+        },
+        quantity: 1,
+      }],
+      mode: "payment",
+      success_url: `${origin}/mentor-room/{CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/mentor-cancel`,
+      payment_intent_data: {
+        application_fee_amount: platformFee,
+        transfer_data: { destination: creator.stripeConnectId },
+      },
+      metadata: {
+        type: "mentor_booking",
+        sessionId: String(sessionId),
+        userId: String(user.id),
+        slotId: slotId ? String(slotId) : "",
+        scheduledAt,
+        cfLiveInputId,
+        whipUrl,
+        whepUrl,
+      },
+    });
+
+    // 予約レコードを pending で作成
+    const [booking] = await db.insert(mentorBookings).values({
+      sessionId: Number(sessionId),
+      slotId: slotId ? Number(slotId) : null,
+      userId: user.id,
+      userName: user.displayName,
+      userAvatar: user.profileImageUrl,
+      scheduledAt: new Date(scheduledAt),
+      price: session.price,
+      stripeSessionId: checkoutSession.id,
+      status: "pending",
+      cfLiveInputId,
+      whipUrl,
+      whepUrl,
+      rtmpsUrl,
+      rtmpsKey,
+    } as typeof mentorBookings.$inferInsert).returning();
+
+    res.json({ checkoutUrl: checkoutSession.url, bookingId: booking.id });
+  });
+
+  /** 予約確認（Checkout 完了後にフロントが polling） */
+  app.get("/api/mentor/bookings/by-checkout/:csId", async (req: Request, res: Response) => {
+    const csId = paramStr(req, "csId");
+    const [booking] = await db.select().from(mentorBookings).where(eq(mentorBookings.stripeSessionId, csId));
+    if (!booking) return res.status(404).json({ error: "予約が見つかりません" });
+    res.json(booking);
+  });
+
+  /** 自分の予約一覧 */
+  app.get("/api/mentor/my-bookings", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const bookings = await db
+      .select({
+        booking: mentorBookings,
+        session: mentorSessions,
+      })
+      .from(mentorBookings)
+      .innerJoin(mentorSessions, eq(mentorBookings.sessionId, mentorSessions.id))
+      .where(eq(mentorBookings.userId, user.id))
+      .orderBy(desc(mentorBookings.scheduledAt));
+    res.json(bookings);
+  });
+
+  /** クリエイター側：自分のセッションへの予約一覧 */
+  app.get("/api/mentor/creator-bookings", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const bookings = await db
+      .select({
+        booking: mentorBookings,
+        session: mentorSessions,
+      })
+      .from(mentorBookings)
+      .innerJoin(mentorSessions, eq(mentorBookings.sessionId, mentorSessions.id))
+      .where(and(eq(mentorSessions.userId, user.id), eq(mentorBookings.status, "confirmed")))
+      .orderBy(asc(mentorBookings.scheduledAt));
+    res.json(bookings);
+  });
+
+  /** ビデオ通話開始（メンターが呼び出す） */
+  app.post("/api/mentor/bookings/:id/start", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const id = paramNum(req, "id");
+    const [row] = await db.select({
+      booking: mentorBookings,
+      session: mentorSessions,
+    }).from(mentorBookings)
+      .innerJoin(mentorSessions, eq(mentorBookings.sessionId, mentorSessions.id))
+      .where(eq(mentorBookings.id, id));
+    if (!row) return res.status(404).json({ error: "予約が見つかりません" });
+    if (row.session.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
+    await db.update(mentorBookings)
+      .set({ status: "in_progress", startedAt: new Date() } as Partial<typeof mentorBookings.$inferInsert>)
+      .where(eq(mentorBookings.id, id));
+    res.json({ whipUrl: row.booking.whipUrl, whepUrl: row.booking.whepUrl });
+  });
+
+  /** ビデオ通話終了 */
+  app.post("/api/mentor/bookings/:id/end", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const id = paramNum(req, "id");
+    const [row] = await db.select({
+      booking: mentorBookings,
+      session: mentorSessions,
+    }).from(mentorBookings)
+      .innerJoin(mentorSessions, eq(mentorBookings.sessionId, mentorSessions.id))
+      .where(eq(mentorBookings.id, id));
+    if (!row) return res.status(404).json({ error: "予約が見つかりません" });
+    if (row.session.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
+    await db.update(mentorBookings)
+      .set({ status: "completed", endedAt: new Date() } as Partial<typeof mentorBookings.$inferInsert>)
+      .where(eq(mentorBookings.id, id));
+    if (row.booking.cfLiveInputId && CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_STREAM_TOKEN) {
+      fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/stream/live_inputs/${row.booking.cfLiveInputId}`,
+        { method: "DELETE", headers: { Authorization: `Bearer ${CLOUDFLARE_STREAM_TOKEN}` } }
+      ).catch(() => {});
+    }
+    res.json({ ok: true });
+  });
+
+  /** 参加者側：ビデオ通話に参加（WHEP URL を返す） */
+  app.get("/api/mentor/bookings/:id/join", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const id = paramNum(req, "id");
+    const [booking] = await db.select().from(mentorBookings).where(eq(mentorBookings.id, id));
+    if (!booking) return res.status(404).json({ error: "予約が見つかりません" });
+    if (booking.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
+    if (booking.status !== "in_progress") return res.status(400).json({ error: "セッションはまだ開始されていません" });
+    res.json({ whepUrl: booking.whepUrl });
+  });
 }
