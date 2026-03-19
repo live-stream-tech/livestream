@@ -370,10 +370,6 @@ export default function ProfileScreen() {
       <View style={[styles.header, { paddingTop: topInset + 12 }]}>
         <AppLogo height={36} />
         <View style={styles.headerRight}>
-          <Pressable style={styles.identityBtn}>
-            <Ionicons name="shield-checkmark-outline" size={13} color={C.orange} />
-            <Text style={styles.identityText}>IDENTITY CHECK</Text>
-          </Pressable>
           <Pressable style={styles.notifButton} onPress={() => router.push("/notifications?filter=purchase")}>
             <Ionicons name="notifications-outline" size={22} color={C.text} />
             {unreadCount > 0 && (

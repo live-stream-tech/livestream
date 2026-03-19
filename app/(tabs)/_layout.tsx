@@ -76,7 +76,10 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="community"
         options={{
-          href: null,
+          title: "コミュニティ",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
