@@ -105,6 +105,16 @@ export function GlobalJukeboxPlayer() {
     if (next !== null) {
       const isJukebox = pathname?.match(/^\/jukebox\/\d+/) != null;
       setCommunityId((prev) => {
+        if (isJukebox && prev !== null && prev !== next) {
+          // 別の部屋に入室 → 前の部屋のYouTubeプレイヤーを停止して切り替え
+          if (Platform.OS === 'web' && youtubePlayerRef.current) {
+            try { youtubePlayerRef.current.stopVideo(); } catch {}
+            try { youtubePlayerRef.current.destroy(); } catch {}
+            youtubePlayerRef.current = null;
+          }
+          setDismissed(true); // ミニプレイヤーを一旦非表示
+          return next;
+        }
         if (isJukebox) return next;
         if (prev === null) return next;
         return prev;
