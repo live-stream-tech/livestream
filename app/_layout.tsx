@@ -71,7 +71,7 @@ function isPublicPath(pathname: string): boolean {
   if (pathname === "/live" || pathname.startsWith("/live")) return true; // /(tabs)/live + /live/[id]
   if (pathname === "/livers" || pathname.startsWith("/livers/")) return true; // ライバー一覧・詳細（他ユーザーページ）
   if (pathname.startsWith("/video/")) return true; // 動画詳細
-  if (pathname.startsWith("/jukebox/")) return true; // ジュークボックス（コミュニティ同時視聴）
+  if (pathname === "/jukebox" || pathname.startsWith("/jukebox/")) return true; // ジュークボックス（閲覧はゲストOK、リクエスト・会話はログイン必須）
   if (pathname.startsWith("/user/")) return true; // 他ユーザープロフィール
   if (pathname === "/terms") return true;
   if (pathname === "/privacy") return true;

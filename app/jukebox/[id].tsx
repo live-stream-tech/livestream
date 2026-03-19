@@ -544,9 +544,13 @@ export default function JukeboxScreen() {
   const sendChat = useCallback(() => {
     const msg = chatInput.trim();
     if (!msg) return;
+    if (!user) {
+      router.push("/auth/login");
+      return;
+    }
     setChatInput("");
     chatMutation.mutate(msg);
-  }, [chatInput]);
+  }, [chatInput, user]);
 
   const handleNext = useCallback(() => {
     nextMutation.mutate();
@@ -641,7 +645,10 @@ export default function JukeboxScreen() {
         <NowPlaying state={state} onNext={handleNext} />
 
         {/* Queue */}
-        <QueueRow items={queue} state={state} onAdd={() => setShowAddModal(true)} />
+        <QueueRow items={queue} state={state} onAdd={() => {
+          if (!user) { router.push("/auth/login"); return; }
+          setShowAddModal(true);
+        }} />
 
         {/* Chat */}
         <View style={styles.chatSection}>
