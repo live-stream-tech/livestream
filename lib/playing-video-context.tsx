@@ -13,15 +13,20 @@ const PlayingVideoContext = createContext<{
   setPlaying: (v: PlayingVideo) => void;
   playVideo: (v: Omit<NonNullable<PlayingVideo>, "videoId"> & { videoId: number }) => void;
   stopPlaying: () => void;
+  jukeboxIsActive: boolean;
+  setJukeboxIsActive: (v: boolean) => void;
 }>({
   playing: null,
   setPlaying: () => {},
   playVideo: () => {},
   stopPlaying: () => {},
+  jukeboxIsActive: false,
+  setJukeboxIsActive: () => {},
 });
 
 export function PlayingVideoProvider({ children }: { children: React.ReactNode }) {
   const [playing, setPlaying] = useState<PlayingVideo>(null);
+  const [jukeboxIsActive, setJukeboxIsActive] = useState(false);
 
   const playVideo = useCallback((v: Omit<NonNullable<PlayingVideo>, "videoId"> & { videoId: number }) => {
     setPlaying((prev) => {
@@ -35,7 +40,7 @@ export function PlayingVideoProvider({ children }: { children: React.ReactNode }
   const stopPlaying = useCallback(() => setPlaying(null), []);
 
   return (
-    <PlayingVideoContext.Provider value={{ playing, setPlaying, playVideo, stopPlaying }}>
+    <PlayingVideoContext.Provider value={{ playing, setPlaying, playVideo, stopPlaying, jukeboxIsActive, setJukeboxIsActive }}>
       {children}
     </PlayingVideoContext.Provider>
   );

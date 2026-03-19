@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Text,
   View,
-  Dimensions,
 } from "react-native";
 import { usePathname, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,24 +12,10 @@ import { Image } from "expo-image";
 import { C } from "@/constants/colors";
 import { usePlayingVideo } from "@/lib/playing-video-context";
 
-const CARD_W = 260;
-const CARD_H = 72;
-
-function useScreenSize() {
-  const [size, setSize] = useState(() => Dimensions.get("window"));
-  useEffect(() => {
-    const sub = Dimensions.addEventListener("change", ({ window }) => setSize(window));
-    return () => sub?.remove();
-  }, []);
-  return size;
-}
-
 export function GlobalMyListPlayer() {
-  const { width: SCREEN_W, height: SCREEN_H } = useScreenSize();
   const pathname = usePathname();
-  const { playing, stopPlaying } = usePlayingVideo();
+  const { playing, stopPlaying, jukeboxIsActive } = usePlayingVideo();
   const [dismissed, setDismissed] = useState(true);
-  const [minimized, setMinimized] = useState(false);
   const youtubePlayerRef = useRef<any | null>(null);
   const containerIdRef = useRef<string>(`global-ml-${Math.random().toString(36).slice(2)}`).current;
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -39,8 +24,21 @@ export function GlobalMyListPlayer() {
   const match = pathname?.match(/\/video\/(\d+)/);
   const currentVideoId = match ? parseInt(match[1], 10) : null;
   const isCurrentVideo = isOnVideoPage && playing && currentVideoId === playing.videoId;
-  const defaultX = SCREEN_W - CARD_W - 16;
-  const defaultY = SCREEN_H - CARD_H - 80;
+
+  // ビデオページから離脱したらミニプレイヤーを自動表示（Spotify 風）
+  const prevIsOnVideoPageRef = useRef(isOnVideoPage);
+  useEffect(() => {
+    const wasOnVideo = prevIsOnVideoPageRef.current;
+    prevIsOnVideoPageRef.current = isOnVideoPage;
+    if (wasOnVideo && !isOnVideoPage && playing) {
+      setDismissed(false);
+    }
+  }, [isOnVideoPage, playing]);
+
+  // playing が null になったら dismissed をリセット
+  useEffect(() => {
+    if (!playing) setDismissed(true);
+  }, [playing]);
 
   // YouTube IFrame（Web）
   useEffect(() => {
@@ -145,8 +143,7 @@ export function GlobalMyListPlayer() {
         style={[
           styles.playerShell,
           isCurrentVideo && styles.playerShellFull,
-          !isCurrentVideo && !dismissed && [styles.playerShellMini, { left: defaultX + 10, top: defaultY + 8 }],
-          !isCurrentVideo && dismissed && styles.playerShellHidden,
+          !isCurrentVideo && styles.playerShellHidden,
         ]}
         pointerEvents="none"
       >
@@ -165,6 +162,7 @@ export function GlobalMyListPlayer() {
         ) : null}
       </View>
 
+      {/* 動画ページ上: フルスクリーン閉じるボタン */}
       {isCurrentVideo && (
         <View style={[styles.fullOverlay, StyleSheet.absoluteFill]} pointerEvents="box-none">
           <Pressable style={styles.fullCloseBtn} onPress={() => stopPlaying()}>
@@ -173,40 +171,64 @@ export function GlobalMyListPlayer() {
         </View>
       )}
 
-      {!isCurrentVideo && (
-        <>
-          {dismissed ? (
-            <Pressable style={[styles.fab, { right: 16, bottom: 80 }]} onPress={() => setDismissed(false)}>
-              <Ionicons name="bookmark" size={20} color="#fff" />
-              <Text style={styles.fabText}>マイリスト</Text>
+      {/* 動画ページ外: Spotify 風ミニプレイヤーバー */}
+      {!isCurrentVideo && !dismissed && (
+        <View style={[styles.bar, jukeboxIsActive && styles.barWithJukebox]}>
+          {/* プログレスバー（バー上部） */}
+          <View style={styles.barProgress} />
+
+          <View style={styles.barRow}>
+            {/* サムネイル */}
+            <Pressable
+              style={styles.barThumbWrap}
+              onPress={() => router.push(`/video/${playing.videoId}`)}
+            >
+              {playing.thumbnail ? (
+                <Image
+                  source={{ uri: playing.thumbnail }}
+                  style={styles.barThumb}
+                  contentFit="cover"
+                />
+              ) : (
+                <View style={[styles.barThumb, { backgroundColor: C.surface3, alignItems: "center", justifyContent: "center" }]}>
+                  <Ionicons name="play" size={16} color={C.accent} />
+                </View>
+              )}
             </Pressable>
-          ) : (
-            <View style={[styles.card, minimized ? styles.cardMinimized : styles.cardExpanded, { left: defaultX, top: defaultY }]}>
-              <Pressable style={styles.mainRow} onPress={() => setMinimized((v) => !v)}>
-                <View style={styles.thumbWrap}>
-                  {hasYoutube ? (
-                    <View style={styles.thumbPlaceholder} />
-                  ) : playing.thumbnail ? (
-                    <Image source={{ uri: playing.thumbnail }} style={styles.thumb} contentFit="cover" />
-                  ) : (
-                    <View style={[styles.thumb, { backgroundColor: C.surface3 }]} />
-                  )}
-                </View>
-                <View style={styles.info}>
-                  <Text style={styles.title} numberOfLines={minimized ? 1 : 2}>
-                    {playing.title}
-                  </Text>
-                </View>
-                <Pressable style={styles.iconBtn} onPress={() => router.push(`/video/${playing.videoId}`)}>
-                  <Ionicons name="expand" size={16} color="#fff" />
-                </Pressable>
-                <Pressable style={styles.closeBtn} onPress={() => setDismissed(true)}>
-                  <Ionicons name="close" size={16} color="#fff" />
-                </Pressable>
-              </Pressable>
-            </View>
-          )}
-        </>
+
+            {/* タイトル */}
+            <Pressable
+              style={styles.barInfo}
+              onPress={() => router.push(`/video/${playing.videoId}`)}
+            >
+              <Text style={styles.barTitle} numberOfLines={1}>
+                {playing.title}
+              </Text>
+              <Text style={styles.barSubtitle} numberOfLines={1}>
+                タップして再生ページへ
+              </Text>
+            </Pressable>
+
+            {/* 動画ページへ */}
+            <Pressable
+              style={styles.barIconBtn}
+              onPress={() => router.push(`/video/${playing.videoId}`)}
+            >
+              <Ionicons name="play-circle" size={22} color={C.accent} />
+            </Pressable>
+
+            {/* 停止 */}
+            <Pressable
+              style={styles.barIconBtn}
+              onPress={() => {
+                stopPlaying();
+                setDismissed(true);
+              }}
+            >
+              <Ionicons name="close" size={18} color={C.textSec} />
+            </Pressable>
+          </View>
+        </View>
       )}
     </View>
   );
@@ -228,10 +250,6 @@ const styles = StyleSheet.create({
     marginLeft: -400,
     marginTop: -225,
   },
-  playerShellMini: {
-    width: 52,
-    height: 52,
-  },
   playerShellHidden: {
     left: -9999,
     top: 0,
@@ -247,11 +265,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.5)",
     zIndex: 1001,
   },
-  thumbPlaceholder: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: C.surface2,
-  },
   fullCloseBtn: {
     position: "absolute",
     top: 48,
@@ -263,70 +276,73 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  card: {
+  // Spotify 風バースタイル
+  bar: {
     position: "absolute",
-    borderRadius: 16,
-    backgroundColor: "rgba(7,15,24,0.96)",
+    left: 8,
+    right: 8,
+    bottom: 68, // タブバーの上（60px + マージン8px）
+    backgroundColor: "rgba(18,18,18,0.97)",
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
     shadowColor: "#000",
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 10,
-  },
-  cardExpanded: { minWidth: 220, maxWidth: 320 },
-  cardMinimized: { minWidth: 180, maxWidth: 260 },
-  mainRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  thumbWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -2 },
+    elevation: 20,
     overflow: "hidden",
-    marginRight: 8,
-    backgroundColor: C.surface2,
+    zIndex: 1000,
   },
-  youtubeContainer: { width: "100%", height: "100%" },
-  thumb: { width: "100%", height: "100%" },
-  info: { flex: 1 },
-  title: { color: "#fff", fontSize: 12, fontWeight: "700" },
-  iconBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 4,
+  barProgress: {
+    height: 2,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    width: "100%",
   },
-  closeBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 4,
-  },
-  fab: {
-    position: "absolute",
+  barRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(7,15,24,0.95)",
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 6,
+    gap: 10,
   },
-  fabText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  barThumbWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: C.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  barThumb: {
+    width: "100%",
+    height: "100%",
+  },
+  barInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  barTitle: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  barSubtitle: {
+    color: C.textMuted,
+    fontSize: 11,
+  },
+  barIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  // Jukeboxバーが表示中は上にスタック
+  barWithJukebox: {
+    bottom: 136, // 68 + 64 (Jukeboxバーの高さ) + 4
+  },
 });

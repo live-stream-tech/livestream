@@ -14,6 +14,7 @@ import { Image } from "expo-image";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
 import { apiRequest } from "@/lib/query-client";
+import { usePlayingVideo } from "@/lib/playing-video-context";
 
 type JukeboxState = {
   communityId: number;
@@ -78,6 +79,7 @@ function useScreenSize() {
 export function GlobalJukeboxPlayer() {
   const { width: SCREEN_W, height: SCREEN_H } = useScreenSize();
   const pathname = usePathname();
+  const { setJukeboxIsActive, playing: videoPlaying } = usePlayingVideo();
   const [communityId, setCommunityId] = useState<number | null>(() =>
     parseCommunityId(pathname)
   );
@@ -192,6 +194,23 @@ export function GlobalJukeboxPlayer() {
 
   // YouTube IFrame プレイヤー（Webのみ）。jukebox ページでは NowPlaying が再生するため、ここでは作らない
   const isOnJukeboxPage = pathname?.match(/^\/jukebox\/\d+/) != null;
+
+  // jukebox ページから離脱したらミニプレイヤーを自動表示（Spotify 風）
+  const prevIsOnJukeboxPageRef = useRef(isOnJukeboxPage);
+  useEffect(() => {
+    const wasOnJukebox = prevIsOnJukeboxPageRef.current;
+    prevIsOnJukeboxPageRef.current = isOnJukeboxPage;
+    if (wasOnJukebox && !isOnJukeboxPage && state?.isPlaying) {
+      setDismissed(false);
+    }
+  }, [isOnJukeboxPage, state?.isPlaying]);
+
+  // jukeboxIsActive をコンテキストに反映（MyListPlayer との位置調整用）
+  useEffect(() => {
+    const isActive = !dismissed && !isOnJukeboxPage && !!state?.isPlaying;
+    setJukeboxIsActive(isActive);
+  }, [dismissed, isOnJukeboxPage, state?.isPlaying, setJukeboxIsActive]);
+
   useEffect(() => {
     if (Platform.OS !== "web") return;
     if (!communityId) return;
@@ -337,37 +356,9 @@ export function GlobalJukeboxPlayer() {
   // 再生中でない場合は何も表示しない（jukebox ページで直接視聴）
   if (!state) return null;
 
-  // デフォルト非表示: タップでポップアップを表示。dismissed 時もプレイヤーコンテナは非表示で維持し音声を途切れさせない
-  if (dismissed) {
-    return (
-      <View pointerEvents="box-none" style={[styles.root, { left: 0, right: 0, top: 0, bottom: 0 }]}>
-        <Pressable
-          style={[styles.fab, { right: 16, bottom: 80 }]}
-          onPress={() => setDismissed(false)}
-        >
-          <Ionicons name="musical-notes" size={20} color="#fff" />
-          <Text style={styles.fabText}>Jukebox</Text>
-        </Pressable>
-        {Platform.OS === "web" && state.currentVideoYoutubeId && !isOnJukeboxPage ? (
-          <View
-            style={[
-              styles.youtubeContainer,
-              {
-                position: "absolute",
-                width: 320,
-                height: 180,
-                opacity: 0,
-                overflow: "hidden",
-                left: -9999,
-                top: 0,
-                pointerEvents: "none",
-              },
-            ]}
-            nativeID={containerIdRef.current}
-          />
-        ) : null}
-      </View>
-    );
+  // jukebox ページ上は表示しない（ページ自体にプレイヤーがある）
+  if (isOnJukeboxPage) {
+    return null;
   }
 
   const fallbackElapsed =
@@ -383,74 +374,106 @@ export function GlobalJukeboxPlayer() {
   const addedBy =
     queue.find((q) => !q.isPlayed)?.addedBy ?? "";
 
+  // dismissed 時: 隠しプレイヤーのみ維持（音声継続）
+  if (dismissed) {
+    return (
+      <View pointerEvents="box-none" style={[styles.root, { left: 0, right: 0, top: 0, bottom: 0 }]}>
+        {Platform.OS === "web" && state.currentVideoYoutubeId ? (
+          <View
+            style={{
+              position: "absolute",
+              width: 320,
+              height: 180,
+              opacity: 0,
+              overflow: "hidden",
+              left: -9999,
+              top: 0,
+            }}
+            pointerEvents="none"
+            nativeID={containerIdRef.current}
+          />
+        ) : null}
+      </View>
+    );
+  }
+
+  // Spotify 風画面下部固定バー
   return (
     <View pointerEvents="box-none" style={[styles.root, { left: 0, right: 0, top: 0, bottom: 0 }]}>
-      <View
-        {...panResponder.panHandlers}
-        style={[
-          styles.card,
-          minimized ? styles.cardMinimized : styles.cardExpanded,
-          { left: posX, top: posY },
-        ]}
-      >
-        <Pressable
-          style={styles.mainRow}
-          onPress={() => setMinimized((v) => !v)}
-        >
-          <View style={styles.thumbWrap}>
-            {Platform.OS === "web" && state.currentVideoYoutubeId && !isOnJukeboxPage ? (
-              <View style={styles.youtubeContainer} nativeID={containerIdRef.current} />
-            ) : state.currentVideoThumbnail ? (
+      {/* 音声継続用の隠しプレイヤーコンテナ */}
+      {Platform.OS === "web" && state.currentVideoYoutubeId ? (
+        <View
+          style={{
+            position: "absolute",
+            width: 320,
+            height: 180,
+            opacity: 0,
+            overflow: "hidden",
+            left: -9999,
+            top: 0,
+          }}
+          pointerEvents="none"
+          nativeID={containerIdRef.current}
+        />
+      ) : null}
+
+      {/* Spotify 風バー */}
+      <View style={styles.bar}>
+        {/* プログレスバー（バー上部） */}
+        <View style={styles.barProgress}>
+          <View style={[styles.barProgressFill, { width: `${progress * 100}%` as any }]} />
+        </View>
+
+        <View style={styles.barRow}>
+          {/* サムネイル */}
+          <Pressable
+            style={styles.barThumbWrap}
+            onPress={() => router.push(`/jukebox/${communityId}`)}
+          >
+            {state.currentVideoThumbnail ? (
               <Image
                 source={{ uri: state.currentVideoThumbnail }}
-                style={styles.thumb}
+                style={styles.barThumb}
                 contentFit="cover"
               />
             ) : (
-              <View style={[styles.thumb, { backgroundColor: C.surface3 }]} />
+              <View style={[styles.barThumb, { backgroundColor: C.surface3 }]}>
+                <Ionicons name="musical-notes" size={16} color={C.accent} />
+              </View>
             )}
-          </View>
-          <View style={styles.info}>
-            <Text
-              style={styles.title}
-              numberOfLines={minimized ? 1 : 2}
-            >
-              {state.currentVideoTitle ?? "同時視聴中の動画"}
+          </Pressable>
+
+          {/* タイトル・情報 */}
+          <Pressable
+            style={styles.barInfo}
+            onPress={() => router.push(`/jukebox/${communityId}`)}
+          >
+            <Text style={styles.barTitle} numberOfLines={1}>
+              {state.currentVideoTitle ?? "同時視聴中"}
             </Text>
-            {!minimized && addedBy ? (
-              <Text style={styles.subtitle} numberOfLines={1}>
+            {addedBy ? (
+              <Text style={styles.barSubtitle} numberOfLines={1}>
                 {addedBy} が選曲
               </Text>
             ) : null}
-            {!minimized && (
-              <View style={styles.progressRow}>
-                <View style={styles.progressTrack}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { width: `${progress * 100}%` as any },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.progressTime}>
-                  {Math.floor(elapsed)}s
-                </Text>
-              </View>
-            )}
-          </View>
+          </Pressable>
+
+          {/* ジュークボックスページへのリンク */}
           <Pressable
-            style={styles.iconBtn}
+            style={styles.barIconBtn}
             onPress={() => router.push(`/jukebox/${communityId}`)}
           >
-            <Ionicons name="expand" size={16} color="#fff" />
+            <Ionicons name="musical-notes" size={18} color={C.accent} />
           </Pressable>
+
+          {/* 閉じる */}
           <Pressable
-            style={styles.closeBtn}
+            style={styles.barIconBtn}
             onPress={() => setDismissed(true)}
           >
-            <Ionicons name="close" size={16} color="#fff" />
+            <Ionicons name="close" size={18} color={C.textSec} />
           </Pressable>
-        </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -577,6 +600,74 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "700",
+  },
+  // Spotify 風バースタイル
+  bar: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: 68, // タブバーの上（60px + マージン8px）
+    backgroundColor: "rgba(18,18,18,0.97)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    shadowColor: "#000",
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -2 },
+    elevation: 20,
+    overflow: "hidden",
+  },
+  barProgress: {
+    height: 2,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    width: "100%",
+  },
+  barProgressFill: {
+    height: "100%",
+    backgroundColor: C.accent,
+  },
+  barRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+  },
+  barThumbWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: C.surface2,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  barThumb: {
+    width: "100%",
+    height: "100%",
+  },
+  barInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  barTitle: {
+    color: C.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  barSubtitle: {
+    color: C.textMuted,
+    fontSize: 11,
+  },
+  barIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
 });
 
