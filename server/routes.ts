@@ -3357,29 +3357,43 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.json({ count: Number(total) });
   });
 
-  app.post("/api/twoshot/:streamId/checkout", async (req: Request, res: Response) => {
+    app.post("/api/twoshot/:streamId/checkout", async (req: Request, res: Response) => {
     const streamId = paramNum(req, "streamId");
     const { userName, userAvatar, price = 3000 } = req.body;
-
     if (!userName) return res.status(400).json({ error: "userName required" });
-
     try {
       const stripe = await getUncachableStripeClient();
-
       const [{ total }] = await db
         .select({ total: count() })
         .from(twoshotBookings)
         .where(sql`stream_id = ${streamId} AND status IN ('paid','waiting','notified')`);
       const queuePos = Number(total) + 1;
-
       const [stream] = await db.select().from(liveStreams).where(eq(liveStreams.id, streamId));
       const streamTitle = stream?.title ?? "ツーショット撮影";
       const creatorName = stream?.creator ?? "クリエイター";
 
+      // クリエイターの Stripe Connect オンボーディング完了確認（資金決済法対応）
+      const [creatorUser] = await db.select().from(users).where(eq(users.displayName, creatorName));
+      if (!creatorUser?.stripeConnectId) {
+        return res.status(400).json({
+          error: "creator_not_connected",
+          message: "このクリエイターはまだ受取り設定を完了していません。しばらくお待ちください。",
+        });
+      }
+      const connectAccount = await getConnectAccount(creatorUser.stripeConnectId);
+      if (!connectAccount?.charges_enabled) {
+        return res.status(400).json({
+          error: "creator_not_connected",
+          message: "このクリエイターはまだ受取り設定を完了していません。しばらくお待ちください。",
+        });
+      }
+
+      // プラットフォーム手数料 20%、アーティストへ 80% 直接送金
+      const platformFeeAmount = Math.round(price * 0.20);
+
       const baseUrl = process.env.REPLIT_DOMAINS
         ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
         : "http://localhost:8081";
-
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [
@@ -3396,6 +3410,13 @@ export async function registerRoutes(app: Express): Promise<void> {
           },
         ],
         mode: "payment",
+        payment_intent_data: {
+          // 資金決済法対応: Stripeがアーティストに直接送金、RawStockは手数料のみ受取
+          application_fee_amount: platformFeeAmount,
+          transfer_data: {
+            destination: creatorUser.stripeConnectId,
+          },
+        },
         success_url: `${baseUrl}/twoshot-success?session_id={CHECKOUT_SESSION_ID}&stream=${streamId}`,
         cancel_url: `${baseUrl}/live/${streamId}`,
         metadata: {
@@ -3404,9 +3425,9 @@ export async function registerRoutes(app: Express): Promise<void> {
           userAvatar: userAvatar ?? "",
           queuePosition: queuePos.toString(),
           price: price.toString(),
+          creatorConnectId: creatorUser.stripeConnectId,
         },
       });
-
       const [booking] = await db
         .insert(twoshotBookings)
         .values({

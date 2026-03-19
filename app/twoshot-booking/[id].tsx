@@ -96,7 +96,15 @@ export default function TwoshotBookingScreen() {
         router.back();
       }
     } catch (e: any) {
-      Alert.alert("エラー", "決済の開始に失敗しました。もう一度お試しください。");
+      const errBody = e?.body ?? e ?? {};
+      if (errBody?.error === "creator_not_connected" || String(e?.message ?? "").includes("creator_not_connected")) {
+        Alert.alert(
+          "受取り設定未完了",
+          "このクリエイターはまだ受取り口座の登録を完了していません。\n\nクリエイターが「収益管理」から受取り設定を完了するまで、このセッションは購入できません。"
+        );
+      } else {
+        Alert.alert("エラー", "決済の開始に失敗しました。もう一度お試しください。");
+      }
     } finally {
       setLoading(false);
     }

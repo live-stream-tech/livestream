@@ -120,10 +120,10 @@ export default function PayoutSettingsScreen() {
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.infoBanner}>
-          <Ionicons name="information-circle-outline" size={18} color={C.accent} />
-          <Text style={styles.infoText}>
-            収益の振込先となる銀行口座を登録してください。出金申請は月に2回まで可能です。最低引き出し額は¥1,000です。
+        <View style={[styles.infoBanner, { borderLeftColor: C.orange }]}>
+          <Ionicons name="alert-circle-outline" size={18} color={C.orange} />
+          <Text style={[styles.infoText, { color: C.orange }]}>
+            「Stripeで口座連携」の完了が『収益化登録』の条件です。未完了の場合、有料セッションの受付・販売はできません。
           </Text>
         </View>
 
@@ -146,7 +146,7 @@ export default function PayoutSettingsScreen() {
           ) : (
             <>
               <Text style={styles.securityText}>
-                Stripe の連結アカウントを登録すると、収益を安全に振り込めます。ボタンから Stripe の画面へ進んで口座情報を登録してください。
+                有料セッションの受付を開始するには、Stripeでの口座連携が必須です。購入者からの支払いは Stripe が直接あなたの口座へ送金し、RawStockは手数料のみ受け取ります（資金決済法対応）。
               </Text>
               <Pressable
                 style={[styles.stripeConnectBtn, connectLinking && { opacity: 0.6 }]}
