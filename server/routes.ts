@@ -3084,11 +3084,14 @@ export async function registerRoutes(app: Express): Promise<void> {
           .orderBy(asc(jukeboxQueue.position))
       : queue;
 
-    const chat = await db
+    // 最新 30 件のみ取得（ライブ感重視、古いメッセージは流れる）
+    const chatRaw = await db
       .select()
       .from(jukeboxChat)
       .where(eq(jukeboxChat.communityId, communityId))
-      .orderBy(asc(jukeboxChat.createdAt));
+      .orderBy(desc(jukeboxChat.createdAt))
+      .limit(30);
+    const chat = chatRaw.reverse(); // 古い順に並び替えて返す
 
     // ラジオ的に「今何秒目か」を返す
     let elapsedSecs = 0;
@@ -3412,6 +3415,16 @@ export async function registerRoutes(app: Express): Promise<void> {
     const [msg] = await db.insert(jukeboxChat).values({
       communityId, username: username ?? "あなた", avatar, message,
     } as typeof jukeboxChat.$inferInsert).returning();
+    // 30件超の古いメッセージを削除（ライブ感維持）
+    const allMsgs = await db
+      .select({ id: jukeboxChat.id })
+      .from(jukeboxChat)
+      .where(eq(jukeboxChat.communityId, communityId))
+      .orderBy(desc(jukeboxChat.createdAt));
+    if (allMsgs.length > 30) {
+      const toDelete = allMsgs.slice(30).map((m) => m.id);
+      await db.delete(jukeboxChat).where(inArray(jukeboxChat.id, toDelete));
+    }
     res.json(msg);
   });
 
