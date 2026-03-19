@@ -8,6 +8,7 @@ import {
   Platform,
   Dimensions,
   Modal,
+  Animated,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
+import { F } from "@/constants/fonts";
 import { getTabTopInset, getTabBottomInset } from "@/constants/layout";
 import { getApiUrl } from "@/lib/query-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -309,6 +311,33 @@ const EFFECTIVE_WIDTH = Math.min(SCREEN_WIDTH, 430);
 /** サムネ幅（やや大きめ。右端に次のパネルが少し見える） */
 const PANEL_WIDTH = Math.floor(EFFECTIVE_WIDTH * 0.75);
 
+/** NOW セクション用: 赤く点滅するライブドット */
+function LiveDot() {
+  const opacity = React.useRef(new Animated.Value(1)).current;
+  React.useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 0.2, duration: 600, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [opacity]);
+  return (
+    <Animated.View
+      style={{
+        width: 7,
+        height: 7,
+        borderRadius: 4,
+        backgroundColor: C.live,
+        opacity,
+        marginRight: 2,
+      }}
+    />
+  );
+}
+
 function FeedTabRow({
   activeTab,
   onTabChange,
@@ -577,8 +606,8 @@ export default function HomeScreen() {
         {/* 新着動画 */}
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionHeaderLeft}>
-            <Ionicons name="sparkles" size={16} color={C.accent} />
-            <Text style={[styles.sectionTitle, { color: "#ff4d00" }]}>New</Text>
+            <Text style={styles.sectionTitle}>New</Text>
+            <View style={styles.sectionTitleLine} />
           </View>
           <FeedTabRow activeTab={videoFeedTab} onTabChange={setVideoFeedTab} inline />
         </View>
@@ -595,8 +624,9 @@ export default function HomeScreen() {
         {/* 現在ライブ中 */}
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionHeaderLeft}>
-            <Ionicons name="radio" size={16} color={C.live} />
-            <Text style={[styles.sectionTitle, { color: "#ff4d00" }]}>Now</Text>
+            <LiveDot />
+            <Text style={[styles.sectionTitle, styles.sectionTitleLive]}>Now</Text>
+            <View style={styles.sectionTitleLine} />
           </View>
           <View style={styles.feedTabRowWithViewAllRight}>
             <FeedTabRow activeTab={liveFeedTab} onTabChange={setLiveFeedTab} inline />
@@ -739,8 +769,10 @@ const styles = StyleSheet.create({
   },
   liveButtonText: {
     color: C.accent,
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 11,
+    fontWeight: "400",
+    fontFamily: F.mono,
+    letterSpacing: 1.2,
   },
   notifButton: {
     position: "relative",
@@ -776,9 +808,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   announcementSectionTitle: {
-    color: C.text,
-    fontSize: 14,
-    fontWeight: "700",
+    color: C.textSec,
+    fontSize: 10,
+    fontWeight: "400",
+    fontFamily: F.mono,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
   },
   announcementCard: {
     backgroundColor: C.surface,
@@ -838,8 +873,10 @@ const styles = StyleSheet.create({
   },
   announcementModalTitle: {
     color: C.text,
-    fontSize: 17,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "800",
+    fontFamily: F.display,
+    letterSpacing: 1,
   },
   announcementModalScroll: {
     paddingHorizontal: 16,
@@ -874,14 +911,19 @@ const styles = StyleSheet.create({
   },
   jukeBotLabel: {
     color: C.accent,
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 9,
+    fontWeight: "400",
+    fontFamily: F.mono,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
     marginBottom: 2,
   },
   jukeBotCommunity: {
     color: C.text,
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
+    fontFamily: F.display,
+    letterSpacing: 0.5,
   },
   jukeBotNowPlaying: {
     color: C.textMuted,
@@ -910,13 +952,21 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: C.text,
-    fontSize: 16,
-    fontWeight: "700",
-    fontFamily: Platform.select({
-      ios: "Helvetica Neue",
-      android: "sans-serif",
-      web: "'Helvetica Neue', Helvetica, Arial, sans-serif",
-    }),
+    fontSize: 20,
+    fontWeight: "800",
+    fontFamily: F.display,
+    letterSpacing: 1.5,
+    textTransform: "uppercase",
+  },
+  sectionTitleLive: {
+    color: C.live,
+  },
+  sectionTitleLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: C.border,
+    marginLeft: 8,
+    maxWidth: 24,
   },
   liveDotInline: {
     width: 8,
@@ -929,8 +979,11 @@ const styles = StyleSheet.create({
   },
   viewAllText: {
     color: C.accent,
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 10,
+    fontWeight: "400",
+    fontFamily: F.mono,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
   },
   filterPills: {
     flexDirection: "row",
@@ -947,8 +1000,10 @@ const styles = StyleSheet.create({
   },
   filterPillText: {
     color: C.textSec,
-    fontSize: 10,
-    fontWeight: "700",
+    fontSize: 9,
+    fontWeight: "400",
+    fontFamily: F.mono,
+    letterSpacing: 1,
   },
   filterPillTextActive: {
     color: "#fff",
@@ -993,8 +1048,10 @@ const styles = StyleSheet.create({
   },
   feedTabText: {
     color: C.textMuted,
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "400",
+    fontFamily: F.mono,
+    letterSpacing: 0.5,
   },
   feedTabTextActive: {
     color: C.accent,
@@ -1323,8 +1380,9 @@ const styles = StyleSheet.create({
   },
   rankText: {
     color: "#fff",
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "800",
+    fontFamily: F.display,
   },
   creatorCard: {
     width: 220,
@@ -1348,8 +1406,9 @@ const styles = StyleSheet.create({
   },
   rankCircleText: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "800",
+    fontFamily: F.display,
   },
   creatorAvatar: {
     width: 44,
@@ -1386,8 +1445,10 @@ const styles = StyleSheet.create({
   },
   heatValue: {
     color: C.orange,
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "800",
+    fontFamily: F.display,
+    letterSpacing: 0.5,
   },
   creatorStats: {
     gap: 6,
@@ -1420,7 +1481,9 @@ const styles = StyleSheet.create({
   },
   revenueShareValue: {
     color: C.text,
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "800",
+    fontFamily: F.display,
+    letterSpacing: 1,
   },
 });
