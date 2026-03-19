@@ -304,8 +304,10 @@ const DUMMY_CREATORS: Record<string, any[]> = {
 };
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
+// PC表示時は430pxコンテナに収めているため上限を設定
+const EFFECTIVE_WIDTH = Math.min(SCREEN_WIDTH, 430);
 /** サムネ幅（やや大きめ。右端に次のパネルが少し見える） */
-const PANEL_WIDTH = Math.floor(SCREEN_WIDTH * 0.75);
+const PANEL_WIDTH = Math.floor(EFFECTIVE_WIDTH * 0.75);
 
 function FeedTabRow({
   activeTab,

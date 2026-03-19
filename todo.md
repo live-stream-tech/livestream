@@ -16,3 +16,4 @@
   - [x] Spotify風バーUI（画面下部固定）に改善
 - [x] PC表示時に最大幅430pxでセンタリング表示（左右余白あり）
 - [x] Jukebox動画追加モーダルのサイズ修正（modalList maxHeight追加、modalSheet縮小）
+- [x] PC表示時のDimensions.get("window").width問題を全ページで修正（上限430px）

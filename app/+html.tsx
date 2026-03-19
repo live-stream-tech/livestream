@@ -29,7 +29,7 @@ export default function Root({ children }: PropsWithChildren) {
           html, body, #root {
             height: 100%;
             overflow: hidden;
-            background-color: #050505;
+            background-color: #070F18;
           }
           * { font-family: 'Courier Prime', monospace; }
           h1, h2, h3, h4, h5, h6, .display { font-family: 'Barlow Condensed', sans-serif !important; }
