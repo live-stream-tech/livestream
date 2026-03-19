@@ -697,11 +697,11 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
 
-        {/* 個別セッションランキング */}
+        {/* メンターランキング */}
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionHeaderLeft}>
             <View style={[styles.liveDotInline, { backgroundColor: C.accent }]} />
-            <Text style={styles.sectionTitle}>個別セッションランキング</Text>
+            <Text style={styles.sectionTitle}>メンターランキング</Text>
           </View>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
@@ -715,7 +715,7 @@ export default function HomeScreen() {
                 <Image source={{ uri: s.thumbnail }} style={styles.twoshotThumb} contentFit="cover" />
                 <View style={styles.twoshotBadge}>
                   <Ionicons name="camera-outline" size={10} color="#fff" />
-                  <Text style={styles.twoshotBadgeText}>個別セッション</Text>
+                  <Text style={styles.twoshotBadgeText}>メンターセッション</Text>
                 </View>
               </View>
               <View style={styles.twoshotBody}>

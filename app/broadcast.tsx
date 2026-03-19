@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,14 +8,14 @@ import {
   TextInput,
   Alert,
   Animated,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
 
-/** 配信機能の有効化フラグ（Cloudflare Stream 実装後に true に変更） */
-const BROADCAST_ENABLED = false;
+const API_BASE = Platform.OS === "web" ? "" : process.env.EXPO_PUBLIC_API_URL ?? "";
 
 const FILTERS = [
   { id: "none", label: "なし", icon: "ban-outline", css: "" },
@@ -28,54 +28,33 @@ const FILTERS = [
 
 export default function BroadcastScreen() {
   const insets = useSafeAreaInsets();
-
-  if (!BROADCAST_ENABLED) {
-    const topInset = Platform.OS === "web" ? 67 : insets.top;
-    return (
-      <View style={[styles.container, { backgroundColor: C.bg }]}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: topInset + 8, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: C.border }}>
-          <Pressable style={styles.closeButton} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={22} color={C.text} />
-          </Pressable>
-          <Text style={{ color: C.text, fontSize: 16, fontWeight: "700" }}>配信</Text>
-          <View style={{ width: 38 }} />
-        </View>
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24 }}>
-          <Ionicons name="radio-outline" size={64} color={C.textMuted} />
-          <Text style={{ color: C.text, fontSize: 18, fontWeight: "700", marginTop: 16, textAlign: "center" }}>
-            準備中
-          </Text>
-          <Text style={{ color: C.textMuted, fontSize: 14, marginTop: 8, textAlign: "center" }}>
-            ライブ配信機能は近日公開予定です。
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
   const videoRef = useRef<any>(null);
-  const [isLive, setIsLive] = useState(false);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+
+  const [phase, setPhase] = useState<"idle" | "creating" | "ready" | "starting" | "live" | "stopping">("idle");
+  const [streamId, setStreamId] = useState<number | null>(null);
+  const [whipUrl, setWhipUrl] = useState<string>("");
   const [selectedFilter, setSelectedFilter] = useState("none");
   const [title, setTitle] = useState("");
   const [viewers, setViewers] = useState(0);
   const [elapsed, setElapsed] = useState(0);
-  const [streamReady, setStreamReady] = useState(false);
   const [cameraError, setCameraError] = useState(false);
   const blinkAnim = useRef(new Animated.Value(1)).current;
   const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const viewersRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const viewersPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (Platform.OS === "web") {
       startCamera();
     }
     return () => {
-      stopCamera();
+      cleanup();
     };
   }, []);
 
   useEffect(() => {
-    if (isLive) {
+    if (phase === "live") {
       Animated.loop(
         Animated.sequence([
           Animated.timing(blinkAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
@@ -83,57 +62,139 @@ export default function BroadcastScreen() {
         ])
       ).start();
       elapsedRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
-      viewersRef.current = setInterval(() => {
-        setViewers((v) => {
-          const delta = Math.floor(Math.random() * 20) - 5;
-          return Math.max(0, v + delta + 3);
-        });
-      }, 2000);
+      // 視聴者数をポーリング
+      viewersPollRef.current = setInterval(async () => {
+        if (!streamId) return;
+        try {
+          const r = await fetch(`${API_BASE}/api/stream/${streamId}`);
+          if (r.ok) {
+            const d = await r.json();
+            setViewers(d.currentViewers ?? 0);
+          }
+        } catch {}
+      }, 5000);
     } else {
       blinkAnim.stopAnimation();
       blinkAnim.setValue(1);
       if (elapsedRef.current) clearInterval(elapsedRef.current);
-      if (viewersRef.current) clearInterval(viewersRef.current);
-      if (!isLive) { setElapsed(0); setViewers(0); }
+      if (viewersPollRef.current) clearInterval(viewersPollRef.current);
+      if (phase === "idle") { setElapsed(0); setViewers(0); }
     }
     return () => {
       if (elapsedRef.current) clearInterval(elapsedRef.current);
-      if (viewersRef.current) clearInterval(viewersRef.current);
+      if (viewersPollRef.current) clearInterval(viewersPollRef.current);
     };
-  }, [isLive]);
+  }, [phase, streamId]);
 
   const startCamera = async () => {
     if (Platform.OS !== "web") return;
     try {
       const stream = await (navigator as any).mediaDevices.getUserMedia({ video: true, audio: true });
+      localStreamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
-        setStreamReady(true);
       }
+      setPhase("ready");
     } catch {
       setCameraError(true);
     }
   };
 
-  const stopCamera = () => {
-    if (Platform.OS !== "web") return;
-    if (videoRef.current?.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach((t: MediaStreamTrack) => t.stop());
-      videoRef.current.srcObject = null;
+  const cleanup = () => {
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
     }
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
   };
 
-  const currentFilter = FILTERS.find((f) => f.id === selectedFilter);
+  /** WHIP でブラウザ → Cloudflare へ WebRTC 接続 */
+  const connectWHIP = async (url: string, stream: MediaStream): Promise<RTCPeerConnection> => {
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.cloudflare.com:3478" }],
+      bundlePolicy: "max-bundle",
+    });
+    stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-  const handleGoLive = () => {
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    // ICE gathering 完了を待つ
+    await new Promise<void>((resolve) => {
+      if (pc.iceGatheringState === "complete") { resolve(); return; }
+      const check = () => {
+        if (pc.iceGatheringState === "complete") {
+          pc.removeEventListener("icegatheringstatechange", check);
+          resolve();
+        }
+      };
+      pc.addEventListener("icegatheringstatechange", check);
+      setTimeout(resolve, 3000); // タイムアウト 3秒
+    });
+
+    const sdp = pc.localDescription!.sdp;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/sdp" },
+      body: sdp,
+    });
+    if (!res.ok) throw new Error(`WHIP error: ${res.status}`);
+    const answerSdp = await res.text();
+    await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+    return pc;
+  };
+
+  const handleGoLive = async () => {
     if (!title.trim()) {
       Alert.alert("タイトルを入力してください", "配信タイトルを入力してから開始してください。");
       return;
     }
-    setIsLive(true);
-    setViewers(Math.floor(Math.random() * 30) + 10);
+    if (!localStreamRef.current) {
+      Alert.alert("カメラが必要です", "カメラへのアクセスを許可してください。");
+      return;
+    }
+
+    try {
+      setPhase("creating");
+
+      // 1. Cloudflare Live Input を作成
+      const createRes = await fetch(`${API_BASE}/api/stream/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ title }),
+      });
+      if (!createRes.ok) {
+        const err = await createRes.json();
+        throw new Error(err.error ?? "配信の作成に失敗しました");
+      }
+      const { id, whipUrl: wUrl } = await createRes.json();
+      setStreamId(id);
+      setWhipUrl(wUrl);
+
+      setPhase("starting");
+
+      // 2. WHIP 接続
+      const pc = await connectWHIP(wUrl, localStreamRef.current);
+      pcRef.current = pc;
+
+      // 3. 配信開始を DB に記録
+      await fetch(`${API_BASE}/api/stream/${id}/start`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      setPhase("live");
+    } catch (e: any) {
+      console.error("GoLive error:", e);
+      Alert.alert("配信開始エラー", e.message ?? "配信を開始できませんでした。");
+      setPhase("ready");
+    }
   };
 
   const handleStop = () => {
@@ -142,9 +203,18 @@ export default function BroadcastScreen() {
       {
         text: "終了する",
         style: "destructive",
-        onPress: () => {
-          setIsLive(false);
-          stopCamera();
+        onPress: async () => {
+          setPhase("stopping");
+          try {
+            if (streamId) {
+              await fetch(`${API_BASE}/api/stream/${streamId}/end`, {
+                method: "POST",
+                credentials: "include",
+              });
+            }
+          } catch {}
+          cleanup();
+          setPhase("idle");
           router.back();
         },
       },
@@ -159,6 +229,9 @@ export default function BroadcastScreen() {
     return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   };
 
+  const isLive = phase === "live";
+  const isLoading = phase === "creating" || phase === "starting" || phase === "stopping";
+  const currentFilter = FILTERS.find((f) => f.id === selectedFilter);
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
 
@@ -200,7 +273,7 @@ export default function BroadcastScreen() {
         {/* Top overlay */}
         <View style={[styles.topOverlay, { paddingTop: topInset + 8 }]}>
           <Pressable style={styles.closeButton} onPress={() => {
-            if (isLive) handleStop(); else { stopCamera(); router.back(); }
+            if (isLive) handleStop(); else { cleanup(); router.back(); }
           }}>
             <Ionicons name="chevron-back" size={22} color="#fff" />
           </Pressable>
@@ -214,6 +287,8 @@ export default function BroadcastScreen() {
                 </Animated.View>
                 <Text style={styles.elapsedText}>{formatTime(elapsed)}</Text>
               </>
+            ) : isLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
             ) : (
               <Text style={styles.readyText}>配信待機中</Text>
             )}
@@ -222,7 +297,7 @@ export default function BroadcastScreen() {
           {isLive ? (
             <View style={styles.viewersBadge}>
               <Ionicons name="people" size={14} color="#fff" />
-              <Text style={styles.viewersText}>{viewers.toLocaleString()}</Text>
+              <Text style={styles.viewersText}>{viewers}</Text>
             </View>
           ) : (
             <View style={{ width: 60 }} />
@@ -230,21 +305,23 @@ export default function BroadcastScreen() {
         </View>
 
         {/* Filter buttons */}
-        <View style={styles.filterRow}>
-          {FILTERS.map((f) => {
-            const isActive = selectedFilter === f.id;
-            return (
-              <Pressable
-                key={f.id}
-                style={[styles.filterBtn, isActive && styles.filterBtnActive]}
-                onPress={() => setSelectedFilter(f.id)}
-              >
-                <Ionicons name={f.icon as any} size={16} color={isActive ? "#fff" : "#ffffff99"} />
-                <Text style={[styles.filterLabel, isActive && styles.filterLabelActive]}>{f.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {!isLive && (
+          <View style={styles.filterRow}>
+            {FILTERS.map((f) => {
+              const isActive = selectedFilter === f.id;
+              return (
+                <Pressable
+                  key={f.id}
+                  style={[styles.filterBtn, isActive && styles.filterBtnActive]}
+                  onPress={() => setSelectedFilter(f.id)}
+                >
+                  <Ionicons name={f.icon as any} size={16} color={isActive ? "#fff" : "#ffffff99"} />
+                  <Text style={[styles.filterLabel, isActive && styles.filterLabelActive]}>{f.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
       </View>
 
       {/* Bottom controls */}
@@ -259,6 +336,7 @@ export default function BroadcastScreen() {
               value={title}
               onChangeText={setTitle}
               maxLength={60}
+              editable={!isLoading}
             />
           </View>
         )}
@@ -268,7 +346,7 @@ export default function BroadcastScreen() {
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
                 <Ionicons name="people" size={16} color={C.accent} />
-                <Text style={styles.statValue}>{viewers.toLocaleString()}</Text>
+                <Text style={styles.statValue}>{viewers}</Text>
                 <Text style={styles.statLabel}>視聴者</Text>
               </View>
               <View style={styles.statDivider} />
@@ -279,9 +357,9 @@ export default function BroadcastScreen() {
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
-                <Ionicons name="card-outline" size={16} color={C.green} />
-                <Text style={[styles.statValue, { color: C.green }]}>¥{(viewers * 5).toLocaleString()}</Text>
-                <Text style={styles.statLabel}>収益</Text>
+                <Ionicons name="shield-checkmark-outline" size={16} color={C.green} />
+                <Text style={[styles.statValue, { color: C.green }]}>20人上限</Text>
+                <Text style={styles.statLabel}>同時接続</Text>
               </View>
             </View>
             <Pressable style={styles.stopBtn} onPress={handleStop}>
@@ -291,11 +369,20 @@ export default function BroadcastScreen() {
           </View>
         ) : (
           <Pressable
-            style={[styles.goLiveBtn, (!title.trim()) && styles.goLiveBtnDisabled]}
+            style={[styles.goLiveBtn, (!title.trim() || isLoading || cameraError) && styles.goLiveBtnDisabled]}
             onPress={handleGoLive}
+            disabled={!title.trim() || isLoading || cameraError}
           >
-            <View style={styles.goLiveDot} />
-            <Text style={styles.goLiveBtnText}>ライブ配信を開始</Text>
+            {isLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <View style={styles.goLiveDot} />
+                <Text style={styles.goLiveBtnText}>
+                  {phase === "creating" ? "配信を準備中..." : "ライブ配信を開始"}
+                </Text>
+              </>
+            )}
           </Pressable>
         )}
       </View>
@@ -314,8 +401,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#0d1b2a",
     gap: 12,
   },
-  placeholderText: { color: C.text, fontSize: 18, fontWeight: "700" },
-  placeholderSub: { color: C.textMuted, fontSize: 13 },
+  placeholderText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  placeholderSub: { color: "#ffffff88", fontSize: 13 },
 
   cameraErrorOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -357,12 +444,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  liveDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: "#fff",
-  },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#fff" },
   liveBadgeText: { color: "#fff", fontSize: 12, fontWeight: "800", letterSpacing: 1 },
   elapsedText: { color: "#fff", fontSize: 13, fontWeight: "600" },
   readyText: { color: "#ffffffcc", fontSize: 14, fontWeight: "600" },
@@ -422,11 +504,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
   },
-  titleInput: {
-    flex: 1,
-    color: C.text,
-    fontSize: 14,
-  },
+  titleInput: { flex: 1, color: C.text, fontSize: 14 },
 
   goLiveBtn: {
     flexDirection: "row",

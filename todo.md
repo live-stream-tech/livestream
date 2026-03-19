@@ -18,3 +18,11 @@
 - [x] Jukebox動画追加モーダルのサイズ修正（modalList maxHeight追加、modalSheet縮小）
 - [x] PC表示時のDimensions.get("window").width問題を全ページで修正（上限430px）
 - [x] ヘッダーのアイコン+テキストを新しいRawStockロゴ画像に差替え
+- [ ] 「ツーショット」→「メンター」全体名称変更（UI・API・DB表示）
+- [ ] コミュニティ掲示板タブをナビから削除（入口を封鎖）
+- [ ] コンサート管理・スタッフ申請を外部リンクのみに変更
+- [ ] ライブ配信WHIP実装（broadcast.tsx）
+- [ ] ライブ視聴WHEP実装（live/[id].tsx）
+- [ ] ツーショット→メンター全体名称変更
+- [ ] コミュニティ掲示板タブをナビから削除
+- [ ] ライブ配信WHIP/WHEP実装

@@ -52,7 +52,7 @@ type Withdrawal = {
 const TYPE_META: Record<string, { label: string; icon: string; color: string }> = {
   video_sale: { label: "動画販売", icon: "play-circle", color: C.accent },
   gift: { label: "ギフト", icon: "gift", color: C.orange },
-  twoshot: { label: "個別セッション", icon: "camera", color: "#E91E63" },
+  twoshot: { label: "メンターセッション", icon: "camera", color: "#E91E63" },
   other: { label: "その他", icon: "cash", color: C.green },
 };
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {

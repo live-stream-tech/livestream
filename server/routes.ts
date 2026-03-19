@@ -3119,6 +3119,11 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // ── Cloudflare Stream Live Input 作成 ───────────────────────────────
+  // ---- 配信関連 API ----
+  const MAX_STREAM_VIEWERS = 20;
+  const MAX_STREAM_DURATION_MS = 3 * 60 * 60 * 1000; // 3時間
+
+  /** 配信入力を作成し、DB に登録する（WHIP/WHEP URL を返却） */
   app.post("/api/stream/create", async (req: Request, res: Response) => {
     if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_STREAM_TOKEN) {
       return res.status(500).json({ error: "Cloudflare Stream is not configured" });
@@ -3127,7 +3132,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
 
-    const { name } = req.body ?? {};
+    const { title } = req.body ?? {};
 
     try {
       const cfRes = await fetch(
@@ -3139,9 +3144,8 @@ export async function registerRoutes(app: Express): Promise<void> {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            meta: {
-              name: name || `RawStock Stream by ${user.displayName}`,
-            },
+            meta: { name: title || `RawStock Stream by ${user.displayName}` },
+            recording: { mode: "off" }, // 録画なし
           }),
         }
       );
@@ -3166,10 +3170,13 @@ export async function registerRoutes(app: Express): Promise<void> {
       const cfId = result.uid ?? "";
       const rtmpsUrl = result.rtmps?.url ?? "";
       const rtmpsStreamKey = result.rtmps?.streamKey ?? "";
-      const webRtcPlaybackUrl =
-        result.webRTCPlayback?.url ?? result.webRTC?.url ?? "";
+      // WHIP: 配信者がブラウザからWebRTCで配信するためのURL
+      const whipUrl = `https://live.cloudflare.com/webrtc/${CLOUDFLARE_ACCOUNT_ID}/${cfId}/webRTC/publish`;
+      // WHEP: 視聴者がブラウザからWebRTCで視聴するためのURL
+      const webRtcPlaybackUrl = result.webRTCPlayback?.url ??
+        `https://customer-${CLOUDFLARE_ACCOUNT_ID}.cloudflarestream.com/${cfId}/webRTC/play`;
 
-      if (!cfId || !rtmpsUrl || !rtmpsStreamKey || !webRtcPlaybackUrl) {
+      if (!cfId || !rtmpsUrl || !rtmpsStreamKey) {
         return res.status(502).json({ error: "Cloudflare Stream レスポンスが不完全です" });
       }
 
@@ -3177,22 +3184,101 @@ export async function registerRoutes(app: Express): Promise<void> {
         .insert(streams)
         .values({
           cfLiveInputId: cfId,
+          whipUrl,
           webRtcUrl: webRtcPlaybackUrl,
           rtmpsUrl,
           rtmpsStreamKey,
+          userId: user.id,
+          title: title || `${user.displayName}の配信`,
+          isActive: false,
           currentViewers: 0,
+          maxViewers: MAX_STREAM_VIEWERS,
         } as typeof streams.$inferInsert)
         .returning();
 
       res.json({
         id: row.id,
-        webRtc: { url: webRtcPlaybackUrl },
+        whipUrl,
+        webRtcUrl: webRtcPlaybackUrl,
         rtmps: { url: rtmpsUrl, streamKey: rtmpsStreamKey },
       });
     } catch (e: any) {
       console.error("Cloudflare Stream create exception:", e);
       res.status(500).json({ error: "Cloudflare Stream API 通信でエラーが発生しました" });
     }
+  });
+
+  /** 配信開始（isActive=true、startedAt 記録） */
+  app.post("/api/stream/:id/start", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const streamId = parseInt(req.params.id);
+    const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
+    if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
+    if (stream.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
+    await db.update(streams).set({ isActive: true, startedAt: new Date(), endedAt: null }).where(eq(streams.id, streamId));
+    res.json({ ok: true });
+  });
+
+  /** 配信終了（isActive=false、endedAt 記録、Cloudflare Live Input を削除） */
+  app.post("/api/stream/:id/end", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const streamId = parseInt(req.params.id);
+    const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
+    if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
+    if (stream.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
+    await db.update(streams).set({ isActive: false, endedAt: new Date(), currentViewers: 0 }).where(eq(streams.id, streamId));
+    // Cloudflare の Live Input を削除（課金停止）
+    if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_STREAM_TOKEN && stream.cfLiveInputId) {
+      fetch(`https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/stream/live_inputs/${stream.cfLiveInputId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${CLOUDFLARE_STREAM_TOKEN}` },
+      }).catch((e) => console.error("CF delete error:", e));
+    }
+    res.json({ ok: true });
+  });
+
+  /** 視聴者入場（上限チェック） */
+  app.post("/api/stream/:id/join", async (req: Request, res: Response) => {
+    const streamId = parseInt(req.params.id);
+    const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
+    if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
+    if (!stream.isActive) return res.status(400).json({ error: "配信は現在オフラインです" });
+    // 3時間超過チェック
+    if (stream.startedAt && Date.now() - new Date(stream.startedAt).getTime() > MAX_STREAM_DURATION_MS) {
+      await db.update(streams).set({ isActive: false, endedAt: new Date(), currentViewers: 0 }).where(eq(streams.id, streamId));
+      return res.status(400).json({ error: "配信時間の上限（3時間）に達したため終了しました" });
+    }
+    if (stream.currentViewers >= stream.maxViewers) {
+      return res.status(429).json({ error: `満員です。現在の視聴者数が上限（${stream.maxViewers}人）に達しています` });
+    }
+    await db.update(streams).set({ currentViewers: stream.currentViewers + 1 }).where(eq(streams.id, streamId));
+    res.json({ ok: true, webRtcUrl: stream.webRtcUrl, viewers: stream.currentViewers + 1 });
+  });
+
+  /** 視聴者退場 */
+  app.post("/api/stream/:id/leave", async (req: Request, res: Response) => {
+    const streamId = parseInt(req.params.id);
+    const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
+    if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
+    const newCount = Math.max(0, stream.currentViewers - 1);
+    await db.update(streams).set({ currentViewers: newCount }).where(eq(streams.id, streamId));
+    res.json({ ok: true });
+  });
+
+  /** 配信情報取得 */
+  app.get("/api/stream/:id", async (req: Request, res: Response) => {
+    const streamId = parseInt(req.params.id);
+    const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
+    if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
+    res.json(stream);
+  });
+
+  /** アクティブな配信一覧 */
+  app.get("/api/streams/active", async (_req: Request, res: Response) => {
+    const active = await db.select().from(streams).where(eq(streams.isActive, true));
+    res.json(active);
   });
 
   app.post("/api/jukebox/:communityId/add", async (req: Request, res: Response) => {

@@ -21,7 +21,7 @@ import { MetallicLine } from "@/components/MetallicLine";
 import type { BookingSession } from "@/constants/data";
 import { apiRequest } from "@/lib/query-client";
 
-const 個別セッション_CATEGORY_ICONS: Record<string, string> = {
+const MENTOR_CATEGORY_ICONS: Record<string, string> = {
   english: "language-outline",
   counselor: "heart-outline",
   fortune: "star-outline",
@@ -31,7 +31,7 @@ const 個別セッション_CATEGORY_ICONS: Record<string, string> = {
   yoga: "flower-outline",
 };
 
-const 個別セッション_CATEGORY_COLORS: Record<string, string> = {
+const MENTOR_CATEGORY_COLORS: Record<string, string> = {
   english: "#00ffcc",
   counselor: "#EC407A",
   fortune: "#7C4DFF",
@@ -42,7 +42,7 @@ const 個別セッション_CATEGORY_COLORS: Record<string, string> = {
 };
 
 function BookingCard({ session }: { session: BookingSession }) {
-  const categoryColor = 個別セッション_CATEGORY_COLORS[session.category] ?? C.accent;
+  const categoryColor = MENTOR_CATEGORY_COLORS[session.category] ?? C.accent;
   const spotsPercent = ((session.spotsTotal - session.spotsLeft) / session.spotsTotal) * 100;
   const isAlmostFull = session.spotsLeft <= 2;
 
@@ -51,7 +51,7 @@ function BookingCard({ session }: { session: BookingSession }) {
       <View style={styles.bookingThumbContainer}>
         <Image source={{ uri: session.thumbnail }} style={styles.bookingThumb} contentFit="cover" />
         <View style={[styles.bookingCategoryBadge, { backgroundColor: categoryColor }]}>
-          <Ionicons name={個別セッション_CATEGORY_ICONS[session.category] as any} size={10} color="#fff" />
+          <Ionicons name={MENTOR_CATEGORY_ICONS[session.category] as any} size={10} color="#fff" />
           <Text style={styles.bookingCategoryText}>{session.categoryLabel}</Text>
         </View>
         {session.tag && (
@@ -180,7 +180,7 @@ function LiveStartModal({ visible, onClose }: { visible: boolean; onClose: () =>
               >
                 <Ionicons name="people-outline" size={22} color={scope === "twoshot" ? C.accent : C.textSec} />
                 <View style={styles.scopeText}>
-                  <Text style={[styles.scopeTitle, scope === "twoshot" && styles.scopeTitleActive]}>個別セッション</Text>
+                  <Text style={[styles.scopeTitle, scope === "twoshot" && styles.scopeTitleActive]}>メンターセッション</Text>
                   <Text style={styles.scopeDesc}>1対1のプライベート配信</Text>
                 </View>
               </Pressable>
@@ -367,7 +367,7 @@ export default function LiveScreen() {
           onPress={() => setActiveTab("booking")}
         >
           <Ionicons name="calendar-outline" size={13} color={activeTab === "booking" ? C.accent : C.textMuted} />
-          <Text style={[styles.tabText, activeTab === "booking" && styles.tabTextActive]}>個別セッション</Text>
+          <Text style={[styles.tabText, activeTab === "booking" && styles.tabTextActive]}>メンターセッション</Text>
         </Pressable>
       </View>
 

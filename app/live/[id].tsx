@@ -20,6 +20,8 @@ import { C } from "@/constants/colors";
 import { apiRequest } from "@/lib/query-client";
 import { useAuth } from "@/lib/auth";
 
+const API_BASE = Platform.OS === "web" ? "" : process.env.EXPO_PUBLIC_API_URL ?? "";
+
 type LiveStream = {
   id: number;
   title: string;
@@ -30,6 +32,8 @@ type LiveStream = {
   category: string;
   fee: string;
   price: number | null;
+  whepUrl?: string | null;
+  isActive?: boolean;
 };
 
 type ChatMsg = {
@@ -92,6 +96,12 @@ export default function LiveStreamScreen() {
   const [showTwoshotNotif, setShowTwoshotNotif] = useState(false);
   const notifAnim = useRef(new Animated.Value(0)).current;
 
+  // WHEP WebRTC viewer
+  const videoRef = useRef<any>(null);
+  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const [whepConnected, setWhepConnected] = useState(false);
+  const [whepError, setWhepError] = useState(false);
+
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
   const { user, requireAuth } = useAuth();
@@ -124,6 +134,70 @@ export default function LiveStreamScreen() {
       Animated.spring(notifAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 8 }).start();
     }
   }, [myBooking?.status]);
+
+  // WHEP接続（視聴者側WebRTC）
+  const connectWHEP = useCallback(async (whepUrl: string) => {
+    if (Platform.OS !== "web") return;
+    try {
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.cloudflare.com:3478" }],
+        bundlePolicy: "max-bundle",
+      });
+      pc.addTransceiver("video", { direction: "recvonly" });
+      pc.addTransceiver("audio", { direction: "recvonly" });
+
+      pc.ontrack = (e) => {
+        if (videoRef.current && e.streams[0]) {
+          videoRef.current.srcObject = e.streams[0];
+          videoRef.current.play().catch(() => {});
+          setWhepConnected(true);
+        }
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      await new Promise<void>((resolve) => {
+        if (pc.iceGatheringState === "complete") { resolve(); return; }
+        const check = () => {
+          if (pc.iceGatheringState === "complete") {
+            pc.removeEventListener("icegatheringstatechange", check);
+            resolve();
+          }
+        };
+        pc.addEventListener("icegatheringstatechange", check);
+        setTimeout(resolve, 3000);
+      });
+
+      const res = await fetch(whepUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/sdp" },
+        body: pc.localDescription!.sdp,
+      });
+      if (!res.ok) throw new Error(`WHEP ${res.status}`);
+      const answerSdp = await res.text();
+      await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+      pcRef.current = pc;
+
+      // 視聴者カウント参加
+      await fetch(`${API_BASE}/api/stream/${streamId}/join`, { method: "POST", credentials: "include" });
+    } catch (err) {
+      console.error("WHEP error:", err);
+      setWhepError(true);
+    }
+  }, [streamId]);
+
+  useEffect(() => {
+    const s = (stream as LiveStream);
+    if (s?.whepUrl && s?.isActive && Platform.OS === "web") {
+      connectWHEP(s.whepUrl);
+    }
+    return () => {
+      if (pcRef.current) { pcRef.current.close(); pcRef.current = null; }
+      // 視聴者カウント離脱
+      fetch(`${API_BASE}/api/stream/${streamId}/leave`, { method: "POST", credentials: "include" }).catch(() => {});
+    };
+  }, [(stream as LiveStream)?.whepUrl, (stream as LiveStream)?.isActive]);
 
   const chatMutation = useMutation({
     mutationFn: ({ message, isGift, giftAmount }: { message: string; isGift?: boolean; giftAmount?: number }) =>
@@ -181,7 +255,23 @@ export default function LiveStreamScreen() {
       <View style={styles.container}>
         {/* Stream Thumbnail / Player */}
         <View style={[styles.player, { paddingTop: topInset }]}>
-          <Image source={{ uri: stream.thumbnail }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          {/* WHEP WebRTC Player (web only, when live) */}
+          {Platform.OS === "web" && (stream as LiveStream).isActive && (stream as LiveStream).whepUrl ? (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          ) : (
+            <Image source={{ uri: stream.thumbnail }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          )}
+          {whepError && (
+            <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.6)" }}>
+              <Ionicons name="wifi-outline" size={40} color="#ffffff88" />
+              <Text style={{ color: "#fff", marginTop: 8, fontSize: 13 }}>映像の読み込みに失敗しました</Text>
+            </View>
+          )}
           <View style={styles.playerDimmer} />
 
           {/* Top bar */}
@@ -220,16 +310,16 @@ export default function LiveStreamScreen() {
             {/* Twoshot booking button */}
             {myBooking ? (
               <View style={styles.twoshotBooked}>
-                <Ionicons name="camera" size={12} color={C.accent} />
-                <Text style={styles.twoshotBookedText}>個別セッション予約済み {myBooking.queuePosition}番</Text>
+                <Ionicons name="people" size={12} color={C.accent} />
+                <Text style={styles.twoshotBookedText}>メンター予約済み {myBooking.queuePosition}番</Text>
               </View>
             ) : (
               <Pressable
                 style={styles.twoshotBtn}
                 onPress={() => router.push(`/twoshot-booking/${streamId}`)}
               >
-                <Ionicons name="camera-outline" size={13} color="#fff" />
-                <Text style={styles.twoshotBtnText}>個別セッション</Text>
+                <Ionicons name="people-outline" size={13} color="#fff" />
+                <Text style={styles.twoshotBtnText}>メンターセッション</Text>
               </Pressable>
             )}
           </View>
@@ -252,7 +342,7 @@ export default function LiveStreamScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.twoshotNotifTitle}>あなたの番です！</Text>
-                <Text style={styles.twoshotNotifBody}>個別セッションを開始してください</Text>
+                <Text style={styles.twoshotNotifBody}>メンターセッションを開始してください</Text>
               </View>
               <Pressable onPress={() => setShowTwoshotNotif(false)}>
                 <Ionicons name="close" size={18} color="rgba(255,255,255,0.6)" />

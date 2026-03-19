@@ -15,10 +15,6 @@ function NativeTabLayout() {
         <Icon sf={{ default: "house", selected: "house.fill" }} />
         <Label>ホーム</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="community">
-        <Icon sf={{ default: "safari", selected: "safari.fill" }} />
-        <Label>コミュニティ</Label>
-      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="live">
         <Icon sf={{ default: "antenna.radiowaves.left.and.right", selected: "antenna.radiowaves.left.and.right" }} />
         <Label>配信</Label>
@@ -80,10 +76,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="community"
         options={{
-          title: "コミュニティ",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="compass" size={size} color={color} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen

@@ -257,10 +257,23 @@ export const liveStreams = pgTable("live_streams", {
 export const streams = pgTable("streams", {
   id: serial("id").primaryKey(),
   cfLiveInputId: text("cf_live_input_id").notNull(),
+  /** WHIP ingest URL (WebRTC push 配信者用) */
+  whipUrl: text("whip_url"),
+  /** WHEP playback URL (WebRTC pull 視聴者用) */
   webRtcUrl: text("webrtc_url").notNull(),
   rtmpsUrl: text("rtmps_url").notNull(),
   rtmpsStreamKey: text("rtmps_stream_key").notNull(),
+  /** 配信者の users.id */
+  userId: integer("user_id"),
+  /** 配信タイトル */
+  title: text("title").notNull().default(""),
+  /** 配信中かどうか */
+  isActive: boolean("is_active").notNull().default(false),
   currentViewers: integer("current_viewers").notNull().default(0),
+  /** 同時接続上限（20人固定） */
+  maxViewers: integer("max_viewers").notNull().default(20),
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

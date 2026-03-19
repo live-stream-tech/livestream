@@ -61,7 +61,7 @@ export default function TwoshotSuccessScreen() {
         <Ionicons name="checkmark" size={48} color="#fff" />
       </View>
       <Text style={styles.title}>予約完了！</Text>
-      <Text style={styles.subtitle}>個別セッションの予約が確定しました</Text>
+      <Text style={styles.subtitle}>メンターセッションの予約が確定しました</Text>
 
       <View style={styles.card}>
         <Text style={styles.cardLabel}>整理番号</Text>
@@ -72,7 +72,7 @@ export default function TwoshotSuccessScreen() {
       <View style={styles.noteBox}>
         <Ionicons name="information-circle-outline" size={16} color={C.accent} />
         <Text style={styles.noteText}>
-          個別セッション中は画面に透かし（ウォーターマーク）が表示されます。スクリーンショット・録画は禁止です。
+          メンターセッション中は画面に透かし（ウォーターマーク）が表示されます。スクリーンショット・録画は禁止です。
         </Text>
       </View>
 

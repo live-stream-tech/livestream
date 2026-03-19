@@ -323,7 +323,7 @@ export default function ProfileScreen() {
         "登録完了",
         role === "editor"
           ? "動画編集クリエイターとして登録されました。ライバー検索などに表示されます。"
-          : "個別セッションライバーとして登録されました。ライバー検索などに表示されます。",
+          : "メンターライバーとして登録されました。ライバー検索などに表示されます。",
       );
     } catch (e: any) {
       Alert.alert("エラー", e?.message ?? "登録に失敗しました");
@@ -548,7 +548,7 @@ export default function ProfileScreen() {
         <View style={styles.roleCard}>
           <Text style={styles.roleTitle}>クリエイター登録</Text>
           <Text style={styles.roleSub}>
-            動画編集クリエイター / 個別セッションライバーとして、検索一覧などに表示できるようにします。
+            動画編集クリエイター / メンターライバーとして、検索一覧などに表示できるようにします。
           </Text>
           <View style={styles.roleButtonsRow}>
             <Pressable
@@ -592,7 +592,7 @@ export default function ProfileScreen() {
                   roleStatus?.isTwoshot && styles.roleButtonTextActive,
                 ]}
               >
-                個別セッションライバー
+                メンターライバー
               </Text>
             </Pressable>
           </View>
@@ -904,7 +904,7 @@ export default function ProfileScreen() {
                   {roleStatus?.isTwoshot && (
                     <View style={styles.previewRoleBadge}>
                       <Ionicons name="camera-outline" size={11} color={C.accent} />
-                      <Text style={styles.previewRoleBadgeText}>個別セッションライバー</Text>
+                      <Text style={styles.previewRoleBadgeText}>メンターライバー</Text>
                     </View>
                   )}
                 </View>
