@@ -84,6 +84,11 @@ export default function DMChatScreen() {
     },
   });
 
+  const pickImage = useCallback(async () => {
+    // 画像選択機能（将来実装）
+    setUploadingImage(false);
+  }, []);
+
   const sendMessage = useCallback(() => {
     const msg = input.trim();
     if (!msg) return;
@@ -113,7 +118,7 @@ export default function DMChatScreen() {
           {dmInfo ? (
             <Pressable style={styles.headerCenter}>
               <View style={styles.avatarWrap}>
-                <Image source={{ uri: dmInfo.avatar }} style={styles.headerAvatar} contentFit="cover" />
+                <Image source={dmInfo.avatar ? { uri: dmInfo.avatar } : undefined} style={styles.headerAvatar} contentFit="cover" />
                 {dmInfo.online && <View style={styles.onlineDot} />}
               </View>
               <View>
@@ -176,7 +181,7 @@ export default function DMChatScreen() {
         {/* Input */}
         <View style={[styles.inputRow, { paddingBottom: bottomInset + 8 }]}>
           <Pressable style={styles.attachBtn} onPress={pickImage} disabled={uploadingImage}>
-            <Ionicons name="image-outline" size={24} color={uploadingImage ? C.primary : C.textSec} />
+            <Ionicons name="image-outline" size={24} color={uploadingImage ? C.accent : C.textSec} />
           </Pressable>
           <TextInput
             style={styles.input}

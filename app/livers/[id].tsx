@@ -430,9 +430,9 @@ export default function LiverDetailScreen() {
                 </View>
               </View>
               <View style={{ gap: 10, marginTop: 16 }}>
-                <ScoreBar label="① アンケート満足度" score={liver.satisfactionScore} color={C.accent} />
-                <ScoreBar label="② 配信回数スコア" score={Math.min(liver.streamCount / 20, 5.0)} color={C.orange} />
-                <ScoreBar label="③ 約束遵守（出席率）" score={liver.attendanceRate} color={C.green} />
+                <ScoreBar label="① アンケート満足度" score={displayLiver.satisfactionScore} color={C.accent} />
+                <ScoreBar label="② 配信回数スコア" score={Math.min(displayLiver.streamCount / 20, 5.0)} color={C.orange} />
+                <ScoreBar label="③ 約束遵守（出席率）" score={displayLiver.attendanceRate} color={C.green} />
               </View>
             </View>
 
@@ -440,17 +440,17 @@ export default function LiverDetailScreen() {
             <View style={styles.metricsGrid}>
               <View style={styles.metricCard}>
                 <Ionicons name="radio-outline" size={20} color={C.accent} />
-                <Text style={styles.metricValue}>{liver.streamCount}</Text>
+                <Text style={styles.metricValue}>{displayLiver.streamCount}</Text>
                 <Text style={styles.metricLabel}>総配信回数</Text>
               </View>
               <View style={styles.metricCard}>
                 <Ionicons name="people-outline" size={20} color={C.orange} />
-                <Text style={styles.metricValue}>{(liver.followers / 1000).toFixed(1)}K</Text>
+                <Text style={styles.metricValue}>{(displayLiver.followers / 1000).toFixed(1)}K</Text>
                 <Text style={styles.metricLabel}>フォロワー</Text>
               </View>
               <View style={styles.metricCard}>
                 <Ionicons name="star-outline" size={20} color={C.green} />
-                <Text style={styles.metricValue}>{liver.attendanceRate.toFixed(1)}</Text>
+                <Text style={styles.metricValue}>{displayLiver.attendanceRate.toFixed(1)}</Text>
                 <Text style={styles.metricLabel}>出席スコア</Text>
               </View>
             </View>

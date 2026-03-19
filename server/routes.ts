@@ -3214,7 +3214,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.post("/api/stream/:id/start", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
-    const streamId = parseInt(req.params.id);
+    const streamId = parseInt(String(req.params.id));
     const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
     if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
     if (stream.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
@@ -3226,7 +3226,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.post("/api/stream/:id/end", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
-    const streamId = parseInt(req.params.id);
+    const streamId = parseInt(String(req.params.id));
     const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
     if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
     if (stream.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
@@ -3243,7 +3243,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   /** 視聴者入場（上限チェック） */
   app.post("/api/stream/:id/join", async (req: Request, res: Response) => {
-    const streamId = parseInt(req.params.id);
+    const streamId = parseInt(String(req.params.id));
     const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
     if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
     if (!stream.isActive) return res.status(400).json({ error: "配信は現在オフラインです" });
@@ -3261,7 +3261,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   /** 視聴者退場 */
   app.post("/api/stream/:id/leave", async (req: Request, res: Response) => {
-    const streamId = parseInt(req.params.id);
+    const streamId = parseInt(String(req.params.id));
     const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
     if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
     const newCount = Math.max(0, stream.currentViewers - 1);
@@ -3271,7 +3271,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   /** 配信情報取得 */
   app.get("/api/stream/:id", async (req: Request, res: Response) => {
-    const streamId = parseInt(req.params.id);
+    const streamId = parseInt(String(req.params.id));
     const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
     if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
     res.json(stream);
@@ -4319,7 +4319,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.post("/api/users/:id/follow", async (req: Request, res: Response) => {
     const me = (req as any).user;
     if (!me) return res.status(401).json({ error: "Unauthorized" });
-    const followingId = parseInt(req.params.id);
+    const followingId = parseInt(String(req.params.id));
     if (isNaN(followingId) || followingId === me.id)
       return res.status(400).json({ error: "Invalid" });
     try {
@@ -4354,7 +4354,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.delete("/api/users/:id/follow", async (req: Request, res: Response) => {
     const me = (req as any).user;
     if (!me) return res.status(401).json({ error: "Unauthorized" });
-    const followingId = parseInt(req.params.id);
+    const followingId = parseInt(String(req.params.id));
     if (isNaN(followingId)) return res.status(400).json({ error: "Invalid" });
     try {
       const result = await db
@@ -4379,7 +4379,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.get("/api/users/:id/follow-status", async (req: Request, res: Response) => {
     const me = (req as any).user;
     if (!me) return res.json({ isFollowing: false });
-    const followingId = parseInt(req.params.id);
+    const followingId = parseInt(String(req.params.id));
     if (isNaN(followingId)) return res.json({ isFollowing: false });
     const row = await db
       .select()
@@ -4391,7 +4391,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   /** フォロワー一覧 */
   app.get("/api/users/:id/followers", async (req: Request, res: Response) => {
-    const userId = parseInt(req.params.id);
+    const userId = parseInt(String(req.params.id));
     if (isNaN(userId)) return res.status(400).json({ error: "Invalid" });
     const rows = await db
       .select({
@@ -4411,7 +4411,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   /** フォロー中一覧 */
   app.get("/api/users/:id/following", async (req: Request, res: Response) => {
-    const userId = parseInt(req.params.id);
+    const userId = parseInt(String(req.params.id));
     if (isNaN(userId)) return res.status(400).json({ error: "Invalid" });
     const rows = await db
       .select({
@@ -4547,7 +4547,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     if (!creator?.stripeConnectId) {
       return res.status(400).json({ error: "creator_not_connected", message: "このクリエイターはまだ受取り設定を完了していません" });
     }
-    const stripe = getUncachableStripeClient();
+    const stripe = await getUncachableStripeClient();
     const account = await stripe.accounts.retrieve(creator.stripeConnectId);
     if (!account.charges_enabled) {
       return res.status(400).json({ error: "creator_not_connected", message: "このクリエイターはまだ受取り設定を完了していません" });

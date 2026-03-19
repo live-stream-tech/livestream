@@ -107,9 +107,11 @@ type ThreadDetail = ThreadItem & {
 
 type JukeboxState = {
   communityId: number;
+  currentVideoId?: number | null;
   currentVideoTitle: string | null;
   currentVideoThumbnail: string | null;
   currentVideoDurationSecs: number;
+  currentVideoYoutubeId?: string | null;
   startedAt: string;
   isPlaying: boolean;
   watchersCount: number;
@@ -117,6 +119,8 @@ type JukeboxState = {
 
 type QueueItem = {
   id: number;
+  videoId?: number | null;
+  youtubeId?: string | null;
   videoTitle: string;
   videoThumbnail: string;
   videoDurationSecs: number;
@@ -852,7 +856,7 @@ export default function CommunityDetailScreen() {
           </View>
         </View>
 
-        <Pressable activeOpacity={0.85} style={[styles.adBanner, { backgroundColor: ad.bg }]}>
+        <Pressable style={[styles.adBanner, { backgroundColor: ad.bg }]}>
           <View style={styles.adPrBadge}>
             <Text style={styles.adPrText}>PR</Text>
           </View>

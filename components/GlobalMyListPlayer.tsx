@@ -157,7 +157,7 @@ export function GlobalMyListPlayer() {
             style={isCurrentVideo ? styles.fullVideoEl : styles.hiddenVideo}
             playsInline
             muted={false}
-            controls={isCurrentVideo}
+            controls={isCurrentVideo ?? false}
           />
         ) : null}
       </View>

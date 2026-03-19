@@ -17,9 +17,10 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "@/constants/colors";
+import { getApiUrl } from "@/lib/query-client";
 import { F } from "@/constants/fonts";
-import { useAuth } from "@/hooks/useAuth";
-import { API_BASE } from "@/constants/api";
+import { useAuth } from "@/lib/auth";
+
 
 export default function MentorRoomScreen() {
   const { id, role, whipUrl: whipParam, whepUrl: whepParam } = useLocalSearchParams<{
@@ -112,7 +113,7 @@ export default function MentorRoomScreen() {
     let whep = whepParam ? decodeURIComponent(whepParam) : "";
     if (!whep && id) {
       try {
-        const res = await fetch(`${API_BASE}/api/mentor/bookings/${id}/join`, { headers: authHeaders() });
+        const res = await fetch(`${getApiUrl()}/api/mentor/bookings/${id}/join`, { headers: authHeaders() });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "参加に失敗しました");
         whep = data.whepUrl;
@@ -169,7 +170,7 @@ export default function MentorRoomScreen() {
           pcRef.current?.close();
           if (timerRef.current) clearInterval(timerRef.current);
           if (role === "mentor" && id) {
-            await fetch(`${API_BASE}/api/mentor/bookings/${id}/end`, {
+            await fetch(`${getApiUrl()}/api/mentor/bookings/${id}/end`, {
               method: "POST",
               headers: authHeaders(),
             });

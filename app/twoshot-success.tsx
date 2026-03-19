@@ -26,7 +26,7 @@ export default function TwoshotSuccessScreen() {
   useEffect(() => {
     if (!session_id) { setLoading(false); return; }
     apiRequest("POST", "/api/twoshot/confirm-payment", { sessionId: session_id })
-      .then((res) => { setBooking(res.booking); })
+      .then((res: any) => { setBooking(res.booking); })
       .catch(() => setError("支払い確認に失敗しました"))
       .finally(() => setLoading(false));
   }, [session_id]);

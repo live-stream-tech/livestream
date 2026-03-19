@@ -116,7 +116,7 @@ export default function GenreScreen() {
   const communities = genreId ? filterCommunitiesByGenre(source, genreId) : source;
   const sortedCommunities = [...communities].sort((a, b) => (b.members ?? 0) - (a.members ?? 0));
 
-  const ad = (genreId && GENRE_ADS[genreId]) ?? DEFAULT_AD;
+  const ad: AdData = (genreId ? GENRE_ADS[genreId] : undefined) ?? DEFAULT_AD;
 
   if (!genre) {
     return (
@@ -141,7 +141,7 @@ export default function GenreScreen() {
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Pressable activeOpacity={0.85} style={[styles.bannerAd, { backgroundColor: ad.bg }]}>
+        <Pressable style={[styles.bannerAd, { backgroundColor: ad.bg }]}>
           <View style={styles.adPrBadge}>
             <Text style={styles.adPrText}>PR</Text>
           </View>

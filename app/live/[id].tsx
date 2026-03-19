@@ -121,19 +121,20 @@ export default function LiveStreamScreen() {
     refetchInterval: 3000,
   });
 
-  const { data: myBooking } = useQuery<TwoshotBooking | null>({
+  const { data: myBooking } = useQuery<TwoshotBooking[], Error, TwoshotBooking | null>({
     queryKey: [`/api/twoshot/${streamId}/bookings`],
     refetchInterval: 5000,
     select: (bookings: TwoshotBooking[]) =>
       bookings.find((b) => b.userId === myUserId) ?? null,
   });
 
+  const myBookingTyped = myBooking as unknown as TwoshotBooking | null;
   useEffect(() => {
-    if (myBooking?.status === "notified" && !showTwoshotNotif) {
+    if (myBookingTyped?.status === "notified" && !showTwoshotNotif) {
       setShowTwoshotNotif(true);
       Animated.spring(notifAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 8 }).start();
     }
-  }, [myBooking?.status]);
+  }, [myBookingTyped?.status]);
 
   // WHEP接続（視聴者側WebRTC）
   const connectWHEP = useCallback(async (whepUrl: string) => {
@@ -311,7 +312,7 @@ export default function LiveStreamScreen() {
             {myBooking ? (
               <View style={styles.twoshotBooked}>
                 <Ionicons name="people" size={12} color={C.accent} />
-                <Text style={styles.twoshotBookedText}>メンター予約済み {myBooking.queuePosition}番</Text>
+                <Text style={styles.twoshotBookedText}>メンター予約済み {(myBooking as unknown as TwoshotBooking).queuePosition}番</Text>
               </View>
             ) : (
               <Pressable
@@ -352,7 +353,7 @@ export default function LiveStreamScreen() {
         )}
 
         {/* Watermark overlay (when twoshot notified/active) */}
-        {myBooking?.status === "notified" && (
+        {(myBooking as unknown as TwoshotBooking | null)?.status === "notified" && (
           <View style={styles.watermarkOverlay} pointerEvents="none">
             {[0, 1, 2, 3, 4, 5].map((i) => (
               <Text
@@ -366,7 +367,7 @@ export default function LiveStreamScreen() {
                   },
                 ]}
               >
-                {MY_USER_ID} • RawStock
+                {myUserId} • RawStock
               </Text>
             ))}
           </View>
@@ -539,7 +540,7 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 12,
     gap: 6,
-    background: "linear-gradient(transparent, rgba(0,0,0,0.8))",
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
   creatorRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   creatorAvatar: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: "rgba(255,255,255,0.4)" },

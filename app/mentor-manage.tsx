@@ -22,9 +22,10 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "@/constants/colors";
+import { getApiUrl } from "@/lib/query-client";
 import { F } from "@/constants/fonts";
-import { useAuth } from "@/hooks/useAuth";
-import { API_BASE } from "@/constants/api";
+import { useAuth } from "@/lib/auth";
+
 
 const CATEGORIES = [
   { value: "counselor", label: "悩み相談" },
@@ -97,8 +98,8 @@ export default function MentorManageScreen() {
     if (!token) return;
     try {
       const [s, b] = await Promise.all([
-        fetch(`${API_BASE}/api/mentor/my-sessions`, { headers: authHeaders() }).then(r => r.json()),
-        fetch(`${API_BASE}/api/mentor/creator-bookings`, { headers: authHeaders() }).then(r => r.json()),
+        fetch(`${getApiUrl()}/api/mentor/my-sessions`, { headers: authHeaders() }).then(r => r.json()),
+        fetch(`${getApiUrl()}/api/mentor/creator-bookings`, { headers: authHeaders() }).then(r => r.json()),
       ]);
       if (Array.isArray(s)) setSessions(s);
       if (Array.isArray(b)) setBookings(b);
@@ -147,8 +148,8 @@ export default function MentorManageScreen() {
         maxParticipants: form.maxParticipants,
       };
       const url = editTarget
-        ? `${API_BASE}/api/mentor/sessions/${editTarget.id}`
-        : `${API_BASE}/api/mentor/sessions`;
+        ? `${getApiUrl()}/api/mentor/sessions/${editTarget.id}`
+        : `${getApiUrl()}/api/mentor/sessions`;
       const method = editTarget ? "PUT" : "POST";
       const res = await fetch(url, { method, headers: authHeaders(), body: JSON.stringify(body) });
       if (!res.ok) throw new Error("保存に失敗しました");
@@ -167,7 +168,7 @@ export default function MentorManageScreen() {
       {
         text: "非公開にする", style: "destructive",
         onPress: async () => {
-          await fetch(`${API_BASE}/api/mentor/sessions/${id}`, { method: "DELETE", headers: authHeaders() });
+          await fetch(`${getApiUrl()}/api/mentor/sessions/${id}`, { method: "DELETE", headers: authHeaders() });
           load();
         },
       },
@@ -176,7 +177,7 @@ export default function MentorManageScreen() {
 
   const startSession = async (bookingId: number) => {
     try {
-      const res = await fetch(`${API_BASE}/api/mentor/bookings/${bookingId}/start`, {
+      const res = await fetch(`${getApiUrl()}/api/mentor/bookings/${bookingId}/start`, {
         method: "POST",
         headers: authHeaders(),
       });

@@ -57,7 +57,7 @@ export default function AdminReportsScreen() {
 
   const { data: reports = [], isLoading } = useQuery<Report[]>({
     queryKey: ["/api/admin/reports"],
-    queryFn: () => apiRequest("GET", "/api/admin/reports"),
+    queryFn: () => apiRequest("GET", "/api/admin/reports").then((r) => r.json() as Promise<Report[]>),
   });
 
   const handleHide = async (id: number) => {

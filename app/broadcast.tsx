@@ -379,7 +379,7 @@ export default function BroadcastScreen() {
               <>
                 <View style={styles.goLiveDot} />
                 <Text style={styles.goLiveBtnText}>
-                  {phase === "creating" ? "配信を準備中..." : "ライブ配信を開始"}
+                  {"ライブ配信を開始"}
                 </Text>
               </>
             )}

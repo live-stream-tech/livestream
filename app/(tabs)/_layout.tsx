@@ -1,6 +1,6 @@
 import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
+import { NativeTabs, NativeTabTrigger } from "expo-router/unstable-native-tabs";
 import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View } from "react-native";
 import React from "react";
@@ -11,22 +11,22 @@ import { MetallicLine } from "@/components/MetallicLine";
 function NativeTabLayout() {
   return (
     <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>ホーム</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="live">
-        <Icon sf={{ default: "antenna.radiowaves.left.and.right", selected: "antenna.radiowaves.left.and.right" }} />
-        <Label>配信</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="dm">
-        <Icon sf={{ default: "message", selected: "message.fill" }} />
-        <Label>DM</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: "person", selected: "person.fill" }} />
-        <Label>マイページ</Label>
-      </NativeTabs.Trigger>
+      <NativeTabTrigger name="index">
+        <NativeTabTrigger.Icon sf={{ default: "house", selected: "house.fill" }} />
+        <NativeTabTrigger.Label>ホーム</NativeTabTrigger.Label>
+      </NativeTabTrigger>
+      <NativeTabTrigger name="live">
+        <NativeTabTrigger.Icon sf={{ default: "antenna.radiowaves.left.and.right", selected: "antenna.radiowaves.left.and.right" }} />
+        <NativeTabTrigger.Label>配信</NativeTabTrigger.Label>
+      </NativeTabTrigger>
+      <NativeTabTrigger name="dm">
+        <NativeTabTrigger.Icon sf={{ default: "message", selected: "message.fill" }} />
+        <NativeTabTrigger.Label>DM</NativeTabTrigger.Label>
+      </NativeTabTrigger>
+      <NativeTabTrigger name="profile">
+        <NativeTabTrigger.Icon sf={{ default: "person", selected: "person.fill" }} />
+        <NativeTabTrigger.Label>マイページ</NativeTabTrigger.Label>
+      </NativeTabTrigger>
     </NativeTabs>
   );
 }

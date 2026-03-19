@@ -26,6 +26,7 @@ import { saveLoginReturn } from "@/lib/login-return";
 
 type JukeboxState = {
   communityId: number;
+  currentVideoId?: number | null;
   currentVideoTitle: string | null;
   currentVideoThumbnail: string | null;
   currentVideoDurationSecs: number;
@@ -39,6 +40,7 @@ type JukeboxState = {
 
 type QueueItem = {
   id: number;
+  videoId?: number | null;
   videoTitle: string;
   videoThumbnail: string;
   videoDurationSecs: number;

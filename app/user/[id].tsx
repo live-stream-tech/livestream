@@ -105,6 +105,14 @@ export default function UserProfileScreen() {
       queryClient.invalidateQueries({ queryKey: [`/api/users/${userId}`] });
     },
   });
+  const handleDM = useCallback(() => {
+    if (!me) {
+      Alert.alert("ログインが必要です", "DMを送るにはログインしてください");
+      return;
+    }
+    router.push(`/dm/${userId}`);
+  }, [me, userId]);
+
   const handleFollow = useCallback(() => {
     if (!me) {
       Alert.alert("ログインが必要です", "フォローするにはログインしてください");

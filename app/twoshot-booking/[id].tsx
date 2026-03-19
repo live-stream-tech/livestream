@@ -91,8 +91,9 @@ export default function TwoshotBookingScreen() {
         userAvatar: user?.avatar ?? user?.profileImageUrl ?? null,
         price: TWOSHOT_PRICE,
       });
-      if (res.checkoutUrl) {
-        await Linking.openURL(res.checkoutUrl);
+      const resData = res as any;
+      if (resData.checkoutUrl) {
+        await Linking.openURL(resData.checkoutUrl);
         router.back();
       }
     } catch (e: any) {
@@ -191,7 +192,7 @@ export default function TwoshotBookingScreen() {
                 <View style={styles.termHeader}>
                   <View style={[styles.termIconBox, agreed[term.id] && styles.termIconBoxAgreed]}>
                     <Ionicons
-                      name={term.icon}
+                      name={term.icon as any}
                       size={18}
                       color={agreed[term.id] ? "#fff" : C.textMuted}
                     />
