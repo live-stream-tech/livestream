@@ -556,6 +556,23 @@ export default function JukeboxScreen() {
     nextMutation.mutate();
   }, [nextMutation]);
 
+  // 入室 = 再生開始（ログインユーザーのみ・負荷軽減）
+  // キューに曲があるが isPlaying=false のとき、1回だけ next を呼んで再生を開始する
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (!user) return; // ゲストは不要
+    if (autoStartedRef.current) return; // 1回だけ
+    if (!data) return; // データ未取得
+    const hasQueue = (data.queue ?? []).some((q) => !q.isPlayed);
+    if (hasQueue && !data.state?.isPlaying) {
+      autoStartedRef.current = true;
+      nextMutation.mutate();
+    } else if (data.state?.isPlaying || (data.queue ?? []).length === 0) {
+      // 既に再生中 or キュー空 → 自動開始不要フラグを立てる
+      autoStartedRef.current = true;
+    }
+  }, [data, user]);
+
   useEffect(() => {
     if (chat.length > 0) {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
