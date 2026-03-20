@@ -45,6 +45,8 @@ import {
   coinBalances,
   coinTransactions,
   jukeboxRequestCounts,
+  bannerAds,
+  dailyLogins,
 } from "./schema";
 import { eq, asc, desc, count, sql, and, or, gte, lte, isNull, inArray } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey, createConnectExpressAccount, createConnectAccountLink, getConnectAccount, createBannerPaymentIntent, getPaymentIntentStatus } from "./stripeClient";
@@ -4444,6 +4446,109 @@ export async function registerRoutes(app: Express): Promise<void> {
     } catch (err) {
       console.error("Verify purchase error:", err);
       return res.status(500).json({ error: "Failed to verify purchase" });
+    }
+  });
+
+  // ── Platform Banner Ads (operator-managed) ────────────────────────────────
+  // GET /api/platform-banners - get active banners (public)
+  app.get("/api/platform-banners", async (_req: Request, res: Response) => {
+    try {
+      const rows = await db.select().from(bannerAds)
+        .where(eq(bannerAds.isActive, true))
+        .orderBy(asc(bannerAds.displayOrder), desc(bannerAds.createdAt));
+      res.json(rows);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // POST /api/platform-banners - create banner (admin only)
+  app.post("/api/platform-banners", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    if (user.role !== "ADMIN") return res.status(403).json({ error: "管理者のみ操作できます" });
+    const { title, imageUrl, linkUrl, description, displayOrder } = req.body as {
+      title?: string; imageUrl?: string; linkUrl?: string; description?: string; displayOrder?: number;
+    };
+    if (!title) return res.status(400).json({ error: "title は必須です" });
+    try {
+      const [row] = await db.insert(bannerAds).values({
+        title,
+        imageUrl: imageUrl ?? null,
+        linkUrl: linkUrl ?? null,
+        description: description ?? null,
+        isActive: true,
+        displayOrder: displayOrder ?? 0,
+      } as typeof bannerAds.$inferInsert).returning();
+      res.json(row);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // PATCH /api/platform-banners/:id - update banner (admin only)
+  app.patch("/api/platform-banners/:id", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    if (user.role !== "ADMIN") return res.status(403).json({ error: "管理者のみ操作できます" });
+    const id = paramNum(req, "id");
+    const { title, imageUrl, linkUrl, description, isActive, displayOrder } = req.body as {
+      title?: string; imageUrl?: string; linkUrl?: string; description?: string; isActive?: boolean; displayOrder?: number;
+    };
+    try {
+      const updates: Partial<typeof bannerAds.$inferInsert> = { updatedAt: new Date() };
+      if (title !== undefined) updates.title = title;
+      if (imageUrl !== undefined) updates.imageUrl = imageUrl;
+      if (linkUrl !== undefined) updates.linkUrl = linkUrl;
+      if (description !== undefined) updates.description = description;
+      if (isActive !== undefined) updates.isActive = isActive;
+      if (displayOrder !== undefined) updates.displayOrder = displayOrder;
+      const [row] = await db.update(bannerAds).set(updates).where(eq(bannerAds.id, id)).returning();
+      if (!row) return res.status(404).json({ error: "Not found" });
+      res.json(row);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // DELETE /api/platform-banners/:id - delete banner (admin only)
+  app.delete("/api/platform-banners/:id", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    if (user.role !== "ADMIN") return res.status(403).json({ error: "管理者のみ操作できます" });
+    const id = paramNum(req, "id");
+    try {
+      await db.delete(bannerAds).where(eq(bannerAds.id, id));
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Daily Login Count ─────────────────────────────────────────────────────
+  // POST /api/daily-login - record today's login (idempotent)
+  app.post("/api/daily-login", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "未認証です" });
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      await db.insert(dailyLogins).values({ userId: user.id, date: today } as typeof dailyLogins.$inferInsert)
+        .onConflictDoNothing();
+      const [{ cnt }] = await db.select({ cnt: count() }).from(dailyLogins).where(eq(dailyLogins.date, today));
+      res.json({ date: today, count: Number(cnt) });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // GET /api/daily-login/count - get today's login count (public)
+  app.get("/api/daily-login/count", async (_req: Request, res: Response) => {
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      const [{ cnt }] = await db.select({ cnt: count() }).from(dailyLogins).where(eq(dailyLogins.date, today));
+      res.json({ date: today, count: Number(cnt) });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
     }
   });
 

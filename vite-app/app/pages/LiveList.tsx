@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { ArrowLeft, Radio, Calendar, Users, Star, Video } from "lucide-react";
-import { liveStreams } from "../data/mockData";
+import { liveStreams, creatorLiveRanking } from "../data/mockData";
+import CreatorRankingCard from "../components/CreatorRankingCard";
+import HorizontalScroll from "../components/HorizontalScroll";
 import { motion, AnimatePresence } from "motion/react";
 import { BroadcastFab } from "../components/BroadcastFab";
 import { AppButton } from "../components/ui/AppButton";
@@ -193,6 +195,25 @@ export default function LiveList() {
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+
+      {/* Creator Live Ranking */}
+      <div className="mb-6">
+        <div className="px-4 flex items-center justify-between mb-4">
+          <h2 className="font-bold text-sm tracking-tight flex items-center gap-2 text-[#F43F5E]">
+            <div className="w-1.5 h-4 bg-[#F43F5E] rounded-full" />
+            配信者ランキング
+          </h2>
+        </div>
+        <HorizontalScroll>
+          {creatorLiveRanking.slice(0, 8).map((creator, index) => (
+            <CreatorRankingCard
+              key={creator.creatorId}
+              creator={creator}
+              rank={index + 1}
+            />
+          ))}
+        </HorizontalScroll>
       </div>
 
       {/* Floating Action Button for Go Live */}

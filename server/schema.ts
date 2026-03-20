@@ -625,3 +625,30 @@ export const jukeboxRequestCounts = pgTable("jukebox_request_counts", {
   count: integer("count").notNull().default(0),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+/**
+ * Banner advertisements managed by operators.
+ * Displayed on the top page. Revenue goes 100% to the platform.
+ */
+export const bannerAds = pgTable("banner_ads", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  imageUrl: text("image_url"),
+  linkUrl: text("link_url"),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  displayOrder: integer("display_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/**
+ * Tracks daily unique logins per user.
+ * Used to display "today's active user count" on the top page.
+ */
+export const dailyLogins = pgTable("daily_logins", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  date: text("date").notNull(), // YYYY-MM-DD (UTC)
+  createdAt: timestamp("created_at").defaultNow(),
+});
