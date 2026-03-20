@@ -1845,6 +1845,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       await db.delete(communityAds).where(eq(communityAds.communityId, communityId));
       await db.delete(communityModerators).where(eq(communityModerators.communityId, communityId));
       await db.delete(communityMembers).where(eq(communityMembers.communityId, communityId));
+      await db.delete(jukeboxRequestCounts).where(eq(jukeboxRequestCounts.communityId, communityId));
       await db.delete(jukeboxChat).where(eq(jukeboxChat.communityId, communityId));
       await db.delete(jukeboxQueue).where(eq(jukeboxQueue.communityId, communityId));
       await db.delete(jukeboxState).where(eq(jukeboxState.communityId, communityId));
