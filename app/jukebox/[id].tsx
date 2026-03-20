@@ -729,8 +729,10 @@ export default function JukeboxScreen() {
         <Pressable style={styles.modalBg} onPress={() => setShowAddModal(false)}>
           <Pressable style={styles.modalSheet} onPress={() => {}}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Jukeboxに動画を追加</Text>
-
+             <Text style={styles.modalTitle}>Jukeboxに動画を追加</Text>
+            <Text style={{ fontSize: 11, color: C.textMuted, textAlign: "center", marginBottom: 8, lineHeight: 16 }}>
+              ⚠️ 10分を超える曲は10分でスキップされます
+            </Text>
             {/* YouTube 検索 */}
             <View style={styles.ytInputSection}>
               <Text style={styles.ytLabel}>YouTube で検索</Text>
