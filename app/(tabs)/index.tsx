@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef } from "react";
+import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -384,7 +384,15 @@ const DUMMY_CREATORS: Record<string, any[]> = {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  // PWA/アプリアイコンから起動時: ログイン済みならマイページへ直接遷移
+  useEffect(() => {
+    if (loading) return;
+    if (user) {
+      router.replace("/(tabs)/profile" as any);
+    }
+  }, [user, loading]);
   const [rankFilter, setRankFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("WEEKLY");
   const [videoFeedTab, setVideoFeedTab] = useState<FeedTab>("all");
   const [showAnnouncementsModal, setShowAnnouncementsModal] = useState(false);
