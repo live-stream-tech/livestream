@@ -649,7 +649,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const code = req.query.code as string;
     const state = req.query.state as string;
     if (!code || state !== GOOGLE_STATE) {
-      return res.redirect(lineRedirect("/?line_error=invalid_state"));
+      return res.redirect(lineRedirect("/auth/login?line_error=invalid_state"));
     }
     try {
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -671,7 +671,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         error?: string;
       };
       if (!tokenData.access_token) {
-        return res.redirect(lineRedirect("/?line_error=token_failed"));
+        return res.redirect(lineRedirect("/auth/login?line_error=token_failed"));
       }
 
       const profileRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
@@ -684,7 +684,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         email?: string;
       };
       if (!profile.sub) {
-        return res.redirect(lineRedirect("/?line_error=profile_failed"));
+        return res.redirect(lineRedirect("/auth/login?line_error=profile_failed"));
       }
 
       const googleKey = `google:${profile.sub}`;
@@ -726,10 +726,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
 
       const jwtToken = makeToken(existing.id);
-      res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
+      res.redirect(lineRedirect(`/auth/callback?token=${encodeURIComponent(jwtToken)}`));
     } catch (err) {
       console.error("Google callback error:", err);
-      res.redirect(lineRedirect("/?line_error=server_error"));
+      res.redirect(lineRedirect("/auth/login?line_error=server_error"));
     }
   });
 
@@ -928,7 +928,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const state = req.query.state as string;
     console.log("[LINE callback/line] received", { hasCode: !!code, stateMatch: state === LINE_STATE });
     if (!code || state !== LINE_STATE) {
-      return res.redirect(lineRedirect("/?line_error=invalid_state"));
+      return res.redirect(lineRedirect("/auth/login?line_error=invalid_state"));
     }
     try {
       const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
@@ -946,7 +946,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       if (!tokenData.access_token) {
         console.error("[LINE callback] token failed", tokenData);
         const err = tokenData.error_description ?? tokenData.error ?? "token_failed";
-        return res.redirect(lineRedirect(`/?line_error=${encodeURIComponent(err)}`));
+        return res.redirect(lineRedirect(`/auth/login?line_error=${encodeURIComponent(err)}`));
       }
 
       const profileRes = await fetch("https://api.line.me/v2/profile", {
@@ -955,7 +955,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const profile = await profileRes.json() as { userId?: string; displayName?: string; pictureUrl?: string };
       if (!profile.userId) {
         console.error("[LINE callback] profile failed", profile);
-        return res.redirect(lineRedirect("/?line_error=profile_failed"));
+        return res.redirect(lineRedirect("/auth/login?line_error=profile_failed"));
       }
 
       const lineId = profile.userId;
@@ -983,10 +983,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
 
       const jwtToken = makeToken(existing.id);
-      res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
+      res.redirect(lineRedirect(`/auth/callback?token=${encodeURIComponent(jwtToken)}`));
     } catch (err) {
       console.error("LINE callback error:", err);
-      res.redirect(lineRedirect("/?line_error=server_error"));
+      res.redirect(lineRedirect("/auth/login?line_error=server_error"));
     }
   });
 
@@ -996,7 +996,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const state = req.query.state as string;
     console.log("[LINE callback] received", { hasCode: !!code, stateMatch: state === LINE_STATE });
     if (!code || state !== LINE_STATE) {
-      return res.redirect(lineRedirect("/?line_error=invalid_state"));
+      return res.redirect(lineRedirect("/auth/login?line_error=invalid_state"));
     }
     try {
       const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
@@ -1014,7 +1014,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       if (!tokenData.access_token) {
         console.error("[LINE callback] token failed", tokenData);
         const err = tokenData.error_description ?? tokenData.error ?? "token_failed";
-        return res.redirect(lineRedirect(`/?line_error=${encodeURIComponent(err)}`));
+        return res.redirect(lineRedirect(`/auth/login?line_error=${encodeURIComponent(err)}`));
       }
 
       const profileRes = await fetch("https://api.line.me/v2/profile", {
@@ -1023,7 +1023,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const profile = await profileRes.json() as { userId?: string; displayName?: string; pictureUrl?: string };
       if (!profile.userId) {
         console.error("[LINE callback] profile failed", profile);
-        return res.redirect(lineRedirect("/?line_error=profile_failed"));
+        return res.redirect(lineRedirect("/auth/login?line_error=profile_failed"));
       }
 
       const lineId = profile.userId;
@@ -1052,11 +1052,11 @@ export async function registerRoutes(app: Express): Promise<void> {
 
       const jwtToken = makeToken(existing.id);
       console.log("[LINE callback] success", { userId: existing.id });
-      res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
+      res.redirect(lineRedirect(`/auth/callback?token=${encodeURIComponent(jwtToken)}`));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[LINE callback] server_error", err);
-      res.redirect(lineRedirect(`/?line_error=${encodeURIComponent("server_error:" + msg.slice(0, 80))}`));
+      res.redirect(lineRedirect(`/auth/login?line_error=${encodeURIComponent("server_error:" + msg.slice(0, 80))}`));
     }
   });
 

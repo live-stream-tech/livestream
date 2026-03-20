@@ -189,9 +189,26 @@ export default function ProfileScreen() {
   const topInset = getTabTopInset(insets);
   const bottomInset = getTabBottomInset(insets);
   const unreadCount = useUnreadCount();
-  const { user, token, loading: authLoading, logout, updateProfile } = useAuth();
+  const { user, token, loading: authLoading, logout, updateProfile, loginWithToken } = useAuth();
   const queryClient = useQueryClient();
 
+  // ポップアップログイン完了時のpostMessageリスナー
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const handler = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === "auth_success" && event.data?.token) {
+        try {
+          await loginWithToken(event.data.token);
+          queryClient.invalidateQueries();
+        } catch (e) {
+          console.error("[profile] popup auth failed:", e);
+        }
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [loginWithToken, queryClient]);
 
   // Profile edit state
   const [showProfileModal, setShowProfileModal] = useState(false);

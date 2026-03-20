@@ -8,8 +8,11 @@ import { C } from "@/constants/colors";
 /**
  * 同一タブリダイレクト方式のOAuth認証コールバックページ。
  * サーバーが /auth/callback?token=xxx にリダイレクトしてくる。
- * Expo RouterのuseLocalSearchParamsは初回レンダリング時にundefinedになることがあるため、
- * window.location.searchから直接tokenを取得する。
+ *
+ * ポップアップウィンドウ内で動作している場合（マイページのLINEログインなど）:
+ *   → window.opener にpostMessageを送ってメインウィンドウを更新し、ポップアップを閉じる
+ * 同一タブで動作している場合（ログインページからのリダイレクト）:
+ *   → 直接loginWithTokenを呼んでログイン処理する
  */
 export default function AuthCallbackScreen() {
   const { loginWithToken } = useAuth();
@@ -30,6 +33,27 @@ export default function AuthCallbackScreen() {
       return;
     }
 
+    // ポップアップウィンドウ内かどうかを確認
+    const isPopup =
+      typeof window !== "undefined" &&
+      window.opener != null &&
+      !window.opener.closed;
+
+    if (isPopup) {
+      // ポップアップ内: openerにpostMessageを送ってメインウィンドウを更新し、ポップアップを閉じる
+      try {
+        window.opener.postMessage(
+          { type: "auth_success", token },
+          window.location.origin
+        );
+        setTimeout(() => window.close(), 300);
+        return;
+      } catch {
+        // postMessageが失敗した場合は直接ログイン処理にフォールスルー
+      }
+    }
+
+    // 同一タブ（またはpostMessage失敗時）: 直接ログイン処理
     let cancelled = false;
     (async () => {
       try {

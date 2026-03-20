@@ -22,11 +22,15 @@ if (Platform.OS === "web" && typeof window !== "undefined" && "serviceWorker" in
   });
 }
 
-/** URL に line_token があるか（web のみ）。初回から正しく検知してフラッシュを防ぐ */
+/** URL に line_token / auth/callback?token があるか（web のみ）。初回から正しく検知してフラッシュを防ぐ */
 function useHasLineTokenInUrl(): boolean {
   const [hasToken] = useState(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") return false;
-    return !!new URLSearchParams(window.location.search).get("line_token");
+    // 旧方式: /?line_token=xxx
+    if (new URLSearchParams(window.location.search).get("line_token")) return true;
+    // 新方式: /auth/callback?token=xxx
+    if (window.location.pathname === "/auth/callback" && new URLSearchParams(window.location.search).get("token")) return true;
+    return false;
   });
   return hasToken;
 }
