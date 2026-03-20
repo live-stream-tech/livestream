@@ -11,9 +11,9 @@ import {
 import { usePathname, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { usePlayingVideo } from "@/lib/playing-video-context";
 
 type JukeboxState = {
@@ -156,6 +156,58 @@ export function GlobalJukeboxPlayer() {
     })
   ).current;
 
+  const qc = useQueryClient();
+
+  // YouTube IFrame プレイヤー（Webのみ）。jukebox ページでは NowPlaying が再生するため、ここでは作らない
+  const isOnJukeboxPage = pathname?.match(/^\/jukebox\/\d+/) != null;
+
+  // SSE でリアルタイム更新（Web のみ、jukebox ページ以外で接続）
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    if (!communityId) return;
+    if (isOnJukeboxPage) return; // jukebox ページ自体が SSE を持つため重複接続しない
+
+    const baseUrl = getApiUrl().replace(/\/$/, "");
+    const sseUrl = `${baseUrl}/api/jukebox/${communityId}/stream`;
+    let es: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
+
+    const connect = () => {
+      if (closed) return;
+      es = new EventSource(sseUrl);
+      es.addEventListener("state_update", (e: MessageEvent) => {
+        try {
+          const payload = JSON.parse(e.data) as { data: JukeboxState };
+          qc.setQueryData<JukeboxData>([`/api/jukebox/${communityId}`], (prev) =>
+            prev ? { ...prev, state: payload.data } : prev
+          );
+        } catch {}
+      });
+      es.addEventListener("queue_update", (e: MessageEvent) => {
+        try {
+          const payload = JSON.parse(e.data) as { data: QueueItem[] };
+          qc.setQueryData<JukeboxData>([`/api/jukebox/${communityId}`], (prev) =>
+            prev ? { ...prev, queue: payload.data } : prev
+          );
+        } catch {}
+      });
+      es.onerror = () => {
+        es?.close();
+        if (!closed) {
+          retryTimer = setTimeout(connect, 3000);
+        }
+      };
+    };
+
+    connect();
+    return () => {
+      closed = true;
+      es?.close();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [communityId, isOnJukeboxPage]);
+
   const { data } = useQuery<JukeboxData>({
     queryKey: communityId ? [`/api/jukebox/${communityId}`] : ["jukebox:none"],
     enabled: !!communityId,
@@ -201,9 +253,6 @@ export function GlobalJukeboxPlayer() {
   }, [nextMutation]);
   const handleNextRef = useRef(handleNext);
   handleNextRef.current = handleNext;
-
-  // YouTube IFrame プレイヤー（Webのみ）。jukebox ページでは NowPlaying が再生するため、ここでは作らない
-  const isOnJukeboxPage = pathname?.match(/^\/jukebox\/\d+/) != null;
 
   // jukebox ページから離脱したらミニプレイヤーを自動表示（Spotify 風）
   // 「一度でもジュークボックスページを訪問した」フラグ
