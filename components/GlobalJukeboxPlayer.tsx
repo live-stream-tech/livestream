@@ -300,43 +300,66 @@ export function GlobalJukeboxPlayer() {
   const ytBodyContainerRef = useRef<HTMLDivElement | null>(null);
   const ytSyncCleanupRef = useRef<(() => void) | null>(null);
 
-  const updateContainerPosition = useCallback(() => {
+  // ページ離脱時: 即座に退避（同期的）
+  const retreatContainer = useCallback(() => {
     if (Platform.OS !== "web") return;
-    const applyPosition = () => {
-      const container = ytBodyContainerRef.current;
-      if (!container) return;
-      if (isOnJukeboxPageRef.current) {
-        // jukebox ページ上: jukebox-yt-holder の位置に追従
-        const anchor = document.getElementById("jukebox-yt-holder");
-        if (anchor) {
-          const r = anchor.getBoundingClientRect();
-          // サイズが 0 の場合は次フレームで再試行
-          if (r.width === 0 || r.height === 0) {
-            requestAnimationFrame(applyPosition);
-            return;
-          }
-          container.style.left = `${r.left}px`;
-          container.style.top = `${r.top}px`;
-          container.style.width = `${r.width}px`;
-          container.style.height = `${r.height}px`;
-          container.style.opacity = "1";
-          container.style.zIndex = "10";
-        } else {
-          // anchor がまだ存在しない場合は次フレームで再試行
-          requestAnimationFrame(applyPosition);
-        }
-      } else {
-        // ページ離脱後: 画面外に退避（音声継続）
-        container.style.left = "-9999px";
-        container.style.top = "0px";
-        container.style.width = "320px";
-        container.style.height = "180px";
-        container.style.opacity = "0";
-        container.style.zIndex = "0";
-      }
-    };
-    requestAnimationFrame(applyPosition);
+    const container = ytBodyContainerRef.current;
+    if (!container) return;
+    container.style.left = "-9999px";
+    container.style.top = "0px";
+    container.style.width = "320px";
+    container.style.height = "180px";
+    container.style.opacity = "0";
+    container.style.zIndex = "0";
   }, []);
+
+  // ジュークボックスページに戻ったとき: jukebox-yt-holder が現れるまでポーリング
+  const anchorPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const attachToAnchor = useCallback(() => {
+    if (Platform.OS !== "web") return;
+    if (anchorPollingRef.current) {
+      clearInterval(anchorPollingRef.current);
+      anchorPollingRef.current = null;
+    }
+    const tryAttach = () => {
+      const container = ytBodyContainerRef.current;
+      if (!container) return false;
+      if (!isOnJukeboxPageRef.current) {
+        // ページを離脱済みなら退避して終了
+        retreatContainer();
+        return true;
+      }
+      const anchor = document.getElementById("jukebox-yt-holder");
+      if (!anchor) return false;
+      const r = anchor.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return false;
+      container.style.left = `${r.left}px`;
+      container.style.top = `${r.top + window.scrollY}px`;
+      container.style.width = `${r.width}px`;
+      container.style.height = `${r.height}px`;
+      container.style.opacity = "1";
+      container.style.zIndex = "10";
+      return true;
+    };
+    if (!tryAttach()) {
+      let attempts = 0;
+      anchorPollingRef.current = setInterval(() => {
+        attempts++;
+        if (tryAttach() || attempts > 50) {
+          clearInterval(anchorPollingRef.current!);
+          anchorPollingRef.current = null;
+        }
+      }, 20);
+    }
+  }, [retreatContainer]);
+
+  const updateContainerPosition = useCallback(() => {
+    if (isOnJukeboxPageRef.current) {
+      attachToAnchor();
+    } else {
+      retreatContainer();
+    }
+  }, [attachToAnchor, retreatContainer]);
   const updateContainerPositionRef = useRef(updateContainerPosition);
   updateContainerPositionRef.current = updateContainerPosition;
 
@@ -472,6 +495,10 @@ export function GlobalJukeboxPlayer() {
   useEffect(() => {
     return () => {
       if (Platform.OS !== "web") return;
+      if (anchorPollingRef.current) {
+        clearInterval(anchorPollingRef.current);
+        anchorPollingRef.current = null;
+      }
       ytSyncCleanupRef.current?.();
       ytSyncCleanupRef.current = null;
       if (youtubePlayerRef.current) {
@@ -488,24 +515,30 @@ export function GlobalJukeboxPlayer() {
   // isOnJukeboxPage が変わったらコンテナ位置を更新し、ミュート制御
   useEffect(() => {
     if (Platform.OS !== "web") return;
-    updateContainerPositionRef.current();
-    if (!isOnJukeboxPage && communityId) {
-      // jukebox ページから離脱時にキャッシュを強制リフレッシュして最新状態を取得
-      qc.invalidateQueries({ queryKey: [`/api/jukebox/${communityId}`] });
+    if (!isOnJukeboxPage) {
+      // ページ離脱時: 即座に退避（同期的）
+      retreatContainer();
+      if (communityId) {
+        qc.invalidateQueries({ queryKey: [`/api/jukebox/${communityId}`] });
+      }
+      if (youtubePlayerRef.current) {
+        try {
+          youtubePlayerRef.current.setVolume?.(100);
+          youtubePlayerRef.current.unMute?.();
+          youtubePlayerRef.current.playVideo?.();
+        } catch { /* ignore */ }
+      }
+    } else {
+      // ジュークボックスページに戻ったとき: ポーリングで位置移動
+      attachToAnchor();
+      if (youtubePlayerRef.current) {
+        try {
+          youtubePlayerRef.current.mute?.();
+          youtubePlayerRef.current.pauseVideo?.();
+        } catch { /* ignore */ }
+      }
     }
-    if (!isOnJukeboxPage && youtubePlayerRef.current) {
-      try {
-        youtubePlayerRef.current.setVolume?.(100);
-        youtubePlayerRef.current.unMute?.();
-        youtubePlayerRef.current.playVideo?.();
-      } catch { /* ignore */ }
-    } else if (isOnJukeboxPage && youtubePlayerRef.current) {
-      try {
-        youtubePlayerRef.current.mute?.();
-        youtubePlayerRef.current.pauseVideo?.();
-      } catch { /* ignore */ }
-    }
-  }, [isOnJukeboxPage]);
+  }, [isOnJukeboxPage, retreatContainer, attachToAnchor]);
 
   // コミュニティ/jukebox ページ以外では何も表示しない
   if (!communityId) return null;
@@ -591,7 +624,24 @@ export function GlobalJukeboxPlayer() {
           {/* 閉じる */}
           <Pressable
             style={styles.barIconBtn}
-            onPress={() => setDismissed(true)}
+            onPress={() => {
+              // IFrameを破棄して音も止める
+              if (Platform.OS === "web") {
+                retreatContainer();
+                if (youtubePlayerRef.current) {
+                  try { youtubePlayerRef.current.stopVideo?.(); } catch {}
+                  try { youtubePlayerRef.current.destroy?.(); } catch {}
+                  youtubePlayerRef.current = null;
+                }
+                if (ytBodyContainerRef.current) {
+                  ytSyncCleanupRef.current?.();
+                  ytSyncCleanupRef.current = null;
+                  ytBodyContainerRef.current.remove();
+                  ytBodyContainerRef.current = null;
+                }
+              }
+              setDismissed(true);
+            }}
           >
             <Ionicons name="close" size={18} color={C.textSec} />
           </Pressable>
