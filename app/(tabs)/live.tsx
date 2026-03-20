@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { C } from "@/constants/colors";
+import { F } from "@/constants/fonts";
 import { getTabTopInset, getTabBottomInset } from "@/constants/layout";
 import { MetallicLine } from "@/components/MetallicLine";
 import type { BookingSession } from "@/constants/data";
@@ -119,6 +120,101 @@ function formatNumber(n: number): string {
   if (n >= 1000) return (n / 1000).toFixed(1) + "K";
   return n.toLocaleString();
 }
+
+// ─── Creator Rank Data ────────────────────────────────────────────────────────
+const DUMMY_CREATORS: Record<string, any[]> = {
+  WEEKLY: [
+    { id: 1, rank: 1, avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&h=60&fit=crop", name: "Yuki", community: "地下アイドル界隈", heatScore: 9840, totalViews: 124000, revenue: 480000, streamCount: 32, followers: 8900 },
+    { id: 2, rank: 2, avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=60&h=60&fit=crop", name: "Kenji", community: "英会話クラブ", heatScore: 7210, totalViews: 98000, revenue: 320000, streamCount: 18, followers: 5400 },
+    { id: 3, rank: 3, avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=60&h=60&fit=crop", name: "Hana", community: "占いサロン", heatScore: 5630, totalViews: 76000, revenue: 210000, streamCount: 24, followers: 4200 },
+  ],
+  MONTHLY: [
+    { id: 1, rank: 1, avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&h=60&fit=crop", name: "Yuki", community: "地下アイドル界隈", heatScore: 42000, totalViews: 520000, revenue: 1800000, streamCount: 120, followers: 8900 },
+    { id: 2, rank: 2, avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=60&h=60&fit=crop", name: "Kenji", community: "英会話クラブ", heatScore: 31000, totalViews: 410000, revenue: 1200000, streamCount: 72, followers: 5400 },
+    { id: 3, rank: 3, avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=60&h=60&fit=crop", name: "Hana", community: "占いサロン", heatScore: 22000, totalViews: 310000, revenue: 890000, streamCount: 88, followers: 4200 },
+  ],
+  ALL: [
+    { id: 1, rank: 1, avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&h=60&fit=crop", name: "Yuki", community: "地下アイドル界隈", heatScore: 198000, totalViews: 2400000, revenue: 8200000, streamCount: 480, followers: 8900 },
+    { id: 2, rank: 2, avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=60&h=60&fit=crop", name: "Kenji", community: "英会話クラブ", heatScore: 145000, totalViews: 1800000, revenue: 5600000, streamCount: 320, followers: 5400 },
+    { id: 3, rank: 3, avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=60&h=60&fit=crop", name: "Hana", community: "占いサロン", heatScore: 98000, totalViews: 1200000, revenue: 3800000, streamCount: 240, followers: 4200 },
+  ],
+};
+
+function CreatorRankCard({ item }: { item: any }) {
+  const borderColor = item.rank === 1 ? C.orange : item.rank === 2 ? C.textSec : item.rank === 3 ? "#cd7f32" : C.border;
+  return (
+    <Pressable
+      style={[crStyles.creatorCard, { borderColor }]}
+      onPress={() => router.push(`/livers/${item.id}`)}
+    >
+      <View style={crStyles.creatorHeader}>
+        <View style={[crStyles.rankCircle, { backgroundColor: item.rank <= 3 ? C.orange : C.surface3 }]}>
+          <Text style={crStyles.rankCircleText}>{item.rank}</Text>
+        </View>
+        <Image source={{ uri: item.avatar }} style={crStyles.creatorAvatar} contentFit="cover" />
+        <View style={{ flex: 1 }}>
+          <Text style={crStyles.creatorName} numberOfLines={1}>{item.name}</Text>
+          <Text style={crStyles.creatorCommunity} numberOfLines={1}>{item.community}</Text>
+        </View>
+      </View>
+      <View style={crStyles.heatRow}>
+        <Ionicons name="flame" size={12} color={C.orange} />
+        <Text style={crStyles.heatLabel}>経済的熱量</Text>
+        <Text style={crStyles.heatValue}>{item.heatScore.toLocaleString()}B</Text>
+      </View>
+      <View style={crStyles.creatorStats}>
+        {[
+          { icon: "eye-outline", label: "累計視聴", value: formatNumber(item.totalViews) },
+          { icon: "cash-outline", label: "総収益", value: `¥${item.revenue.toLocaleString()}` },
+          { icon: "people-outline", label: "フォロワー", value: formatNumber(item.followers) },
+        ].map((r) => (
+          <View key={r.label} style={crStyles.statRow}>
+            <Ionicons name={r.icon as any} size={11} color={C.textSec} />
+            <Text style={crStyles.statLabel}>{r.label}</Text>
+            <Text style={crStyles.statValue}>{r.value}</Text>
+          </View>
+        ))}
+      </View>
+    </Pressable>
+  );
+}
+
+const crStyles = StyleSheet.create({
+  creatorCard: {
+    width: 220,
+    backgroundColor: C.surface,
+    borderRadius: 2,
+    padding: 14,
+    borderWidth: 1.5,
+    gap: 8,
+  },
+  creatorHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  rankCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rankCircleText: { color: "#fff", fontSize: 15, fontFamily: F.display, fontWeight: "800" },
+  creatorAvatar: { width: 42, height: 42, borderRadius: 2, borderWidth: 1.5, borderColor: C.accent },
+  creatorName: { color: C.text, fontSize: 13, fontWeight: "700", fontFamily: F.display },
+  creatorCommunity: { color: C.textSec, fontSize: 10, marginTop: 2, fontFamily: F.mono },
+  heatRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: C.surface2,
+    borderRadius: 2,
+    padding: 8,
+  },
+  heatLabel: { color: C.textSec, fontSize: 10, flex: 1, fontFamily: F.mono },
+  heatValue: { color: C.orange, fontSize: 18, fontFamily: F.display, fontWeight: "800" },
+  creatorStats: { gap: 5 },
+  statRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  statLabel: { color: C.textSec, fontSize: 11, flex: 1 },
+  statValue: { color: C.text, fontSize: 12, fontWeight: "700" },
+});
 
 type PublicScope = "public" | "invite" | "twoshot";
 type FeeType = "free" | "paid";
@@ -305,6 +401,7 @@ export default function LiveScreen() {
   const [activeTab, setActiveTab] = useState<"now" | "booking">("now");
   const [modalVisible, setModalVisible] = useState(false);
   const [liveSearch, setLiveSearch] = useState("");
+  const [creatorFilter, setCreatorFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("MONTHLY");
 
   const { data: liveStreams = [] } = useQuery<any[]>({ queryKey: ["/api/live-streams"] });
   const { data: bookingSessions = [] } = useQuery<any[]>({ queryKey: ["/api/booking-sessions"] });
@@ -415,6 +512,39 @@ export default function LiveScreen() {
             </View>
           </View>
         )}
+        {/* ── Creator Ranking ── */}
+        <View style={{ height: 20 }} />
+        <View style={{ height: 1, backgroundColor: C.border, marginHorizontal: 16 }} />
+        <View style={{ height: 20 }} />
+        <View style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: 16,
+          marginBottom: 12,
+        }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ width: 3, height: 20, borderRadius: 1, backgroundColor: C.accent }} />
+            <Text style={{ color: C.text, fontSize: 22, fontFamily: F.display, fontWeight: "800", letterSpacing: 2 }}>CREATORS</Text>
+          </View>
+          <View style={{ flexDirection: "row", gap: 4 }}>
+            {(["WEEKLY", "MONTHLY", "ALL"] as const).map((f) => (
+              <Pressable
+                key={f}
+                style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 2, backgroundColor: creatorFilter === f ? C.accent : C.surface2 }}
+                onPress={() => setCreatorFilter(f)}
+              >
+                <Text style={{ color: creatorFilter === f ? "#000" : C.textSec, fontSize: 9, fontFamily: F.mono, letterSpacing: 0.8 }}>{f}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 4, gap: 12 }}>
+          {DUMMY_CREATORS[creatorFilter].map((c: any) => (
+            <CreatorRankCard key={c.id} item={c} />
+          ))}
+        </ScrollView>
+
         <View style={{ height: 100 + bottomInset }} />
       </ScrollView>
 

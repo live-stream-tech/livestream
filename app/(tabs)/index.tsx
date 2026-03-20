@@ -386,7 +386,6 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [rankFilter, setRankFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("WEEKLY");
-  const [creatorFilter, setCreatorFilter] = useState<"WEEKLY" | "MONTHLY" | "ALL">("MONTHLY");
   const [videoFeedTab, setVideoFeedTab] = useState<FeedTab>("all");
   const [showAnnouncementsModal, setShowAnnouncementsModal] = useState(false);
 
@@ -462,7 +461,6 @@ export default function HomeScreen() {
 
   const usingDemoRanked = apiRanked.length === 0;
   const rankedVideos = usingDemoRanked ? DUMMY_RANKED[rankFilter] : apiRanked;
-  const creators = DUMMY_CREATORS[creatorFilter];
   const mentors = twoshotSessions.length > 0 ? twoshotSessions : DUMMY_MENTORS;
 
   const topInset = getTabTopInset(insets);
@@ -615,32 +613,6 @@ export default function HomeScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
           {rankedVideos.map((v: any, i: number) => (
             <RankedVideoCard key={v.id} item={v} isDemo={usingDemoRanked} rank={i + 1} />
-          ))}
-        </ScrollView>
-
-        {/* ── Creator Ranking ── */}
-        <View style={styles.sectionGap} />
-        <View style={styles.sectionDivider} />
-        <View style={styles.sectionGap} />
-        <SectionHeader
-          title="CREATORS"
-          right={
-            <View style={styles.filterPills}>
-              {(["WEEKLY", "MONTHLY", "ALL"] as const).map((f) => (
-                <Pressable
-                  key={f}
-                  style={[styles.filterPill, creatorFilter === f && styles.filterPillActive]}
-                  onPress={() => setCreatorFilter(f)}
-                >
-                  <Text style={[styles.filterPillText, creatorFilter === f && styles.filterPillTextActive]}>{f}</Text>
-                </Pressable>
-              ))}
-            </View>
-          }
-        />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-          {creators.map((c: any) => (
-            <CreatorRankCard key={c.id} item={c} />
           ))}
         </ScrollView>
 
