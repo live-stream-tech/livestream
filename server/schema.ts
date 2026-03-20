@@ -257,23 +257,10 @@ export const liveStreams = pgTable("live_streams", {
 export const streams = pgTable("streams", {
   id: serial("id").primaryKey(),
   cfLiveInputId: text("cf_live_input_id").notNull(),
-  /** WHIP ingest URL (WebRTC push 配信者用) */
-  whipUrl: text("whip_url"),
-  /** WHEP playback URL (WebRTC pull 視聴者用) */
   webRtcUrl: text("webrtc_url").notNull(),
   rtmpsUrl: text("rtmps_url").notNull(),
   rtmpsStreamKey: text("rtmps_stream_key").notNull(),
-  /** 配信者の users.id */
-  userId: integer("user_id"),
-  /** 配信タイトル */
-  title: text("title").notNull().default(""),
-  /** 配信中かどうか */
-  isActive: boolean("is_active").notNull().default(false),
   currentViewers: integer("current_viewers").notNull().default(0),
-  /** 同時接続上限（20人固定） */
-  maxViewers: integer("max_viewers").notNull().default(20),
-  startedAt: timestamp("started_at"),
-  endedAt: timestamp("ended_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -288,8 +275,6 @@ export const creators = pgTable("creators", {
   revenue: integer("revenue").notNull().default(0),
   streamCount: integer("stream_count").notNull().default(0),
   followers: integer("followers").notNull().default(0),
-  followersCount: integer("followers_count").notNull().default(0),
-  followingCount: integer("following_count").notNull().default(0),
   revenueShare: integer("revenue_share").notNull().default(80),
   satisfactionScore: real("satisfaction_score").notNull().default(0),
   attendanceRate: real("attendance_rate").notNull().default(0),
@@ -318,7 +303,6 @@ export const bookingSessions = pgTable("booking_sessions", {
 
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id"),
   type: text("type").notNull(),
   title: text("title").notNull(),
   body: text("body").notNull(),
@@ -341,23 +325,11 @@ export const liveStreamChat = pgTable("live_stream_chat", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const dmConversations = pgTable("dm_conversations", {
-  id: serial("id").primaryKey(),
-  user1Id: integer("user1_id").notNull(),
-  user2Id: integer("user2_id").notNull(),
-  lastMessage: text("last_message").default(""),
-  lastMessageAt: timestamp("last_message_at").defaultNow(),
-  unreadCount1: integer("unread_count1").default(0),
-  unreadCount2: integer("unread_count2").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-});
 export const dmConversationMessages = pgTable("dm_conversation_messages", {
   id: serial("id").primaryKey(),
   dmId: integer("dm_id").notNull(),
-  senderId: integer("sender_id"),
   sender: text("sender").notNull(),
-  text: text("text"),
-  imageUrl: text("image_url"),
+  text: text("text").notNull(),
   isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -444,12 +416,9 @@ export const users = pgTable("users", {
   googleRefreshToken: text("google_refresh_token"),
   googleAccessToken: text("google_access_token"),
   googleTokenExpiresAt: timestamp("google_token_expires_at"),
-  /** フォロワー数・フォロー数 */
-  followersCount: integer("followers_count").notNull().default(0),
-  followingCount: integer("following_count").notNull().default(0),
   /** エニアグラム9型スコア（JSON配列 [1-9]） */
   enneagramScores: text("enneagram_scores"),
-  /** プロフィールに表示する厳選コミュニティ４つ（JSON配列 [communityId, ...]） */
+  /** プロフィールに表示する厳選コミュニティ4つ（JSON配列 [communityId, ...]） */
   pinnedCommunityIds: text("pinned_community_ids"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -614,49 +583,45 @@ export const announcements = pgTable("announcements", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const follows = pgTable("follows", {
-  id: serial("id").primaryKey(),
-  followerId: integer("follower_id").notNull(), // フォローする側
-  followingId: integer("following_id").notNull(), // フォローされる側
-  createdAt: timestamp("created_at").defaultNow(),
-});
+// ─── Coin System ──────────────────────────────────────────────────────────────
 
-// ─── メンターセッション（常時予約） ───────────────────────────────────────────
-
-export const mentorSessions = pgTable("mentor_sessions", {
+/**
+ * Coin balances per user.
+ * 1 coin = ¥30 (converted to local currency via Stripe at checkout).
+ */
+export const coinBalances = pgTable("coin_balances", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),           // クリエイターのユーザーID
-  title: text("title").notNull(),                 // セッション名
-  category: text("category").notNull().default("counselor"), // english/counselor/coaching/idol/yoga/fortune/other
-  description: text("description").notNull().default(""),
-  price: integer("price").notNull(),              // 円
-  duration: integer("duration").notNull().default(30), // 分
-  maxParticipants: integer("max_participants").notNull().default(1), // 1=1対1, 最大20
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at").defaultNow(),
+  userId: text("user_id").notNull().unique(),
+  balance: integer("balance").notNull().default(0),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const mentorBookings = pgTable("mentor_bookings", {
+/**
+ * Audit log of all coin movements.
+ * type: purchase | spend_jukebox | revenue_convert | refund
+ */
+export const coinTransactions = pgTable("coin_transactions", {
   id: serial("id").primaryKey(),
-  sessionId: integer("session_id").notNull(),     // mentor_sessions.id
-  slotId: integer("slot_id"),                     // liver_availability.id（日時スロット）
-  userId: integer("user_id").notNull(),           // 予約者
-  userName: text("user_name").notNull(),
-  userAvatar: text("user_avatar"),
-  scheduledAt: timestamp("scheduled_at").notNull(), // 予約日時（UTC）
-  price: integer("price").notNull(),
-  stripeSessionId: text("stripe_session_id"),
-  stripePaymentIntentId: text("stripe_payment_intent_id"),
-  status: text("status").notNull().default("pending"), // pending/confirmed/in_progress/completed/cancelled
-  // Cloudflare Stream Live Input（1対1ビデオ通話用）
-  cfLiveInputId: text("cf_live_input_id"),
-  whipUrl: text("whip_url"),                      // メンター側（配信）
-  whepUrl: text("whep_url"),                      // 参加者側（視聴）
-  rtmpsUrl: text("rtmps_url"),
-  rtmpsKey: text("rtmps_key"),
-  startedAt: timestamp("started_at"),
-  endedAt: timestamp("ended_at"),
-  cancelReason: text("cancel_reason"),
+  userId: text("user_id").notNull(),
+  /** Positive = credit, negative = debit */
+  amount: integer("amount").notNull(),
+  type: text("type").notNull(), // purchase | spend_jukebox | revenue_convert | refund
+  /** Stripe Payment Intent ID for purchases, jukebox queue item ID for spending */
+  referenceId: text("reference_id"),
+  description: text("description"),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+/**
+ * Tracks daily jukebox request counts per user per community.
+ * First 3 per day are free; 4th+ costs 1 coin (¥30).
+ */
+export const jukeboxRequestCounts = pgTable("jukebox_request_counts", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  communityId: integer("community_id").notNull(),
+  /** Date in YYYY-MM-DD format (UTC) */
+  date: text("date").notNull(),
+  count: integer("count").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });

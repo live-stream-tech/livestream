@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { currentUser, userRevenueStats, revenueTransactions, payoutRequests } from "../data/mockData";
 import {
@@ -16,6 +16,9 @@ import {
   ShieldAlert,
   ChevronRight,
   PieChart as PieChartIcon,
+  Coins,
+  ShoppingCart,
+  X,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -40,6 +43,43 @@ export default function Revenue() {
   const [showKycModal, setShowKycModal] = useState(false);
   const [isKycVerified, setIsKycVerified] = useState(currentUser.isKycVerified);
 
+  // ─── Coin system ───────────────────────────────────────────────────────────────
+  const [coinBalance, setCoinBalance] = useState<number | null>(null);
+  const [showBuyModal, setShowBuyModal] = useState(false);
+  const [buyingPackage, setBuyingPackage] = useState<string | null>(null);
+
+  const COIN_PACKAGES = [
+    { id: "pack-1",  coins: 1,  priceGBP: "£0.16", label: "1 Coin" },
+    { id: "pack-5",  coins: 5,  priceGBP: "£0.75", label: "5 Coins", badge: "Popular" },
+    { id: "pack-10", coins: 10, priceGBP: "£1.40", label: "10 Coins" },
+    { id: "pack-30", coins: 30, priceGBP: "£3.90", label: "30 Coins", badge: "Best Value" },
+  ];
+
+  useEffect(() => {
+    fetch("/api/coins/balance")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d && setCoinBalance(d.balance))
+      .catch(() => {});
+  }, []);
+
+  const handleBuyCoins = async (packageId: string) => {
+    setBuyingPackage(packageId);
+    try {
+      const res = await fetch("/api/coins/create-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packageId, origin: window.location.origin }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const { url } = await res.json();
+      if (url) window.location.href = url;
+    } catch {
+      alert("Failed to start payment. Please try again.");
+    } finally {
+      setBuyingPackage(null);
+    }
+  };
+
   if (!currentUser.isLoggedIn) {
     return (
       <div className="min-h-screen bg-[#334155] p-6 flex flex-col items-center justify-center text-center text-white">
@@ -50,26 +90,26 @@ export default function Revenue() {
   }
 
   const pieData = [
-    { name: "ライブ配信", value: userRevenueStats.bySource.liveStreams },
-    { name: "動画販売", value: userRevenueStats.bySource.videoSales },
-    { name: "投げ銭", value: userRevenueStats.bySource.tips },
-    { name: "編集動画", value: userRevenueStats.bySource.editedVideos },
+    { name: "Live Streams", value: userRevenueStats.bySource.liveStreams },
+    { name: "Video Sales", value: userRevenueStats.bySource.videoSales },
+    { name: "Tips", value: userRevenueStats.bySource.tips },
+    { name: "Edited Videos", value: userRevenueStats.bySource.editedVideos },
   ];
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return <span className="text-[10px] bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded font-black uppercase tracking-tighter">分配待ち</span>;
+        return <span className="text-[10px] bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded font-black uppercase tracking-tighter">Pending</span>;
       case "distributed":
-        return <span className="text-[10px] bg-green-500/20 text-green-500 px-2 py-0.5 rounded font-black uppercase tracking-tighter">分配完了</span>;
+        return <span className="text-[10px] bg-green-500/20 text-green-500 px-2 py-0.5 rounded font-black uppercase tracking-tighter">Distributed</span>;
       case "refunded":
-        return <span className="text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded font-black uppercase tracking-tighter">返金済み</span>;
+        return <span className="text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded font-black uppercase tracking-tighter">Refunded</span>;
       case "processing":
-        return <span className="text-[10px] bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded font-black uppercase tracking-tighter">処理中</span>;
+        return <span className="text-[10px] bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded font-black uppercase tracking-tighter">Processing</span>;
       case "completed":
-        return <span className="text-[10px] bg-green-500/20 text-green-500 px-2 py-0.5 rounded font-black uppercase tracking-tighter">完了</span>;
+        return <span className="text-[10px] bg-green-500/20 text-green-500 px-2 py-0.5 rounded font-black uppercase tracking-tighter">Completed</span>;
       case "failed":
-        return <span className="text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded font-black uppercase tracking-tighter">失敗</span>;
+        return <span className="text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded font-black uppercase tracking-tighter">Failed</span>;
       default:
         return null;
     }
@@ -77,10 +117,10 @@ export default function Revenue() {
 
   const getTypeLabel = (type: string) => {
     switch (type) {
-      case "live_stream": return "ライブ配信";
-      case "video_sale": return "動画販売";
-      case "tip": return "投げ銭";
-      case "edited_video": return "編集済み動画";
+      case "live_stream": return "Live Stream";
+      case "video_sale": return "Video Sale";
+      case "tip": return "Tip";
+      case "edited_video": return "Edited Video";
       default: return type;
     }
   };
@@ -135,6 +175,29 @@ export default function Revenue() {
       <div className="p-4">
         {selectedTab === "overview" && (
           <div className="space-y-6">
+            {/* Coin Balance Card */}
+            <div className="bg-gradient-to-br from-yellow-600/30 to-yellow-500/10 border border-yellow-500/30 rounded-2xl p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                  <Coins size={20} className="text-yellow-400" />
+                </div>
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-yellow-400/70">Jukebox Coins</p>
+                  <p className="text-xl font-black italic tracking-tighter text-yellow-400">
+                    {coinBalance !== null ? coinBalance : "--"}
+                  </p>
+                  <p className="text-[9px] text-yellow-400/50">1 coin = ¥30 / £0.16</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowBuyModal(true)}
+                className="flex items-center gap-1.5 bg-yellow-500/20 border border-yellow-500/40 rounded-xl px-3 py-2 text-yellow-400 hover:bg-yellow-500/30 transition-colors text-xs font-bold"
+              >
+                <ShoppingCart size={14} />
+                Buy Coins
+              </button>
+            </div>
+
             {/* Main Stats */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-gradient-to-br from-[#0891B2] to-[#0d9488] rounded-2xl p-5 shadow-2xl shadow-[#0891B2]/20 border border-white/10 relative overflow-hidden group">
@@ -219,7 +282,7 @@ export default function Revenue() {
                         color: "white"
                       }}
                       itemStyle={{ color: "#0891B2" }}
-                      formatter={(value: number) => [`¥${value.toLocaleString()}`, "収益"]}
+                      formatter={(value: number) => [`¥${value.toLocaleString()}`, "Revenue"]}
                     />
                     <Line
                       type="monotone"
@@ -282,7 +345,7 @@ export default function Revenue() {
                   <div className="min-w-0">
                     <h4 className="text-xs font-black uppercase tracking-widest text-amber-500 mb-1">Identity verification required</h4>
                     <p className="text-[10px] text-slate-400 leading-relaxed mb-4">
-                      出金申請を行うには、マイナンバーカードによる本人確認が必要です。セキュリティのためご協力をお願いします。
+                      Identity verification is required to request a payout. Please complete KYC to proceed.
                     </p>
                     <AppButton variant="amber" size="sm" onClick={() => setShowKycModal(true)}>
                       Start Verification
@@ -318,7 +381,7 @@ export default function Revenue() {
         {selectedTab === "transactions" && (
           <div className="space-y-4">
             <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-              {["すべて", "ライブ配信", "動画販売", "投げ銭", "編集済み"].map((filter, i) => (
+              {["All", "Live Streams", "Video Sales", "Tips", "Edited"].map((filter, i) => (
                 <button
                   key={filter}
                   className={`flex-shrink-0 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
@@ -420,7 +483,7 @@ export default function Revenue() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-white uppercase tracking-tight">Bank Transfer</p>
-                      <p className="text-[10px] text-slate-400 font-bold">三菱UFJ銀行 • *** 1234567</p>
+                      <p className="text-[10px] text-slate-400 font-bold">Barclays Bank • *** 1234567</p>
                     </div>
                   </div>
                   <div className="w-5 h-5 rounded-full border-4 border-[#0891B2] flex items-center justify-center">
@@ -489,6 +552,60 @@ export default function Revenue() {
         onClose={() => setShowKycModal(false)} 
         onVerified={() => setIsKycVerified(true)} 
       />
+
+      {/* Buy Coins Modal */}
+      {showBuyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm bg-slate-800 rounded-2xl p-5 space-y-4 border border-slate-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-white font-black text-base italic tracking-tighter uppercase">Buy Jukebox Coins</h3>
+                <p className="text-slate-400 text-xs mt-0.5">1 coin = ¥30 / £0.16 · Use to request tracks</p>
+              </div>
+              <button onClick={() => setShowBuyModal(false)} className="text-slate-400 hover:text-white transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {COIN_PACKAGES.map((pkg) => (
+                <button
+                  key={pkg.id}
+                  onClick={() => handleBuyCoins(pkg.id)}
+                  disabled={buyingPackage !== null}
+                  className="w-full flex items-center justify-between bg-slate-700/50 border border-slate-600 rounded-xl p-3.5 hover:bg-slate-700 hover:border-yellow-500/40 transition-colors disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                      <Coins size={16} className="text-yellow-400" />
+                    </div>
+                    <div className="text-left">
+                      <div className="flex items-center gap-2">
+                        <span className="text-white text-sm font-bold">{pkg.label}</span>
+                        {pkg.badge && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                            {pkg.badge}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-slate-400 text-xs">{pkg.priceGBP}</p>
+                    </div>
+                  </div>
+                  {buyingPackage === pkg.id ? (
+                    <div className="w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <ShoppingCart size={16} className="text-slate-400" />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <p className="text-slate-500 text-[10px] text-center">
+              Payments processed securely by Stripe. Coins never expire.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,7 +2,6 @@ import type { Express, Request, Response } from "express";
 import { db } from "./db";
 import {
   communities,
-  follows,
   communityModerators,
   communityMembers,
   videos,
@@ -18,7 +17,6 @@ import {
   jukeboxQueue,
   jukeboxChat,
   liveStreamChat,
-  dmConversations,
   dmConversationMessages,
   twoshotBookings,
   earnings,
@@ -44,18 +42,20 @@ import {
   genreOwners,
   concerts,
   concertStaff,
-  mentorSessions,
-  mentorBookings,
+  coinBalances,
+  coinTransactions,
+  jukeboxRequestCounts,
 } from "./schema";
 import { eq, asc, desc, count, sql, and, or, gte, lte, isNull, inArray } from "drizzle-orm";
 import { getUncachableStripeClient, getStripePublishableKey, createConnectExpressAccount, createConnectAccountLink, getConnectAccount, createBannerPaymentIntent, getPaymentIntentStatus } from "./stripeClient";
 import { getMonthlyRevenueRank } from "./aggregateRevenue";
 import { judgeReportContent } from "./claudeReport";
 import { createSignedUploadUrl } from "./r2";
+import { moderateContent } from "./moderation";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
-const JWT_SECRET = process.env.SESSION_SECRET ?? "rawstock-dev-secret";
+const JWT_SECRET = process.env.SESSION_SECRET ?? "livestage-dev-secret";
 const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? "";
 const CLOUDFLARE_STREAM_TOKEN = process.env.CLOUDFLARE_STREAM_TOKEN ?? "";
 
@@ -167,8 +167,6 @@ export async function registerRoutes(app: Express): Promise<void> {
     const [u] = await db.select({
       enneagramScores: users.enneagramScores,
       pinnedCommunityIds: users.pinnedCommunityIds,
-      followersCount: users.followersCount,
-      followingCount: users.followingCount,
     }).from(users).where(eq(users.id, user.id));
     let enneagramScores: number[] | null = null;
     let pinnedCommunityIds: number[] = [];
@@ -204,8 +202,6 @@ export async function registerRoutes(app: Express): Promise<void> {
       phoneNumber: (user as any).phoneNumber ?? null,
       enneagramScores,
       pinnedCommunityIds,
-      followersCount: (u as any)?.followersCount ?? 0,
-      followingCount: (u as any)?.followingCount ?? 0,
     });
   });
 
@@ -537,8 +533,6 @@ export async function registerRoutes(app: Express): Promise<void> {
       bandcampUrl: users.bandcampUrl,
       enneagramScores: users.enneagramScores,
       pinnedCommunityIds: users.pinnedCommunityIds,
-      followersCount: users.followersCount,
-      followingCount: users.followingCount,
     }).from(users).where(eq(users.id, id));
     if (!u) return res.status(404).json({ error: "Not found" });
 
@@ -586,8 +580,6 @@ export async function registerRoutes(app: Express): Promise<void> {
       bandcampUrl: (u as any).bandcampUrl ?? null,
       enneagramScores,
       pinnedCommunities,
-      followersCount: (u as any).followersCount ?? 0,
-      followingCount: (u as any).followingCount ?? 0,
     });
   });
 
@@ -599,26 +591,14 @@ export async function registerRoutes(app: Express): Promise<void> {
   const LINE_CALLBACK_URL = process.env.LINE_CALLBACK_URL ?? "https://livestream-nu-ten.vercel.app/api/auth/line-callback";
   const FRONTEND_URL = (process.env.FRONTEND_URL ?? "").replace(/\/$/, "");
   const lineRedirect = (path: string) => (FRONTEND_URL ? `${FRONTEND_URL}${path}` : path);
-  /**
-   * 同一タブリダイレクト方式の認証コールバック。
-   * 成功時: /auth/callback?token=xxx にリダイレクト
-   * 失敗時: /auth/login?line_error=xxx にリダイレクト
-   */
-  const authCallback = (res: Response, token: string | null, error: string | null) => {
-    if (token) {
-      return res.redirect(lineRedirect(`/auth/callback?token=${encodeURIComponent(token)}`));
-    } else {
-      return res.redirect(lineRedirect(`/auth/login?line_error=${encodeURIComponent(error || "unknown")}`));
-    }
-  };
-  const LINE_STATE = "rawstock-line-state";
+  const LINE_STATE = "livestage-line-state";
 
   // ── Google OAuth ──────────────────────────────────────────────────
   const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
   const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
   const GOOGLE_CALLBACK_URL =
     process.env.GOOGLE_CALLBACK_URL ?? "https://livestream-nu-ten.vercel.app/api/auth/google-callback";
-  const GOOGLE_STATE = "rawstock-google-state";
+  const GOOGLE_STATE = "livestage-google-state";
   const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY ?? "";
 
   app.get("/api/auth/status", (_req: Request, res: Response) => {
@@ -667,7 +647,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const code = req.query.code as string;
     const state = req.query.state as string;
     if (!code || state !== GOOGLE_STATE) {
-      return authCallback(res, null, "invalid_state");
+      return res.redirect(lineRedirect("/?line_error=invalid_state"));
     }
     try {
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -689,7 +669,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         error?: string;
       };
       if (!tokenData.access_token) {
-        return authCallback(res, null, "token_failed");
+        return res.redirect(lineRedirect("/?line_error=token_failed"));
       }
 
       const profileRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
@@ -702,7 +682,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         email?: string;
       };
       if (!profile.sub) {
-        return authCallback(res, null, "profile_failed");
+        return res.redirect(lineRedirect("/?line_error=profile_failed"));
       }
 
       const googleKey = `google:${profile.sub}`;
@@ -744,10 +724,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
 
       const jwtToken = makeToken(existing.id);
-      authCallback(res, jwtToken, null);
+      res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
     } catch (err) {
       console.error("Google callback error:", err);
-      authCallback(res, null, "server_error");
+      res.redirect(lineRedirect("/?line_error=server_error"));
     }
   });
 
@@ -946,7 +926,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const state = req.query.state as string;
     console.log("[LINE callback/line] received", { hasCode: !!code, stateMatch: state === LINE_STATE });
     if (!code || state !== LINE_STATE) {
-      return authCallback(res, null, "invalid_state");
+      return res.redirect(lineRedirect("/?line_error=invalid_state"));
     }
     try {
       const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
@@ -964,7 +944,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       if (!tokenData.access_token) {
         console.error("[LINE callback] token failed", tokenData);
         const err = tokenData.error_description ?? tokenData.error ?? "token_failed";
-        return authCallback(res, null, err);
+        return res.redirect(lineRedirect(`/?line_error=${encodeURIComponent(err)}`));
       }
 
       const profileRes = await fetch("https://api.line.me/v2/profile", {
@@ -973,7 +953,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const profile = await profileRes.json() as { userId?: string; displayName?: string; pictureUrl?: string };
       if (!profile.userId) {
         console.error("[LINE callback] profile failed", profile);
-        return authCallback(res, null, "profile_failed");
+        return res.redirect(lineRedirect("/?line_error=profile_failed"));
       }
 
       const lineId = profile.userId;
@@ -1001,10 +981,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
 
       const jwtToken = makeToken(existing.id);
-      authCallback(res, jwtToken, null);
+      res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
     } catch (err) {
       console.error("LINE callback error:", err);
-      authCallback(res, null, "server_error");
+      res.redirect(lineRedirect("/?line_error=server_error"));
     }
   });
 
@@ -1014,7 +994,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const state = req.query.state as string;
     console.log("[LINE callback] received", { hasCode: !!code, stateMatch: state === LINE_STATE });
     if (!code || state !== LINE_STATE) {
-      return authCallback(res, null, "invalid_state");
+      return res.redirect(lineRedirect("/?line_error=invalid_state"));
     }
     try {
       const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
@@ -1032,7 +1012,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       if (!tokenData.access_token) {
         console.error("[LINE callback] token failed", tokenData);
         const err = tokenData.error_description ?? tokenData.error ?? "token_failed";
-        return authCallback(res, null, err);
+        return res.redirect(lineRedirect(`/?line_error=${encodeURIComponent(err)}`));
       }
 
       const profileRes = await fetch("https://api.line.me/v2/profile", {
@@ -1041,7 +1021,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const profile = await profileRes.json() as { userId?: string; displayName?: string; pictureUrl?: string };
       if (!profile.userId) {
         console.error("[LINE callback] profile failed", profile);
-        return authCallback(res, null, "profile_failed");
+        return res.redirect(lineRedirect("/?line_error=profile_failed"));
       }
 
       const lineId = profile.userId;
@@ -1070,7 +1050,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
       const jwtToken = makeToken(existing.id);
       console.log("[LINE callback] success", { userId: existing.id });
-      authCallback(res, jwtToken, null);
+      res.redirect(lineRedirect(`/?line_token=${encodeURIComponent(jwtToken)}`));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[LINE callback] server_error", err);
@@ -1349,6 +1329,12 @@ export async function registerRoutes(app: Express): Promise<void> {
     if (memberRows.length === 0) return res.status(403).json({ error: "コミュニティに参加してください" });
     const { title, body } = req.body as { title?: string; body?: string };
     if (!title || !title.trim()) return res.status(400).json({ error: "タイトルを入力してください" });
+    // コンテンツモデレーション（タイトル＋本文を結合してチェック）
+    const combinedText = [title, body].filter(Boolean).join(" ");
+    const modResult = await moderateContent(combinedText);
+    if (!modResult.allowed) {
+      return res.status(400).json({ error: modResult.reason ?? "不適切なコンテンツが含まれています" });
+    }
     const [row] = await db
       .insert(communityThreads)
       .values({
@@ -1442,6 +1428,11 @@ export async function registerRoutes(app: Express): Promise<void> {
     if (memberRows.length === 0) return res.status(403).json({ error: "コミュニティに参加してください" });
     const { body } = req.body as { body?: string };
     if (!body || !body.trim()) return res.status(400).json({ error: "本文を入力してください" });
+    // コンテンツモデレーション
+    const modResult = await moderateContent(body);
+    if (!modResult.allowed) {
+      return res.status(400).json({ error: modResult.reason ?? "不適切なコンテンツが含まれています" });
+    }
     const [row] = await db
       .insert(communityThreadPosts)
       .values({
@@ -2417,7 +2408,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
       const existing = await db.select().from(genreOwners).where(eq(genreOwners.genreId, gid)).limit(1);
       if (existing.length > 0) {
-        await db.update(genreOwners).set({ ownerUserId: top.adminId, updatedAt: sql`now()` } as unknown as Partial<typeof genreOwners.$inferInsert>).where(eq(genreOwners.genreId, gid));
+        await db.update(genreOwners).set({ ownerUserId: top.adminId, updatedAt: sql`now()` } as any).where(eq(genreOwners.genreId, gid));
       } else {
         await db.insert(genreOwners).values({ genreId: gid, ownerUserId: top.adminId } as typeof genreOwners.$inferInsert);
       }
@@ -2511,7 +2502,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       .orderBy(desc(videos.createdAt));
     // visibility=community の投稿のみ一覧に表示（既存データは visibility 未設定時も表示）
     rows = rows.filter((r) => (r as any).visibility !== "draft" && (r as any).visibility !== "my_page_only");
-    const names = [...new Set(rows.map((r) => r.creator))];
+    const names = Array.from(new Set(rows.map((r) => r.creator)));
     const userMap = new Map<string, number>();
     const creatorMap = new Map<string, number>();
     if (names.length > 0) {
@@ -2856,69 +2847,35 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // ── DM Messages ───────────────────────────────────────────────────
-  // ── DM List（実ユーザー対応）──────────────────────────────────────
-  app.get("/api/dm-messages", async (req: Request, res: Response) => {
-    const me = (req as any).user;
-    if (!me) return res.status(401).json({ error: "Unauthorized" });
-    const convs = await db.select().from(dmConversations)
-      .where(or(eq(dmConversations.user1Id, me.id), eq(dmConversations.user2Id, me.id)))
-      .orderBy(desc(dmConversations.lastMessageAt));
-    const result = await Promise.all(convs.map(async (c) => {
-      const otherId = c.user1Id === me.id ? c.user2Id : c.user1Id;
-      const [other] = await db.select({ id: users.id, displayName: users.displayName, profileImageUrl: users.profileImageUrl }).from(users).where(eq(users.id, otherId));
-      const unread = c.user1Id === me.id ? (c.unreadCount1 ?? 0) : (c.unreadCount2 ?? 0);
-      return { id: c.id, name: other?.displayName ?? "ユーザー", avatar: other?.profileImageUrl ?? null, lastMessage: c.lastMessage ?? "", time: c.lastMessageAt ? new Date(c.lastMessageAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" }) : "", unread, online: false, otherUserId: otherId };
-    }));
-    res.json(result);
-  });
-  app.post("/api/dm-messages/start", async (req: Request, res: Response) => {
-    const me = (req as any).user;
-    if (!me) return res.status(401).json({ error: "Unauthorized" });
-    const { targetUserId } = req.body as { targetUserId: number };
-    if (!targetUserId || targetUserId === me.id) return res.status(400).json({ error: "Invalid target" });
-    const u1 = Math.min(me.id, targetUserId);
-    const u2 = Math.max(me.id, targetUserId);
-    let [conv] = await db.select().from(dmConversations).where(and(eq(dmConversations.user1Id, u1), eq(dmConversations.user2Id, u2)));
-    if (!conv) {
-      [conv] = await db.insert(dmConversations).values({ user1Id: u1, user2Id: u2 } as typeof dmConversations.$inferInsert).returning();
-    }
-    res.json({ id: conv.id });
-  });
-  app.post("/api/dm-messages/:id/read", async (req: Request, res: Response) => {
-    const me = (req as any).user;
-    const id = paramNum(req, "id");
-    if (me) {
-      const [conv] = await db.select().from(dmConversations).where(eq(dmConversations.id, id));
-      if (conv) {
-        if (conv.user1Id === me.id) await db.update(dmConversations).set({ unreadCount1: 0 } as Partial<typeof dmConversations.$inferInsert>).where(eq(dmConversations.id, id));
-        else await db.update(dmConversations).set({ unreadCount2: 0 } as Partial<typeof dmConversations.$inferInsert>).where(eq(dmConversations.id, id));
-      }
-    }
-    res.json({ ok: true });
-  });
-  // ── Notifications ─────────────────────────────────────────────────
-  app.get("/api/notifications", async (req: Request, res: Response) => {
-    const me = (req as any).user;
-    if (!me) return res.status(401).json({ error: "Unauthorized" });
-    const type = queryStr(req, "type");
-    const baseWhere = eq(notifications.userId, me.id);
-    const rows = type && type !== "all"
-      ? await db.select().from(notifications).where(and(baseWhere, eq(notifications.type, type))).orderBy(desc(notifications.createdAt)).limit(50)
-      : await db.select().from(notifications).where(baseWhere).orderBy(desc(notifications.createdAt)).limit(50);
+  app.get("/api/dm-messages", async (_req: Request, res: Response) => {
+    const rows = await db.select().from(dmMessages).orderBy(asc(dmMessages.sortOrder));
     res.json(rows);
   });
-  app.get("/api/notifications/unread-count", async (req: Request, res: Response) => {
-    const me = (req as any).user;
-    if (!me) return res.json({ count: 0 });
-    const rows = await db.select({ id: notifications.id }).from(notifications).where(and(eq(notifications.userId, me.id), eq(notifications.isRead, false)));
-    res.json({ count: rows.length });
+
+  app.post("/api/dm-messages/:id/read", async (req: Request, res: Response) => {
+    const id = paramNum(req, "id");
+    const [updated] = await db
+      .update(dmMessages)
+      .set({ unread: 0 } as Partial<typeof dmMessages.$inferInsert>)
+      .where(eq(dmMessages.id, id))
+      .returning();
+    res.json(updated);
   });
-  app.post("/api/notifications/read-all", async (req: Request, res: Response) => {
-    const me = (req as any).user;
-    if (!me) return res.status(401).json({ error: "Unauthorized" });
-    await db.update(notifications).set({ isRead: true } as Partial<typeof notifications.$inferInsert>).where(eq(notifications.userId, me.id));
+
+  // ── Notifications ─────────────────────────────────────────────────
+  app.get("/api/notifications", async (req: Request, res: Response) => {
+    const type = queryStr(req, "type");
+    const rows = type && type !== "all"
+      ? await db.select().from(notifications).where(eq(notifications.type, type)).orderBy(desc(notifications.createdAt))
+      : await db.select().from(notifications).orderBy(desc(notifications.createdAt));
+    res.json(rows);
+  });
+
+  app.post("/api/notifications/read-all", async (_req: Request, res: Response) => {
+    await db.update(notifications).set({ isRead: true } as Partial<typeof notifications.$inferInsert>);
     res.json({ ok: true });
   });
+
   app.post("/api/notifications/:id/read", async (req: Request, res: Response) => {
     const id = paramNum(req, "id");
     const [updated] = await db
@@ -2928,6 +2885,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       .returning();
     res.json(updated);
   });
+
   // ── Live Stream single + chat ─────────────────────────────────────
   app.get("/api/live-streams/:id", async (req: Request, res: Response) => {
     const id = paramNum(req, "id");
@@ -2947,6 +2905,13 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.post("/api/live-streams/:id/chat", async (req: Request, res: Response) => {
     const id = paramNum(req, "id");
     const { username, avatar, message, isGift, giftAmount } = req.body;
+    // ギフトメッセージはモデレーション対象外（金額のみ）、通常メッセージはモデレーション実施
+    if (!isGift && message) {
+      const modResult = await moderateContent(message);
+      if (!modResult.allowed) {
+        return res.status(400).json({ error: modResult.reason ?? "不適切なコンテンツが含まれています" });
+      }
+    }
     const [msg] = await db.insert(liveStreamChat).values({
       streamId: id, username: username ?? "あなた", avatar, message,
       isGift: isGift ?? false, giftAmount: giftAmount ?? null,
@@ -2959,31 +2924,21 @@ export async function registerRoutes(app: Express): Promise<void> {
     const id = paramNum(req, "id");
     const msgs = await db.select().from(dmConversationMessages)
       .where(eq(dmConversationMessages.dmId, id))
-      .orderBy(asc(dmConversationMessages.createdAt))
-      .limit(100);
+      .orderBy(asc(dmConversationMessages.createdAt));
     res.json(msgs);
   });
+
   app.post("/api/dm-messages/:id/conversation", async (req: Request, res: Response) => {
-    const me = (req as any).user;
     const id = paramNum(req, "id");
-    const { text, imageUrl } = req.body;
-    if (!text && !imageUrl) return res.status(400).json({ error: "text or imageUrl required" });
-    const senderName = me?.displayName ?? "ユーザー";
+    const { text } = req.body;
     const [msg] = await db.insert(dmConversationMessages).values({
-      dmId: id, senderId: me?.id ?? null, sender: senderName, text: text ?? null, imageUrl: imageUrl ?? null, isRead: false,
+      dmId: id, sender: "me", text, isRead: true,
     } as typeof dmConversationMessages.$inferInsert).returning();
-    // 会話の最終メッセージを更新し、相手の未読カウントを増やす
-    const [conv] = await db.select().from(dmConversations).where(eq(dmConversations.id, id));
-    if (conv && me) {
-      const isUser1 = conv.user1Id === me.id;
-      await db.update(dmConversations).set({
-        lastMessage: text ?? "📷 画像",
-        lastMessageAt: new Date(),
-        ...(isUser1 ? { unreadCount2: (conv.unreadCount2 ?? 0) + 1 } : { unreadCount1: (conv.unreadCount1 ?? 0) + 1 }),
-      } as Partial<typeof dmConversations.$inferInsert>).where(eq(dmConversations.id, id));
-    }
+    // Update last message in dm_messages
+    await db.update(dmMessages).set({ lastMessage: text, unread: 0 } as Partial<typeof dmMessages.$inferInsert>).where(eq(dmMessages.id, id));
     res.json(msg);
   });
+
   // ── Jukebox ───────────────────────────────────────────────────────
   app.get("/api/jukebox/:communityId", async (req: Request, res: Response) => {
     const communityId = paramNum(req, "communityId");
@@ -2997,7 +2952,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const queue = await db
       .select()
       .from(jukeboxQueue)
-      .where(and(eq(jukeboxQueue.communityId, communityId), eq(jukeboxQueue.isPlayed, false)))
+      .where(eq(jukeboxQueue.communityId, communityId))
       .orderBy(asc(jukeboxQueue.position));
 
     let state = stateRaw ?? null;
@@ -3080,18 +3035,15 @@ export async function registerRoutes(app: Express): Promise<void> {
       ? await db
           .select()
           .from(jukeboxQueue)
-          .where(and(eq(jukeboxQueue.communityId, communityId), eq(jukeboxQueue.isPlayed, false)))
+          .where(eq(jukeboxQueue.communityId, communityId))
           .orderBy(asc(jukeboxQueue.position))
       : queue;
 
-    // 最新 30 件のみ取得（ライブ感重視、古いメッセージは流れる）
-    const chatRaw = await db
+    const chat = await db
       .select()
       .from(jukeboxChat)
       .where(eq(jukeboxChat.communityId, communityId))
-      .orderBy(desc(jukeboxChat.createdAt))
-      .limit(30);
-    const chat = chatRaw.reverse(); // 古い順に並び替えて返す
+      .orderBy(asc(jukeboxChat.createdAt));
 
     // ラジオ的に「今何秒目か」を返す
     let elapsedSecs = 0;
@@ -3124,11 +3076,6 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // ── Cloudflare Stream Live Input 作成 ───────────────────────────────
-  // ---- 配信関連 API ----
-  const MAX_STREAM_VIEWERS = 20;
-  const MAX_STREAM_DURATION_MS = 3 * 60 * 60 * 1000; // 3時間
-
-  /** 配信入力を作成し、DB に登録する（WHIP/WHEP URL を返却） */
   app.post("/api/stream/create", async (req: Request, res: Response) => {
     if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_STREAM_TOKEN) {
       return res.status(500).json({ error: "Cloudflare Stream is not configured" });
@@ -3137,7 +3084,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "未認証です" });
 
-    const { title } = req.body ?? {};
+    const { name } = req.body ?? {};
 
     try {
       const cfRes = await fetch(
@@ -3149,8 +3096,9 @@ export async function registerRoutes(app: Express): Promise<void> {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            meta: { name: title || `RawStock Stream by ${user.displayName}` },
-            recording: { mode: "off" }, // 録画なし
+            meta: {
+              name: name || `RawStock Stream by ${user.displayName}`,
+            },
           }),
         }
       );
@@ -3175,13 +3123,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       const cfId = result.uid ?? "";
       const rtmpsUrl = result.rtmps?.url ?? "";
       const rtmpsStreamKey = result.rtmps?.streamKey ?? "";
-      // WHIP: 配信者がブラウザからWebRTCで配信するためのURL
-      const whipUrl = `https://live.cloudflare.com/webrtc/${CLOUDFLARE_ACCOUNT_ID}/${cfId}/webRTC/publish`;
-      // WHEP: 視聴者がブラウザからWebRTCで視聴するためのURL
-      const webRtcPlaybackUrl = result.webRTCPlayback?.url ??
-        `https://customer-${CLOUDFLARE_ACCOUNT_ID}.cloudflarestream.com/${cfId}/webRTC/play`;
+      const webRtcPlaybackUrl =
+        result.webRTCPlayback?.url ?? result.webRTC?.url ?? "";
 
-      if (!cfId || !rtmpsUrl || !rtmpsStreamKey) {
+      if (!cfId || !rtmpsUrl || !rtmpsStreamKey || !webRtcPlaybackUrl) {
         return res.status(502).json({ error: "Cloudflare Stream レスポンスが不完全です" });
       }
 
@@ -3189,101 +3134,22 @@ export async function registerRoutes(app: Express): Promise<void> {
         .insert(streams)
         .values({
           cfLiveInputId: cfId,
-          whipUrl,
           webRtcUrl: webRtcPlaybackUrl,
           rtmpsUrl,
           rtmpsStreamKey,
-          userId: user.id,
-          title: title || `${user.displayName}の配信`,
-          isActive: false,
           currentViewers: 0,
-          maxViewers: MAX_STREAM_VIEWERS,
         } as typeof streams.$inferInsert)
         .returning();
 
       res.json({
         id: row.id,
-        whipUrl,
-        webRtcUrl: webRtcPlaybackUrl,
+        webRtc: { url: webRtcPlaybackUrl },
         rtmps: { url: rtmpsUrl, streamKey: rtmpsStreamKey },
       });
     } catch (e: any) {
       console.error("Cloudflare Stream create exception:", e);
       res.status(500).json({ error: "Cloudflare Stream API 通信でエラーが発生しました" });
     }
-  });
-
-  /** 配信開始（isActive=true、startedAt 記録） */
-  app.post("/api/stream/:id/start", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-    const streamId = parseInt(String(req.params.id));
-    const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
-    if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
-    if (stream.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
-    await db.update(streams).set({ isActive: true, startedAt: new Date(), endedAt: null }).where(eq(streams.id, streamId));
-    res.json({ ok: true });
-  });
-
-  /** 配信終了（isActive=false、endedAt 記録、Cloudflare Live Input を削除） */
-  app.post("/api/stream/:id/end", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-    const streamId = parseInt(String(req.params.id));
-    const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
-    if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
-    if (stream.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
-    await db.update(streams).set({ isActive: false, endedAt: new Date(), currentViewers: 0 }).where(eq(streams.id, streamId));
-    // Cloudflare の Live Input を削除（課金停止）
-    if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_STREAM_TOKEN && stream.cfLiveInputId) {
-      fetch(`https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/stream/live_inputs/${stream.cfLiveInputId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${CLOUDFLARE_STREAM_TOKEN}` },
-      }).catch((e) => console.error("CF delete error:", e));
-    }
-    res.json({ ok: true });
-  });
-
-  /** 視聴者入場（上限チェック） */
-  app.post("/api/stream/:id/join", async (req: Request, res: Response) => {
-    const streamId = parseInt(String(req.params.id));
-    const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
-    if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
-    if (!stream.isActive) return res.status(400).json({ error: "配信は現在オフラインです" });
-    // 3時間超過チェック
-    if (stream.startedAt && Date.now() - new Date(stream.startedAt).getTime() > MAX_STREAM_DURATION_MS) {
-      await db.update(streams).set({ isActive: false, endedAt: new Date(), currentViewers: 0 }).where(eq(streams.id, streamId));
-      return res.status(400).json({ error: "配信時間の上限（3時間）に達したため終了しました" });
-    }
-    if (stream.currentViewers >= stream.maxViewers) {
-      return res.status(429).json({ error: `満員です。現在の視聴者数が上限（${stream.maxViewers}人）に達しています` });
-    }
-    await db.update(streams).set({ currentViewers: stream.currentViewers + 1 }).where(eq(streams.id, streamId));
-    res.json({ ok: true, webRtcUrl: stream.webRtcUrl, viewers: stream.currentViewers + 1 });
-  });
-
-  /** 視聴者退場 */
-  app.post("/api/stream/:id/leave", async (req: Request, res: Response) => {
-    const streamId = parseInt(String(req.params.id));
-    const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
-    if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
-    const newCount = Math.max(0, stream.currentViewers - 1);
-    await db.update(streams).set({ currentViewers: newCount }).where(eq(streams.id, streamId));
-    res.json({ ok: true });
-  });
-
-  /** 配信情報取得 */
-  app.get("/api/stream/:id", async (req: Request, res: Response) => {
-    const streamId = parseInt(String(req.params.id));
-    const [stream] = await db.select().from(streams).where(eq(streams.id, streamId));
-    if (!stream) return res.status(404).json({ error: "配信が見つかりません" });
-    res.json(stream);
-  });
-
-  /** アクティブな配信一覧 */
-  app.get("/api/streams/active", async (_req: Request, res: Response) => {
-    const active = await db.select().from(streams).where(eq(streams.isActive, true));
-    res.json(active);
   });
 
   app.post("/api/jukebox/:communityId/add", async (req: Request, res: Response) => {
@@ -3412,23 +3278,51 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.post("/api/jukebox/:communityId/chat", async (req: Request, res: Response) => {
     const communityId = paramNum(req, "communityId");
     const { username, avatar, message } = req.body;
+    if (!message || !message.trim()) return res.status(400).json({ error: "メッセージを入力してください" });
+    // コンテンツモデレーション
+    const modResult = await moderateContent(message);
+    if (!modResult.allowed) {
+      return res.status(400).json({ error: modResult.reason ?? "不適切なコンテンツが含まれています" });
+    }
     const [msg] = await db.insert(jukeboxChat).values({
       communityId, username: username ?? "あなた", avatar, message,
     } as typeof jukeboxChat.$inferInsert).returning();
-    // 30件超の古いメッセージを削除（ライブ感維持）
-    const allMsgs = await db
-      .select({ id: jukeboxChat.id })
-      .from(jukeboxChat)
-      .where(eq(jukeboxChat.communityId, communityId))
-      .orderBy(desc(jukeboxChat.createdAt));
-    if (allMsgs.length > 30) {
-      const toDelete = allMsgs.slice(30).map((m) => m.id);
-      await db.delete(jukeboxChat).where(inArray(jukeboxChat.id, toDelete));
-    }
     res.json(msg);
   });
 
-  // ── Twoshot Booking ───────────────────────────────────────────────
+  // ── Jukebox: ユーザー自身のリクエスト削除 ────────────────────────────
+  app.delete("/api/jukebox/:communityId/queue/:itemId", async (req: Request, res: Response) => {
+    const communityId = paramNum(req, "communityId");
+    const itemId = paramNum(req, "itemId");
+    const { addedBy } = req.body;
+
+    const [item] = await db
+      .select()
+      .from(jukeboxQueue)
+      .where(and(eq(jukeboxQueue.communityId, communityId), eq(jukeboxQueue.id, itemId)));
+
+    if (!item) return res.status(404).json({ error: "Item not found" });
+
+    // 再生中の曲は削除不可
+    const [stateRow] = await db.select().from(jukeboxState).where(eq(jukeboxState.communityId, communityId));
+    const isCurrentlyPlaying =
+      stateRow?.isPlaying &&
+      (((item as any).youtubeId && (item as any).youtubeId === stateRow.currentVideoYoutubeId) ||
+       (item.videoId != null && item.videoId === stateRow.currentVideoId));
+    if (isCurrentlyPlaying) {
+      return res.status(400).json({ error: "Cannot remove the currently playing track" });
+    }
+
+    // 投稿者本人チェック
+    if (addedBy && item.addedBy !== addedBy) {
+      return res.status(403).json({ error: "You can only remove your own requests" });
+    }
+
+    await db.delete(jukeboxQueue).where(eq(jukeboxQueue.id, itemId));
+    res.json({ ok: true });
+  });
+
+  // ── Twoshot Booking ───────────────────────────────────────────────────
 
   app.get("/api/twoshot/publishable-key", async (_req: Request, res: Response) => {
     try {
@@ -3458,43 +3352,29 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.json({ count: Number(total) });
   });
 
-    app.post("/api/twoshot/:streamId/checkout", async (req: Request, res: Response) => {
+  app.post("/api/twoshot/:streamId/checkout", async (req: Request, res: Response) => {
     const streamId = paramNum(req, "streamId");
     const { userName, userAvatar, price = 3000 } = req.body;
+
     if (!userName) return res.status(400).json({ error: "userName required" });
+
     try {
       const stripe = await getUncachableStripeClient();
+
       const [{ total }] = await db
         .select({ total: count() })
         .from(twoshotBookings)
         .where(sql`stream_id = ${streamId} AND status IN ('paid','waiting','notified')`);
       const queuePos = Number(total) + 1;
+
       const [stream] = await db.select().from(liveStreams).where(eq(liveStreams.id, streamId));
       const streamTitle = stream?.title ?? "ツーショット撮影";
       const creatorName = stream?.creator ?? "クリエイター";
 
-      // クリエイターの Stripe Connect オンボーディング完了確認（資金決済法対応）
-      const [creatorUser] = await db.select().from(users).where(eq(users.displayName, creatorName));
-      if (!creatorUser?.stripeConnectId) {
-        return res.status(400).json({
-          error: "creator_not_connected",
-          message: "このクリエイターはまだ受取り設定を完了していません。しばらくお待ちください。",
-        });
-      }
-      const connectAccount = await getConnectAccount(creatorUser.stripeConnectId);
-      if (!connectAccount?.charges_enabled) {
-        return res.status(400).json({
-          error: "creator_not_connected",
-          message: "このクリエイターはまだ受取り設定を完了していません。しばらくお待ちください。",
-        });
-      }
-
-      // プラットフォーム手数料 20%、アーティストへ 80% 直接送金
-      const platformFeeAmount = Math.round(price * 0.20);
-
       const baseUrl = process.env.REPLIT_DOMAINS
         ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
         : "http://localhost:8081";
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [
@@ -3511,13 +3391,6 @@ export async function registerRoutes(app: Express): Promise<void> {
           },
         ],
         mode: "payment",
-        payment_intent_data: {
-          // 資金決済法対応: Stripeがアーティストに直接送金、RawStockは手数料のみ受取
-          application_fee_amount: platformFeeAmount,
-          transfer_data: {
-            destination: creatorUser.stripeConnectId,
-          },
-        },
         success_url: `${baseUrl}/twoshot-success?session_id={CHECKOUT_SESSION_ID}&stream=${streamId}`,
         cancel_url: `${baseUrl}/live/${streamId}`,
         metadata: {
@@ -3526,9 +3399,9 @@ export async function registerRoutes(app: Express): Promise<void> {
           userAvatar: userAvatar ?? "",
           queuePosition: queuePos.toString(),
           price: price.toString(),
-          creatorConnectId: creatorUser.stripeConnectId,
         },
       });
+
       const [booking] = await db
         .insert(twoshotBookings)
         .values({
@@ -4324,436 +4197,503 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.json({ ok: true, count: demoEditors.length });
   });
 
-  // ============================================================
-  // フォロー / フォロワー API
-  // ============================================================
+  // ─── Coin System API ──────────────────────────────────────────────────────
+  const FREE_REQUESTS_PER_DAY = 3;
 
-  /** フォローする */
-  app.post("/api/users/:id/follow", async (req: Request, res: Response) => {
-    const me = (req as any).user;
-    if (!me) return res.status(401).json({ error: "Unauthorized" });
-    const followingId = parseInt(String(req.params.id));
-    if (isNaN(followingId) || followingId === me.id)
-      return res.status(400).json({ error: "Invalid" });
-    try {
-      await db.insert(follows).values({ followerId: me.id, followingId }).onConflictDoNothing();
-      await db.execute(
-        sql`UPDATE users SET followers_count = followers_count + 1 WHERE id = ${followingId}`
-      );
-      await db.execute(
-        sql`UPDATE users SET following_count = following_count + 1 WHERE id = ${me.id}`
-      );
-      // フォロー通知を生成
-      try {
-        await db.insert(notifications).values({
-          userId: followingId,
-          type: "follow",
-          title: `${me.displayName ?? "ユーザー"}さんがフォローしました`,
-          body: "新しいフォロワーがいます",
-          avatar: me.profileImageUrl ?? null,
-          thumbnail: null,
-          amount: null,
-          isRead: false,
-          timeAgo: "たった今",
-        } as typeof notifications.$inferInsert);
-      } catch {}
-      res.json({ ok: true });
-    } catch (e) {
-      res.status(500).json({ error: "Failed" });
-    }
+  /** GET /api/coins/balance - ログインユーザーのコイン残高を返す */
+  app.get("/api/coins/balance", async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const userId = String(user.id);
+    const rows = await db.select().from(coinBalances).where(eq(coinBalances.userId, userId)).limit(1);
+    const balance = rows[0]?.balance ?? 0;
+    return res.json({ balance });
   });
 
-  /** アンフォローする */
-  app.delete("/api/users/:id/follow", async (req: Request, res: Response) => {
-    const me = (req as any).user;
-    if (!me) return res.status(401).json({ error: "Unauthorized" });
-    const followingId = parseInt(String(req.params.id));
-    if (isNaN(followingId)) return res.status(400).json({ error: "Invalid" });
-    try {
-      const result = await db
-        .delete(follows)
-        .where(and(eq(follows.followerId, me.id), eq(follows.followingId, followingId)))
-        .returning();
-      if (result.length > 0) {
-        await db.execute(
-          sql`UPDATE users SET followers_count = GREATEST(followers_count - 1, 0) WHERE id = ${followingId}`
-        );
-        await db.execute(
-          sql`UPDATE users SET following_count = GREATEST(following_count - 1, 0) WHERE id = ${me.id}`
-        );
-      }
-      res.json({ ok: true });
-    } catch (e) {
-      res.status(500).json({ error: "Failed" });
-    }
+  /** GET /api/coins/request-count?communityId=X - 今日のリクエスト回数と残り無料回数 */
+  app.get("/api/coins/request-count", async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const communityId = parseInt(req.query.communityId as string);
+    if (isNaN(communityId)) return res.status(400).json({ error: "communityId required" });
+    const userId = String(user.id);
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await db.select().from(jukeboxRequestCounts)
+      .where(and(
+        eq(jukeboxRequestCounts.userId, userId),
+        eq(jukeboxRequestCounts.communityId, communityId),
+        eq(jukeboxRequestCounts.date, today)
+      )).limit(1);
+    const count = rows[0]?.count ?? 0;
+    const freeRemaining = Math.max(0, FREE_REQUESTS_PER_DAY - count);
+    return res.json({ count, freeRemaining, freeLimit: FREE_REQUESTS_PER_DAY });
   });
 
-  /** フォロー状態を確認する */
-  app.get("/api/users/:id/follow-status", async (req: Request, res: Response) => {
-    const me = (req as any).user;
-    if (!me) return res.json({ isFollowing: false });
-    const followingId = parseInt(String(req.params.id));
-    if (isNaN(followingId)) return res.json({ isFollowing: false });
-    const row = await db
-      .select()
-      .from(follows)
-      .where(and(eq(follows.followerId, me.id), eq(follows.followingId, followingId)))
-      .limit(1);
-    res.json({ isFollowing: row.length > 0 });
-  });
+  /** POST /api/coins/spend-jukebox - コイン1枚を消費してジュークボックスリクエストを記録 */
+  app.post("/api/coins/spend-jukebox", async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { communityId, queueItemId } = req.body as { communityId: number; queueItemId?: number };
+    if (!communityId) return res.status(400).json({ error: "communityId required" });
+    const userId = String(user.id);
+    const today = new Date().toISOString().slice(0, 10);
 
-  /** フォロワー一覧 */
-  app.get("/api/users/:id/followers", async (req: Request, res: Response) => {
-    const userId = parseInt(String(req.params.id));
-    if (isNaN(userId)) return res.status(400).json({ error: "Invalid" });
-    const rows = await db
-      .select({
-        id: users.id,
-        displayName: users.displayName,
-        profileImageUrl: users.profileImageUrl,
-        bio: users.bio,
-        followersCount: users.followersCount,
-      })
-      .from(follows)
-      .innerJoin(users, eq(follows.followerId, users.id))
-      .where(eq(follows.followingId, userId))
-      .orderBy(desc(follows.createdAt))
-      .limit(100);
-    res.json(rows);
-  });
+    // 残高確認
+    const balRows = await db.select().from(coinBalances).where(eq(coinBalances.userId, userId)).limit(1);
+    const currentBalance = balRows[0]?.balance ?? 0;
+    if (currentBalance < 1) return res.status(402).json({ error: "Insufficient coins", balance: currentBalance });
 
-  /** フォロー中一覧 */
-  app.get("/api/users/:id/following", async (req: Request, res: Response) => {
-    const userId = parseInt(String(req.params.id));
-    if (isNaN(userId)) return res.status(400).json({ error: "Invalid" });
-    const rows = await db
-      .select({
-        id: users.id,
-        displayName: users.displayName,
-        profileImageUrl: users.profileImageUrl,
-        bio: users.bio,
-        followersCount: users.followersCount,
-      })
-      .from(follows)
-      .innerJoin(users, eq(follows.followingId, users.id))
-      .where(eq(follows.followerId, userId))
-      .orderBy(desc(follows.createdAt))
-      .limit(100);
-    res.json(rows);
-  });
-
-  /** フォロー中ユーザーの動画フィード */
-  app.get("/api/feed/following", async (req: Request, res: Response) => {
-    const me = (req as any).user;
-    if (!me) return res.json([]);
-    const followingIds = await db
-      .select({ followingId: follows.followingId })
-      .from(follows)
-      .where(eq(follows.followerId, me.id));
-    if (followingIds.length === 0) return res.json([]);
-    const ids = followingIds.map((r) => r.followingId);
-    const feed = await db
-      .select()
-      .from(videos)
-      .where(and(inArray(videos.userId, ids), eq(videos.hidden, false)))
-      .orderBy(desc(videos.createdAt))
-       .limit(50);
-    res.json(feed);
-  });
-
-  // ─── メンターセッション API ──────────────────────────────────────────────────
-
-  /** クリエイターがセッション商品を登録 */
-  app.post("/api/mentor/sessions", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-    const { title, category, description, price, duration, maxParticipants } = req.body as {
-      title?: string; category?: string; description?: string;
-      price?: number; duration?: number; maxParticipants?: number;
-    };
-    if (!title || !price) return res.status(400).json({ error: "title と price は必須です" });
-    const [row] = await db.insert(mentorSessions).values({
-      userId: user.id,
-      title,
-      category: category ?? "counselor",
-      description: description ?? "",
-      price: Number(price),
-      duration: Number(duration ?? 30),
-      maxParticipants: Number(maxParticipants ?? 1),
-      isActive: true,
-    } as typeof mentorSessions.$inferInsert).returning();
-    res.json(row);
-  });
-
-  /** クリエイターのセッション一覧取得 */
-  app.get("/api/mentor/sessions/:userId", async (req: Request, res: Response) => {
-    const userId = paramNum(req, "userId");
-    const sessions = await db
-      .select()
-      .from(mentorSessions)
-      .where(and(eq(mentorSessions.userId, userId), eq(mentorSessions.isActive, true)))
-      .orderBy(asc(mentorSessions.createdAt));
-    res.json(sessions);
-  });
-
-  /** セッション単体取得 */
-  app.get("/api/mentor/session/:id", async (req: Request, res: Response) => {
-    const sessionId = paramNum(req, "id");
-    const [s] = await db.select().from(mentorSessions).where(eq(mentorSessions.id, sessionId)).limit(1);
-    if (!s) return res.status(404).json({ error: "not found" });
-    res.json(s);
-  });
-  /** 自分のセッション一覧（クリエイター管理用） */
-  app.get("/api/mentor/my-sessions", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-    const sessions = await db
-      .select()
-      .from(mentorSessions)
-      .where(eq(mentorSessions.userId, user.id))
-      .orderBy(desc(mentorSessions.createdAt));
-    res.json(sessions);
-  });
-
-  /** セッション更新 */
-  app.put("/api/mentor/sessions/:id", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-    const id = paramNum(req, "id");
-    const [existing] = await db.select().from(mentorSessions).where(eq(mentorSessions.id, id));
-    if (!existing) return res.status(404).json({ error: "セッションが見つかりません" });
-    if (existing.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
-    const { title, category, description, price, duration, maxParticipants, isActive } = req.body as Partial<typeof mentorSessions.$inferInsert>;
-    const [updated] = await db.update(mentorSessions)
-      .set({ title, category, description, price, duration, maxParticipants, isActive, updatedAt: new Date() } as Partial<typeof mentorSessions.$inferInsert>)
-      .where(eq(mentorSessions.id, id))
-      .returning();
-    res.json(updated);
-  });
-
-  /** セッション削除（非公開化） */
-  app.delete("/api/mentor/sessions/:id", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-    const id = paramNum(req, "id");
-    const [existing] = await db.select().from(mentorSessions).where(eq(mentorSessions.id, id));
-    if (!existing) return res.status(404).json({ error: "セッションが見つかりません" });
-    if (existing.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
-    await db.update(mentorSessions).set({ isActive: false } as Partial<typeof mentorSessions.$inferInsert>).where(eq(mentorSessions.id, id));
-    res.json({ ok: true });
-  });
-
-  /** 予約作成（Stripe Checkout セッション発行） */
-  app.post("/api/mentor/bookings", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-    const { sessionId, slotId, scheduledAt } = req.body as {
-      sessionId?: number; slotId?: number; scheduledAt?: string;
-    };
-    if (!sessionId || !scheduledAt) return res.status(400).json({ error: "sessionId と scheduledAt は必須です" });
-
-    const [session] = await db.select().from(mentorSessions).where(eq(mentorSessions.id, Number(sessionId)));
-    if (!session || !session.isActive) return res.status(404).json({ error: "セッションが見つかりません" });
-
-    // クリエイターの Stripe Connect 確認
-    const [creator] = await db.select().from(users).where(eq(users.id, session.userId));
-    if (!creator?.stripeConnectId) {
-      return res.status(400).json({ error: "creator_not_connected", message: "このクリエイターはまだ受取り設定を完了していません" });
-    }
-    const stripe = await getUncachableStripeClient();
-    const account = await stripe.accounts.retrieve(creator.stripeConnectId);
-    if (!account.charges_enabled) {
-      return res.status(400).json({ error: "creator_not_connected", message: "このクリエイターはまだ受取り設定を完了していません" });
+    // 残高を1枚減らす
+    if (balRows.length === 0) {
+      await db.insert(coinBalances).values({ userId, balance: -1 });
+    } else {
+      await db.update(coinBalances).set({ balance: currentBalance - 1, updatedAt: new Date() }).where(eq(coinBalances.userId, userId));
     }
 
-    // スロットの空き確認（slotIdがある場合）
-    if (slotId) {
-      const [slot] = await db.select().from(liverAvailability).where(eq(liverAvailability.id, Number(slotId)));
-      if (!slot) return res.status(404).json({ error: "スロットが見つかりません" });
-      if (slot.bookedSlots >= slot.maxSlots) return res.status(400).json({ error: "このスロットは満席です" });
-    }
-
-    // Cloudflare Stream Live Input を作成（1対1ビデオ通話用）
-    let cfLiveInputId = "";
-    let whipUrl = "";
-    let whepUrl = "";
-    let rtmpsUrl = "";
-    let rtmpsKey = "";
-    if (CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_STREAM_TOKEN) {
-      try {
-        const cfRes = await fetch(
-          `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/stream/live_inputs`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${CLOUDFLARE_STREAM_TOKEN}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              meta: { name: `mentor-${sessionId}-${Date.now()}` },
-              recording: { mode: "off" },
-            }),
-          }
-        );
-        const cfData = (await cfRes.json()) as any;
-        if (cfData.success) {
-          cfLiveInputId = cfData.result.uid;
-          whipUrl = `https://customer-${CLOUDFLARE_ACCOUNT_ID}.cloudflarestream.com/${cfLiveInputId}/webRTC/publish`;
-          whepUrl = `https://customer-${CLOUDFLARE_ACCOUNT_ID}.cloudflarestream.com/${cfLiveInputId}/webRTC/play`;
-          rtmpsUrl = cfData.result.rtmps?.url ?? "";
-          rtmpsKey = cfData.result.rtmps?.streamKey ?? "";
-        }
-      } catch (e) {
-        console.error("CF Stream Live Input error:", e);
-      }
-    }
-
-    // Stripe Checkout セッション作成（transfer_data でクリエイターへ直接送金）
-    const platformFee = Math.round(session.price * 0.2);
-    const origin = (req.headers.origin as string) ?? "";
-    const checkoutSession = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      line_items: [{
-        price_data: {
-          currency: "jpy",
-          product_data: { name: `${session.title}（${session.duration}分）` },
-          unit_amount: session.price,
-        },
-        quantity: 1,
-      }],
-      mode: "payment",
-      success_url: `${origin}/mentor-room/{CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/mentor-cancel`,
-      payment_intent_data: {
-        application_fee_amount: platformFee,
-        transfer_data: { destination: creator.stripeConnectId },
-      },
-      metadata: {
-        type: "mentor_booking",
-        sessionId: String(sessionId),
-        userId: String(user.id),
-        slotId: slotId ? String(slotId) : "",
-        scheduledAt,
-        cfLiveInputId,
-        whipUrl,
-        whepUrl,
-      },
+    // トランザクション記録
+    await db.insert(coinTransactions).values({
+      userId,
+      amount: -1,
+      type: "spend_jukebox",
+      referenceId: queueItemId ? String(queueItemId) : null,
+      description: `Jukebox request in community ${communityId}`,
     });
 
-    // 予約レコードを pending で作成
-    const [booking] = await db.insert(mentorBookings).values({
-      sessionId: Number(sessionId),
-      slotId: slotId ? Number(slotId) : null,
-      userId: user.id,
-      userName: user.displayName,
-      userAvatar: user.profileImageUrl,
-      scheduledAt: new Date(scheduledAt),
-      price: session.price,
-      stripeSessionId: checkoutSession.id,
-      status: "pending",
-      cfLiveInputId,
-      whipUrl,
-      whepUrl,
-      rtmpsUrl,
-      rtmpsKey,
-    } as typeof mentorBookings.$inferInsert).returning();
-
-    res.json({ checkoutUrl: checkoutSession.url, bookingId: booking.id });
-  });
-
-  /** 予約確認（Checkout 完了後にフロントが polling） */
-  app.get("/api/mentor/bookings/by-checkout/:csId", async (req: Request, res: Response) => {
-    const csId = paramStr(req, "csId");
-    const [booking] = await db.select().from(mentorBookings).where(eq(mentorBookings.stripeSessionId, csId));
-    if (!booking) return res.status(404).json({ error: "予約が見つかりません" });
-    res.json(booking);
-  });
-
-  /** 自分の予約一覧 */
-  app.get("/api/mentor/my-bookings", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-    const bookings = await db
-      .select({
-        booking: mentorBookings,
-        session: mentorSessions,
-      })
-      .from(mentorBookings)
-      .innerJoin(mentorSessions, eq(mentorBookings.sessionId, mentorSessions.id))
-      .where(eq(mentorBookings.userId, user.id))
-      .orderBy(desc(mentorBookings.scheduledAt));
-    res.json(bookings);
-  });
-
-  /** クリエイター側：自分のセッションへの予約一覧 */
-  app.get("/api/mentor/creator-bookings", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-    const bookings = await db
-      .select({
-        booking: mentorBookings,
-        session: mentorSessions,
-      })
-      .from(mentorBookings)
-      .innerJoin(mentorSessions, eq(mentorBookings.sessionId, mentorSessions.id))
-      .where(and(eq(mentorSessions.userId, user.id), eq(mentorBookings.status, "confirmed")))
-      .orderBy(asc(mentorBookings.scheduledAt));
-    res.json(bookings);
-  });
-
-  /** ビデオ通話開始（メンターが呼び出す） */
-  app.post("/api/mentor/bookings/:id/start", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-    const id = paramNum(req, "id");
-    const [row] = await db.select({
-      booking: mentorBookings,
-      session: mentorSessions,
-    }).from(mentorBookings)
-      .innerJoin(mentorSessions, eq(mentorBookings.sessionId, mentorSessions.id))
-      .where(eq(mentorBookings.id, id));
-    if (!row) return res.status(404).json({ error: "予約が見つかりません" });
-    if (row.session.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
-    await db.update(mentorBookings)
-      .set({ status: "in_progress", startedAt: new Date() } as Partial<typeof mentorBookings.$inferInsert>)
-      .where(eq(mentorBookings.id, id));
-    res.json({ whipUrl: row.booking.whipUrl, whepUrl: row.booking.whepUrl });
-  });
-
-  /** ビデオ通話終了 */
-  app.post("/api/mentor/bookings/:id/end", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-    const id = paramNum(req, "id");
-    const [row] = await db.select({
-      booking: mentorBookings,
-      session: mentorSessions,
-    }).from(mentorBookings)
-      .innerJoin(mentorSessions, eq(mentorBookings.sessionId, mentorSessions.id))
-      .where(eq(mentorBookings.id, id));
-    if (!row) return res.status(404).json({ error: "予約が見つかりません" });
-    if (row.session.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
-    await db.update(mentorBookings)
-      .set({ status: "completed", endedAt: new Date() } as Partial<typeof mentorBookings.$inferInsert>)
-      .where(eq(mentorBookings.id, id));
-    if (row.booking.cfLiveInputId && CLOUDFLARE_ACCOUNT_ID && CLOUDFLARE_STREAM_TOKEN) {
-      fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/stream/live_inputs/${row.booking.cfLiveInputId}`,
-        { method: "DELETE", headers: { Authorization: `Bearer ${CLOUDFLARE_STREAM_TOKEN}` } }
-      ).catch(() => {});
+    // リクエスト回数を増やす
+    const countRows = await db.select().from(jukeboxRequestCounts)
+      .where(and(
+        eq(jukeboxRequestCounts.userId, userId),
+        eq(jukeboxRequestCounts.communityId, communityId),
+        eq(jukeboxRequestCounts.date, today)
+      )).limit(1);
+    if (countRows.length === 0) {
+      await db.insert(jukeboxRequestCounts).values({ userId, communityId, date: today, count: 1 });
+    } else {
+      await db.update(jukeboxRequestCounts).set({ count: countRows[0].count + 1, updatedAt: new Date() })
+        .where(eq(jukeboxRequestCounts.id, countRows[0].id));
     }
-    res.json({ ok: true });
+
+    return res.json({ success: true, newBalance: currentBalance - 1 });
   });
 
-  /** 参加者側：ビデオ通話に参加（WHEP URL を返す） */
-  app.get("/api/mentor/bookings/:id/join", async (req: Request, res: Response) => {
-    const user = await getAuthUser(req);
-    if (!user) return res.status(401).json({ error: "未認証です" });
-    const id = paramNum(req, "id");
-    const [booking] = await db.select().from(mentorBookings).where(eq(mentorBookings.id, id));
-    if (!booking) return res.status(404).json({ error: "予約が見つかりません" });
-    if (booking.userId !== user.id) return res.status(403).json({ error: "権限がありません" });
-    if (booking.status !== "in_progress") return res.status(400).json({ error: "セッションはまだ開始されていません" });
-    res.json({ whepUrl: booking.whepUrl });
+  /** POST /api/coins/record-free-request - 無料リクエスト回数を記録 */
+  app.post("/api/coins/record-free-request", async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { communityId } = req.body as { communityId: number };
+    if (!communityId) return res.status(400).json({ error: "communityId required" });
+    const userId = String(user.id);
+    const today = new Date().toISOString().slice(0, 10);
+    const countRows = await db.select().from(jukeboxRequestCounts)
+      .where(and(
+        eq(jukeboxRequestCounts.userId, userId),
+        eq(jukeboxRequestCounts.communityId, communityId),
+        eq(jukeboxRequestCounts.date, today)
+      )).limit(1);
+    if (countRows.length === 0) {
+      await db.insert(jukeboxRequestCounts).values({ userId, communityId, date: today, count: 1 });
+    } else {
+      await db.update(jukeboxRequestCounts).set({ count: countRows[0].count + 1, updatedAt: new Date() })
+        .where(eq(jukeboxRequestCounts.id, countRows[0].id));
+    }
+    return res.json({ success: true });
+  });
+
+  /** POST /api/coins/use-revenue - 収益残高からコインに変換して消費（1コイン=¥30） */
+  app.post("/api/coins/use-revenue", async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { communityId, queueItemId } = req.body as { communityId: number; queueItemId?: number };
+    if (!communityId) return res.status(400).json({ error: "communityId required" });
+    const userId = String(user.id);
+    const today = new Date().toISOString().slice(0, 10);
+    const COIN_PRICE_JPY = 30;
+
+    // 収益残高確認（wallets テーブル）
+    const walletRows = await db.select().from(wallets).where(eq(wallets.userId, user.id)).limit(1);
+    const walletBalance = walletRows[0]?.balanceAvailable ?? 0;
+    if (walletBalance < COIN_PRICE_JPY) {
+      return res.status(402).json({ error: "Insufficient revenue balance", balance: walletBalance });
+    }
+
+    // 収益残高を減らす
+    await db.update(wallets).set({ balanceAvailable: walletBalance - COIN_PRICE_JPY, updatedAt: new Date() }).where(eq(wallets.userId, user.id));
+
+    // コイントランザクション記録（収益→コイン変換）
+    await db.insert(coinTransactions).values({
+      userId,
+      amount: -1,
+      type: "revenue_convert",
+      referenceId: queueItemId ? String(queueItemId) : null,
+      description: `Revenue balance used for jukebox request in community ${communityId} (¥${COIN_PRICE_JPY})`,
+    });
+
+    // リクエスト回数を増やす
+    const countRows = await db.select().from(jukeboxRequestCounts)
+      .where(and(
+        eq(jukeboxRequestCounts.userId, userId),
+        eq(jukeboxRequestCounts.communityId, communityId),
+        eq(jukeboxRequestCounts.date, today)
+      )).limit(1);
+    if (countRows.length === 0) {
+      await db.insert(jukeboxRequestCounts).values({ userId, communityId, date: today, count: 1 });
+    } else {
+      await db.update(jukeboxRequestCounts).set({ count: countRows[0].count + 1, updatedAt: new Date() })
+        .where(eq(jukeboxRequestCounts.id, countRows[0].id));
+    }
+
+    return res.json({ success: true, newWalletBalance: walletBalance - COIN_PRICE_JPY });
+  });
+
+  /** POST /api/coins/create-checkout - Stripe Checkout セッションを作成してコインを購入 */
+  app.post("/api/coins/create-checkout", async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { packageId, origin } = req.body as { packageId: string; origin: string };
+
+    // コインパッケージ定義（1コイン=¥30）
+    const COIN_PACKAGES: Record<string, { coins: number; priceGBP: number; priceJPY: number; label: string }> = {
+      "pack-1": { coins: 1, priceGBP: 16, priceJPY: 30, label: "1 Coin" },
+      "pack-5": { coins: 5, priceGBP: 75, priceJPY: 150, label: "5 Coins" },
+      "pack-10": { coins: 10, priceGBP: 140, priceJPY: 280, label: "10 Coins" },
+      "pack-30": { coins: 30, priceGBP: 390, priceJPY: 780, label: "30 Coins" },
+    };
+    const pkg = COIN_PACKAGES[packageId];
+    if (!pkg) return res.status(400).json({ error: "Invalid packageId" });
+
+    try {
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [{
+          price_data: {
+            currency: "gbp",
+            product_data: {
+              name: `Rawstock ${pkg.label}`,
+              description: `${pkg.coins} coin${pkg.coins > 1 ? "s" : ""} for jukebox requests`,
+            },
+            unit_amount: pkg.priceGBP,
+          },
+          quantity: 1,
+        }],
+        mode: "payment",
+        success_url: `${origin}/coins/success?session_id={CHECKOUT_SESSION_ID}&coins=${pkg.coins}`,
+        cancel_url: `${origin}/coins/cancel`,
+        metadata: {
+          userId: String(user.id),
+          coins: String(pkg.coins),
+          packageId,
+        },
+      });
+      return res.json({ url: session.url, sessionId: session.id });
+    } catch (err) {
+      console.error("Stripe checkout error:", err);
+      return res.status(500).json({ error: "Failed to create checkout session" });
+    }
+  });
+
+  /** POST /api/coins/verify-purchase - Stripe Checkout 完了後にコインを付与 */
+  app.post("/api/coins/verify-purchase", async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const { sessionId } = req.body as { sessionId: string };
+    if (!sessionId) return res.status(400).json({ error: "sessionId required" });
+
+    try {
+      const stripe = await getUncachableStripeClient();
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      if (session.payment_status !== "paid") {
+        return res.status(402).json({ error: "Payment not completed" });
+      }
+      const coins = parseInt(session.metadata?.coins ?? "0");
+      const metaUserId = session.metadata?.userId;
+      if (!coins || metaUserId !== String(user.id)) {
+        return res.status(400).json({ error: "Invalid session" });
+      }
+
+      // 重複付与防止：既にこのセッションで付与済みか確認
+      const existing = await db.select().from(coinTransactions)
+        .where(and(
+          eq(coinTransactions.userId, String(user.id)),
+          eq(coinTransactions.referenceId, sessionId)
+        )).limit(1);
+      if (existing.length > 0) {
+        const balRows = await db.select().from(coinBalances).where(eq(coinBalances.userId, String(user.id))).limit(1);
+        return res.json({ success: true, alreadyGranted: true, balance: balRows[0]?.balance ?? 0 });
+      }
+
+      // コインを付与
+      const balRows = await db.select().from(coinBalances).where(eq(coinBalances.userId, String(user.id))).limit(1);
+      const currentBalance = balRows[0]?.balance ?? 0;
+      if (balRows.length === 0) {
+        await db.insert(coinBalances).values({ userId: String(user.id), balance: coins });
+      } else {
+        await db.update(coinBalances).set({ balance: currentBalance + coins, updatedAt: new Date() }).where(eq(coinBalances.userId, String(user.id)));
+      }
+
+      // トランザクション記録
+      await db.insert(coinTransactions).values({
+        userId: String(user.id),
+        amount: coins,
+        type: "purchase",
+        referenceId: sessionId,
+        description: `Purchased ${coins} coin${coins > 1 ? "s" : ""} via Stripe`,
+      });
+
+      return res.json({ success: true, newBalance: currentBalance + coins });
+    } catch (err) {
+      console.error("Verify purchase error:", err);
+      return res.status(500).json({ error: "Failed to verify purchase" });
+    }
+  });
+
+  // ─── Coin System API ─────────────────────────────────────────────────────────
+
+  /** Get current user's coin balance */
+  app.get("/api/coins/balance", async (req: Request, res: Response) => {
+    const token = (req.headers.authorization ?? "").replace("Bearer ", "");
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    let userId: string;
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+      userId = decoded.userId;
+    } catch {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+    const rows = await db.select().from(coinBalances).where(eq(coinBalances.userId, userId)).limit(1);
+    return res.json({ balance: rows[0]?.balance ?? 0 });
+  });
+
+  /** Get free request count remaining for today */
+  app.get("/api/coins/request-count", async (req: Request, res: Response) => {
+    const token = (req.headers.authorization ?? "").replace("Bearer ", "");
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    let userId: string;
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+      userId = decoded.userId;
+    } catch {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+    const communityId = parseInt(String(req.query.communityId ?? "0"), 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await db.select().from(jukeboxRequestCounts)
+      .where(and(eq(jukeboxRequestCounts.userId, userId), eq(jukeboxRequestCounts.communityId, communityId), eq(jukeboxRequestCounts.date, today)))
+      .limit(1);
+    const count = rows[0]?.count ?? 0;
+    const FREE_LIMIT = 3;
+    return res.json({ count, freeRemaining: Math.max(0, FREE_LIMIT - count) });
+  });
+
+  /** Record a free jukebox request */
+  app.post("/api/coins/record-free-request", async (req: Request, res: Response) => {
+    const token = (req.headers.authorization ?? "").replace("Bearer ", "");
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    let userId: string;
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+      userId = decoded.userId;
+    } catch {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+    const { communityId } = req.body as { communityId: number };
+    const today = new Date().toISOString().slice(0, 10);
+    const existing = await db.select().from(jukeboxRequestCounts)
+      .where(and(eq(jukeboxRequestCounts.userId, userId), eq(jukeboxRequestCounts.communityId, communityId), eq(jukeboxRequestCounts.date, today)))
+      .limit(1);
+    if (existing.length > 0) {
+      await db.update(jukeboxRequestCounts)
+        .set({ count: existing[0].count + 1, updatedAt: new Date() })
+        .where(eq(jukeboxRequestCounts.id, existing[0].id));
+    } else {
+      await db.insert(jukeboxRequestCounts).values({ userId, communityId, date: today, count: 1 });
+    }
+    return res.json({ ok: true });
+  });
+
+  /** Spend 1 coin for a jukebox request */
+  app.post("/api/coins/spend-jukebox", async (req: Request, res: Response) => {
+    const token = (req.headers.authorization ?? "").replace("Bearer ", "");
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    let userId: string;
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+      userId = decoded.userId;
+    } catch {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+    const { communityId } = req.body as { communityId: number };
+    // Check balance
+    const balRows = await db.select().from(coinBalances).where(eq(coinBalances.userId, userId)).limit(1);
+    const balance = balRows[0]?.balance ?? 0;
+    if (balance < 1) return res.status(402).json({ error: "Insufficient coins", balance });
+    // Deduct coin
+    if (balRows.length > 0) {
+      await db.update(coinBalances).set({ balance: balance - 1, updatedAt: new Date() }).where(eq(coinBalances.userId, userId));
+    } else {
+      await db.insert(coinBalances).values({ userId, balance: -1 });
+    }
+    // Record transaction
+    await db.insert(coinTransactions).values({
+      userId, amount: -1, type: "spend_jukebox",
+      description: `Jukebox request in community ${communityId}`,
+    });
+    // Increment request count
+    const today = new Date().toISOString().slice(0, 10);
+    const existing = await db.select().from(jukeboxRequestCounts)
+      .where(and(eq(jukeboxRequestCounts.userId, userId), eq(jukeboxRequestCounts.communityId, communityId), eq(jukeboxRequestCounts.date, today)))
+      .limit(1);
+    if (existing.length > 0) {
+      await db.update(jukeboxRequestCounts)
+        .set({ count: existing[0].count + 1, updatedAt: new Date() })
+        .where(eq(jukeboxRequestCounts.id, existing[0].id));
+    } else {
+      await db.insert(jukeboxRequestCounts).values({ userId, communityId, date: today, count: 1 });
+    }
+    return res.json({ ok: true, newBalance: balance - 1 });
+  });
+
+  /** Use revenue balance (¥30) to pay for a jukebox request */
+  app.post("/api/coins/use-revenue", async (req: Request, res: Response) => {
+    const token = (req.headers.authorization ?? "").replace("Bearer ", "");
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    let userId: string;
+    let userIdNum: number;
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+      userId = decoded.userId;
+      userIdNum = parseInt(userId, 10);
+    } catch {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+    const { communityId } = req.body as { communityId: number };
+    const COIN_PRICE_JPY = 30;
+    // Check revenue balance
+    const walletRows = await db.select().from(wallets).where(eq(wallets.userId, userIdNum)).limit(1);
+    const walletBalance = walletRows[0]?.balanceAvailable ?? 0;
+    if (walletBalance < COIN_PRICE_JPY) {
+      return res.status(402).json({ error: "Insufficient revenue balance", balance: walletBalance });
+    }
+    // Deduct from wallet
+    await db.update(wallets).set({ balanceAvailable: walletBalance - COIN_PRICE_JPY, updatedAt: new Date() }).where(eq(wallets.userId, userIdNum));
+    // Record coin transaction
+    await db.insert(coinTransactions).values({
+      userId, amount: 0, type: "revenue_convert",
+      description: `Revenue ¥${COIN_PRICE_JPY} used for jukebox request in community ${communityId}`,
+    });
+    // Increment request count
+    const today = new Date().toISOString().slice(0, 10);
+    const existing = await db.select().from(jukeboxRequestCounts)
+      .where(and(eq(jukeboxRequestCounts.userId, userId), eq(jukeboxRequestCounts.communityId, communityId), eq(jukeboxRequestCounts.date, today)))
+      .limit(1);
+    if (existing.length > 0) {
+      await db.update(jukeboxRequestCounts)
+        .set({ count: existing[0].count + 1, updatedAt: new Date() })
+        .where(eq(jukeboxRequestCounts.id, existing[0].id));
+    } else {
+      await db.insert(jukeboxRequestCounts).values({ userId, communityId, date: today, count: 1 });
+    }
+    return res.json({ ok: true });
+  });
+
+  /** Create Stripe checkout session to purchase coins */
+  app.post("/api/coins/create-checkout", async (req: Request, res: Response) => {
+    const token = (req.headers.authorization ?? "").replace("Bearer ", "");
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+    let userId: string;
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+      userId = decoded.userId;
+    } catch {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+    const { packageId, origin } = req.body as { packageId: string; origin: string };
+    const PACKAGES: Record<string, { coins: number; amountGBP: number; label: string }> = {
+      "pack-1":  { coins: 1,  amountGBP: 16,  label: "1 Jukebox Coin" },
+      "pack-5":  { coins: 5,  amountGBP: 75,  label: "5 Jukebox Coins" },
+      "pack-10": { coins: 10, amountGBP: 140, label: "10 Jukebox Coins" },
+      "pack-30": { coins: 30, amountGBP: 390, label: "30 Jukebox Coins" },
+    };
+    const pkg = PACKAGES[packageId];
+    if (!pkg) return res.status(400).json({ error: "Invalid package" });
+    const stripe = await getUncachableStripeClient();
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["card"],
+      line_items: [{ price_data: { currency: "gbp", product_data: { name: pkg.label }, unit_amount: pkg.amountGBP }, quantity: 1 }],
+      success_url: `${origin}/coins/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/revenue`,
+      client_reference_id: userId,
+      metadata: { user_id: userId, package_id: packageId, coins: String(pkg.coins) },
+      allow_promotion_codes: true,
+    });
+    return res.json({ url: session.url });
+  });
+
+  /** Verify coin purchase after Stripe redirect */
+  app.get("/api/coins/verify-purchase", async (req: Request, res: Response) => {
+    const sessionId = String(req.query.session_id ?? "");
+    if (!sessionId) return res.status(400).json({ error: "Missing session_id" });
+    const stripe = await getUncachableStripeClient();
+    try {
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      if (session.payment_status !== "paid") return res.status(402).json({ error: "Not paid" });
+      const userId = session.client_reference_id ?? session.metadata?.user_id;
+      if (!userId) return res.status(400).json({ error: "No user ID" });
+      const coins = parseInt(session.metadata?.coins ?? "0", 10);
+      if (!coins) return res.status(400).json({ error: "No coins in metadata" });
+      // Idempotency: check if already processed
+      const existing = await db.select().from(coinTransactions)
+        .where(and(eq(coinTransactions.userId, userId), eq(coinTransactions.referenceId, sessionId)))
+        .limit(1);
+      if (existing.length === 0) {
+        // Credit coins
+        const balRows = await db.select().from(coinBalances).where(eq(coinBalances.userId, userId)).limit(1);
+        if (balRows.length > 0) {
+          await db.update(coinBalances).set({ balance: balRows[0].balance + coins, updatedAt: new Date() }).where(eq(coinBalances.userId, userId));
+        } else {
+          await db.insert(coinBalances).values({ userId, balance: coins });
+        }
+        await db.insert(coinTransactions).values({
+          userId, amount: coins, type: "purchase",
+          referenceId: sessionId,
+          description: `Purchased ${coins} coins via Stripe`,
+        });
+      }
+      const balRows = await db.select().from(coinBalances).where(eq(coinBalances.userId, userId)).limit(1);
+      return res.json({ ok: true, coins, newBalance: balRows[0]?.balance ?? coins });
+    } catch (err) {
+      console.error("Coin verify error:", err);
+      return res.status(500).json({ error: "Verification failed" });
+    }
+  });
+
+  // Translation endpoint
+  app.post("/api/translate", async (req: Request, res: Response) => {
+    try {
+      const { text, targetLang } = req.body as { text: string; targetLang: "en" | "ja" };
+      if (!text || !targetLang) {
+        return res.status(400).json({ error: "text and targetLang are required" });
+      }
+      if (text.length > 2000) {
+        return res.status(400).json({ error: "text too long (max 2000 chars)" });
+      }
+      const { invokeLLM } = await import("./_core/llm");
+      const langLabel = targetLang === "en" ? "English" : "Japanese";
+      const response = await invokeLLM({
+        messages: [
+          {
+            role: "system",
+            content: `You are a translator. Translate the user's text to ${langLabel}. Return ONLY the translated text with no explanation, no quotes, and no extra formatting.`,
+          },
+          { role: "user", content: text },
+        ],
+      });
+      const translated = response?.choices?.[0]?.message?.content ?? "";
+      return res.json({ translated: typeof translated === "string" ? translated : JSON.stringify(translated) });
+    } catch (err) {
+      console.error("Translation error:", err);
+      return res.status(500).json({ error: "Translation failed" });
+    }
   });
 }

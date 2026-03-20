@@ -12,6 +12,8 @@ import DMDetail from "./pages/DMDetail";
 import LiveList from "./pages/LiveList";
 import Auth from "./pages/Auth";
 import LandingPage from "./rawstock-lp/LandingPage";
+import JukeboxPage from "./pages/Jukebox";
+import CoinSuccess from "./pages/CoinSuccess";
 
 export const router = createBrowserRouter([
   {
@@ -69,6 +71,14 @@ export const router = createBrowserRouter([
       {
         path: "auth",
         Component: Auth,
+      },
+      {
+        path: "jukebox/:id",
+        Component: JukeboxPage,
+      },
+      {
+        path: "coins/success",
+        Component: CoinSuccess,
       },
     ],
   },
