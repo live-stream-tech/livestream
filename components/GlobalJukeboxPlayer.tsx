@@ -299,29 +299,40 @@ export function GlobalJukeboxPlayer() {
 
   const updateContainerPosition = useCallback(() => {
     if (Platform.OS !== "web") return;
-    const container = ytBodyContainerRef.current;
-    if (!container) return;
-    if (isOnJukeboxPageRef.current) {
-      // jukebox ページ上: jukebox-yt-holder の位置に追従
-      const anchor = document.getElementById("jukebox-yt-holder");
-      if (anchor) {
-        const r = anchor.getBoundingClientRect();
-        container.style.left = `${r.left}px`;
-        container.style.top = `${r.top}px`;
-        container.style.width = `${r.width}px`;
-        container.style.height = `${r.height}px`;
-        container.style.opacity = "1";
-        container.style.zIndex = "10";
+    const applyPosition = () => {
+      const container = ytBodyContainerRef.current;
+      if (!container) return;
+      if (isOnJukeboxPageRef.current) {
+        // jukebox ページ上: jukebox-yt-holder の位置に追従
+        const anchor = document.getElementById("jukebox-yt-holder");
+        if (anchor) {
+          const r = anchor.getBoundingClientRect();
+          // サイズが 0 の場合は次フレームで再試行
+          if (r.width === 0 || r.height === 0) {
+            requestAnimationFrame(applyPosition);
+            return;
+          }
+          container.style.left = `${r.left}px`;
+          container.style.top = `${r.top}px`;
+          container.style.width = `${r.width}px`;
+          container.style.height = `${r.height}px`;
+          container.style.opacity = "1";
+          container.style.zIndex = "10";
+        } else {
+          // anchor がまだ存在しない場合は次フレームで再試行
+          requestAnimationFrame(applyPosition);
+        }
+      } else {
+        // ページ離脱後: 画面外に退避（音声継続）
+        container.style.left = "-9999px";
+        container.style.top = "0px";
+        container.style.width = "320px";
+        container.style.height = "180px";
+        container.style.opacity = "0";
+        container.style.zIndex = "0";
       }
-    } else {
-      // ページ離脱後: 画面外に退避（音声継続）
-      container.style.left = "-9999px";
-      container.style.top = "0px";
-      container.style.width = "320px";
-      container.style.height = "180px";
-      container.style.opacity = "0";
-      container.style.zIndex = "0";
-    }
+    };
+    requestAnimationFrame(applyPosition);
   }, []);
   const updateContainerPositionRef = useRef(updateContainerPosition);
   updateContainerPositionRef.current = updateContainerPosition;
@@ -356,10 +367,17 @@ export function GlobalJukeboxPlayer() {
       const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(sync) : null;
       const anchor = document.getElementById("jukebox-yt-holder");
       if (anchor) ro?.observe(anchor);
+      // jukebox-yt-holder が後から追加された場合も検知する
+      const mo = typeof MutationObserver !== "undefined" ? new MutationObserver(() => {
+        const a = document.getElementById("jukebox-yt-holder");
+        if (a) { ro?.observe(a); sync(); }
+      }) : null;
+      mo?.observe(document.body, { childList: true, subtree: true });
       ytSyncCleanupRef.current = () => {
         window.removeEventListener("resize", sync);
         window.removeEventListener("scroll", sync, true);
         ro?.disconnect();
+        mo?.disconnect();
       };
     }
     updateContainerPositionRef.current();
@@ -396,6 +414,8 @@ export function GlobalJukeboxPlayer() {
             youtubePlayerRef.current.pauseVideo?.();
           } else {
             youtubePlayerRef.current.unMute?.();
+            youtubePlayerRef.current.setVolume?.(100);
+            youtubePlayerRef.current.playVideo?.();
           }
         } catch {
           try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
@@ -419,6 +439,7 @@ export function GlobalJukeboxPlayer() {
               try {
                 if (!isOnJukeboxPageRef.current) {
                   event.target?.unMute?.();
+                  event.target?.setVolume?.(100);
                   event.target?.playVideo?.();
                 }
               } catch { /* ignore */ }
@@ -472,9 +493,8 @@ export function GlobalJukeboxPlayer() {
         const PAUSED = w.YT?.PlayerState?.PAUSED;
         const CUED = w.YT?.PlayerState?.VIDEO_CUED;
         youtubePlayerRef.current.unMute?.();
-        if (ps === PAUSED || ps === CUED || ps === 3) {
-          youtubePlayerRef.current.playVideo?.();
-        }
+        youtubePlayerRef.current.setVolume?.(100);
+        youtubePlayerRef.current.playVideo?.();
       } catch { /* ignore */ }
     } else if (isOnJukeboxPage && youtubePlayerRef.current) {
       try {
@@ -527,7 +547,17 @@ export function GlobalJukeboxPlayer() {
           {/* サムネイル */}
           <Pressable
             style={styles.barThumbWrap}
-            onPress={() => router.push(`/jukebox/${communityId}`)}
+            onPress={() => {
+              // ユーザーインタラクションのタイミングで音声を確実に再開
+              try {
+                if (youtubePlayerRef.current) {
+                  youtubePlayerRef.current.unMute?.();
+                  youtubePlayerRef.current.setVolume?.(100);
+                  youtubePlayerRef.current.playVideo?.();
+                }
+              } catch { /* ignore */ }
+              router.push(`/jukebox/${communityId}`);
+            }}
           >
             {state.currentVideoThumbnail ? (
               <Image
@@ -545,7 +575,16 @@ export function GlobalJukeboxPlayer() {
           {/* タイトル・情報 */}
           <Pressable
             style={styles.barInfo}
-            onPress={() => router.push(`/jukebox/${communityId}`)}
+            onPress={() => {
+              try {
+                if (youtubePlayerRef.current) {
+                  youtubePlayerRef.current.unMute?.();
+                  youtubePlayerRef.current.setVolume?.(100);
+                  youtubePlayerRef.current.playVideo?.();
+                }
+              } catch { /* ignore */ }
+              router.push(`/jukebox/${communityId}`);
+            }}
           >
             <Text style={styles.barTitle} numberOfLines={1}>
               {state.currentVideoTitle ?? "同時視聴中"}
