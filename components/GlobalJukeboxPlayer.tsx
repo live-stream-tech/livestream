@@ -79,17 +79,16 @@ function useScreenSize() {
 export function GlobalJukeboxPlayer() {
   const { width: SCREEN_W, height: SCREEN_H } = useScreenSize();
   const pathname = usePathname();
-  const { setJukeboxIsActive, playing: videoPlaying } = usePlayingVideo();
+  const { setJukeboxIsActive, playing: videoPlaying, ytPlayerRef: youtubePlayerRef, ytContainerRef: globalYtContainerRef } = usePlayingVideo();
   const [communityId, setCommunityId] = useState<number | null>(() =>
     parseCommunityId(pathname)
   );
   const [minimized, setMinimized] = useState(false);
-  const [dismissed, setDismissed] = useState(true); // デフォルト非表示、タップで表示
+  const [dismissed, setDismissed] = useState(true);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [elapsedDisplay, setElapsedDisplay] = useState(0);
   const posRef = useRef({ x: 0, y: 0 });
   const dragBaseRef = useRef({ x: 0, y: 0 });
-  const youtubePlayerRef = useRef<any | null>(null);
   const containerIdRef = useRef<string>(
     `global-jb-${Math.random().toString(36).slice(2)}`
   );
@@ -169,15 +168,16 @@ export function GlobalJukeboxPlayer() {
 
     const baseUrl = getApiUrl().replace(/\/$/, "");
     const sseUrl = `${baseUrl}/api/jukebox/${communityId}/stream`;
-    let es: EventSource | null = null;
+     let es: EventSource | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let closed = false;
-
+    let retryCount = 0;
     const connect = () => {
       if (closed) return;
       es = new EventSource(sseUrl);
       es.addEventListener("state_update", (e: MessageEvent) => {
         try {
+          retryCount = 0; // 接続成功でリセット
           const payload = JSON.parse(e.data) as { data: JukeboxState };
           qc.setQueryData<JukeboxData>([`/api/jukebox/${communityId}`], (prev) =>
             prev ? { ...prev, state: payload.data } : prev
@@ -186,6 +186,7 @@ export function GlobalJukeboxPlayer() {
       });
       es.addEventListener("queue_update", (e: MessageEvent) => {
         try {
+          retryCount = 0;
           const payload = JSON.parse(e.data) as { data: QueueItem[] };
           qc.setQueryData<JukeboxData>([`/api/jukebox/${communityId}`], (prev) =>
             prev ? { ...prev, queue: payload.data } : prev
@@ -195,7 +196,10 @@ export function GlobalJukeboxPlayer() {
       es.onerror = () => {
         es?.close();
         if (!closed) {
-          retryTimer = setTimeout(connect, 3000);
+          // 指数バックオフ: 1→2→4→8→16→30秒上限
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+          retryCount++;
+          retryTimer = setTimeout(connect, delay);
         }
       };
     };
@@ -289,21 +293,77 @@ export function GlobalJukeboxPlayer() {
   const isOnJukeboxPageRef = useRef(isOnJukeboxPage);
   isOnJukeboxPageRef.current = isOnJukeboxPage;
 
+  // IFrame コンテナを document.body に常駐させ、状態に応じて位置を更新する
+  const ytBodyContainerRef = useRef<HTMLDivElement | null>(null);
+  const ytSyncCleanupRef = useRef<(() => void) | null>(null);
+
+  const updateContainerPosition = useCallback(() => {
+    if (Platform.OS !== "web") return;
+    const container = ytBodyContainerRef.current;
+    if (!container) return;
+    if (isOnJukeboxPageRef.current) {
+      // jukebox ページ上: jukebox-yt-holder の位置に追従
+      const anchor = document.getElementById("jukebox-yt-holder");
+      if (anchor) {
+        const r = anchor.getBoundingClientRect();
+        container.style.left = `${r.left}px`;
+        container.style.top = `${r.top}px`;
+        container.style.width = `${r.width}px`;
+        container.style.height = `${r.height}px`;
+        container.style.opacity = "1";
+        container.style.zIndex = "10";
+      }
+    } else {
+      // ページ離脱後: 画面外に退避（音声継続）
+      container.style.left = "-9999px";
+      container.style.top = "0px";
+      container.style.width = "320px";
+      container.style.height = "180px";
+      container.style.opacity = "0";
+      container.style.zIndex = "0";
+    }
+  }, []);
+  const updateContainerPositionRef = useRef(updateContainerPosition);
+  updateContainerPositionRef.current = updateContainerPosition;
+
+  // IFrame 生成・管理（document.body に常駐）
   useEffect(() => {
     if (Platform.OS !== "web") return;
     if (!communityId) return;
-
-    // 再生対象がない場合はプレイヤー破棄
     if (!state?.currentVideoYoutubeId) {
       if (youtubePlayerRef.current) {
         try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
         youtubePlayerRef.current = null;
       }
+      if (ytBodyContainerRef.current) {
+        ytSyncCleanupRef.current?.();
+        ytSyncCleanupRef.current = null;
+        ytBodyContainerRef.current.remove();
+        ytBodyContainerRef.current = null;
+      }
       return;
     }
-
+    // コンテナが未作成なら document.body に追加
+    if (!ytBodyContainerRef.current) {
+      const container = document.createElement("div");
+      container.id = containerIdRef.current;
+      container.style.cssText = "position:fixed;left:-9999px;top:0;width:320px;height:180px;z-index:10;";
+      document.body.appendChild(container);
+      ytBodyContainerRef.current = container;
+      const sync = () => updateContainerPositionRef.current();
+      window.addEventListener("resize", sync);
+      window.addEventListener("scroll", sync, true);
+      const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(sync) : null;
+      const anchor = document.getElementById("jukebox-yt-holder");
+      if (anchor) ro?.observe(anchor);
+      ytSyncCleanupRef.current = () => {
+        window.removeEventListener("resize", sync);
+        window.removeEventListener("scroll", sync, true);
+        ro?.disconnect();
+      };
+    }
+    updateContainerPositionRef.current();
     let cancelled = false;
-
     function ensureYouTubeApi(): Promise<any> {
       return new Promise((resolve) => {
         const w = window as any;
@@ -317,19 +377,14 @@ export function GlobalJukeboxPlayer() {
         }
       });
     }
-
     const initPlayer = (YT: any) => {
       if (cancelled) return;
       const containerId = containerIdRef.current;
       if (!containerId) return;
-
-      // jukebox ページ上では autoplay:0 でサイレントプリロード
-      // 離脱後は playVideo() で即再生するため無音時間を最小化
       const onJukeboxPage = isOnJukeboxPageRef.current;
       const startSec = state.elapsedSecs && state.elapsedSecs > 0
         ? state.elapsedSecs
         : Math.max(0, (Date.now() - new Date(state.startedAt).getTime()) / 1000);
-
       if (youtubePlayerRef.current) {
         try {
           youtubePlayerRef.current.loadVideoById({
@@ -337,22 +392,24 @@ export function GlobalJukeboxPlayer() {
             startSeconds: startSec,
           });
           if (onJukeboxPage) {
-            youtubePlayerRef.current.pauseVideo();
+            youtubePlayerRef.current.mute?.();
+            youtubePlayerRef.current.pauseVideo?.();
+          } else {
+            youtubePlayerRef.current.unMute?.();
           }
         } catch {
           try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
           youtubePlayerRef.current = null;
         }
       }
-
       if (!youtubePlayerRef.current) {
         youtubePlayerRef.current = new YT.Player(containerId, {
           videoId: state.currentVideoYoutubeId,
           playerVars: {
             autoplay: onJukeboxPage ? 0 : 1,
             rel: 0,
-            controls: 1,
-            disablekb: 0,
+            controls: 0,
+            disablekb: 1,
             playsinline: 1,
             start: Math.floor(startSec),
             mute: onJukeboxPage ? 1 : 0,
@@ -378,47 +435,54 @@ export function GlobalJukeboxPlayer() {
         });
       }
     };
-
     ensureYouTubeApi()
       .then((YT: any) => {
         if (cancelled) return;
-        const containerId = containerIdRef.current;
-        if (!containerId) return;
-        if (!document.getElementById(containerId)) {
-          requestAnimationFrame(() => { if (!cancelled) initPlayer(YT); });
-          return;
-        }
         initPlayer(YT);
       })
       .catch(() => { /* ignore */ });
+    return () => { cancelled = true; };
+  }, [communityId, state?.currentVideoYoutubeId, updateContainerPosition]);
 
+  // GlobalJukeboxPlayer アンマウント時にコンテナを破棄
+  useEffect(() => {
     return () => {
-      cancelled = true;
+      if (Platform.OS !== "web") return;
+      ytSyncCleanupRef.current?.();
+      ytSyncCleanupRef.current = null;
       if (youtubePlayerRef.current) {
         try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
         youtubePlayerRef.current = null;
       }
+      if (ytBodyContainerRef.current) {
+        ytBodyContainerRef.current.remove();
+        ytBodyContainerRef.current = null;
+      }
     };
-  // 依存は currentVideoYoutubeId のみ。isOnJukeboxPage は ref で参照するためここには入れない
-  }, [communityId, state?.currentVideoYoutubeId]);
+  }, []);
 
-  // jukebox ページから離脱した瞬間にプリロード済み IFrame を再生開始
+  // isOnJukeboxPage が変わったらコンテナ位置を更新し、ミュート制御
   useEffect(() => {
     if (Platform.OS !== "web") return;
-    if (isOnJukeboxPage) return; // 離脱後のみ
-    if (!youtubePlayerRef.current) return;
-    if (!state?.currentVideoYoutubeId) return;
-    try {
-      const w = window as any;
-      const playerState = youtubePlayerRef.current.getPlayerState?.();
-      const PAUSED = w.YT?.PlayerState?.PAUSED;
-      const CUED = w.YT?.PlayerState?.VIDEO_CUED;
-      if (playerState === PAUSED || playerState === CUED) {
+    updateContainerPositionRef.current();
+    if (!isOnJukeboxPage && youtubePlayerRef.current) {
+      try {
+        const w = window as any;
+        const ps = youtubePlayerRef.current.getPlayerState?.();
+        const PAUSED = w.YT?.PlayerState?.PAUSED;
+        const CUED = w.YT?.PlayerState?.VIDEO_CUED;
         youtubePlayerRef.current.unMute?.();
-        youtubePlayerRef.current.playVideo?.();
-      }
-    } catch { /* ignore */ }
-  }, [isOnJukeboxPage, state?.currentVideoYoutubeId]);
+        if (ps === PAUSED || ps === CUED || ps === 3) {
+          youtubePlayerRef.current.playVideo?.();
+        }
+      } catch { /* ignore */ }
+    } else if (isOnJukeboxPage && youtubePlayerRef.current) {
+      try {
+        youtubePlayerRef.current.mute?.();
+        youtubePlayerRef.current.pauseVideo?.();
+      } catch { /* ignore */ }
+    }
+  }, [isOnJukeboxPage]);
 
   // コミュニティ/jukebox ページ以外では何も表示しない
   if (!communityId) return null;
@@ -444,50 +508,15 @@ export function GlobalJukeboxPlayer() {
   const addedBy =
     queue.find((q) => !q.isPlayed)?.addedBy ?? "";
 
-  // dismissed 時: 隠しプレイヤーのみ維持（音声継続）
+  // dismissed 時: コンテナは document.body に常駐しているため JSX は不要
   if (dismissed) {
-    return (
-      <View pointerEvents="box-none" style={[styles.root, { left: 0, right: 0, top: 0, bottom: 0 }]}>
-        {Platform.OS === "web" && state.currentVideoYoutubeId ? (
-          <View
-            style={{
-              position: "absolute",
-              width: 320,
-              height: 180,
-              opacity: 0,
-              overflow: "hidden",
-              left: -9999,
-              top: 0,
-            }}
-            pointerEvents="none"
-            nativeID={containerIdRef.current}
-          />
-        ) : null}
-      </View>
-    );
+    return null;
   }
 
   // Spotify 風画面下部固定バー
   return (
     <View pointerEvents="box-none" style={[styles.root, { left: 0, right: 0, top: 0, bottom: 0 }]}>
-      {/* 音声継続用の隠しプレイヤーコンテナ */}
-      {Platform.OS === "web" && state.currentVideoYoutubeId ? (
-        <View
-          style={{
-            position: "absolute",
-            width: 320,
-            height: 180,
-            opacity: 0,
-            overflow: "hidden",
-            left: -9999,
-            top: 0,
-          }}
-          pointerEvents="none"
-          nativeID={containerIdRef.current}
-        />
-      ) : null}
-
-      {/* Spotify 風バー */}
+       {/* Spotify 風バー */}
       <View style={styles.bar}>
         {/* プログレスバー（バー上部） */}
         <View style={styles.barProgress}>

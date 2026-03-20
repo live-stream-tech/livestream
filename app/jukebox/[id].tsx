@@ -114,123 +114,10 @@ function NowPlaying({
 }) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const ytContainerId = useRef(`jukebox-yt-${Math.random().toString(36).slice(2)}`).current;
-  const ytPlayerRef = useRef<any>(null);
-  const ytContainerRef = useRef<HTMLDivElement | null>(null);
-  const resizeCleanupRef = useRef<(() => void) | null>(null);
   const [elapsedDisplay, setElapsedDisplay] = useState(0);
   const onNextRef = useRef(onNext);
   onNextRef.current = onNext;
 
-  // Web: YouTube IFrame プレイヤー（メイン再生エリア）
-  // コンテナを React 外で作成し、再レンダー時の iframe 破棄を防ぐ（カクつき対策）
-  // 依存は currentVideoYoutubeId のみ。onNext を入れるとポーリングのたびにプレイヤー再作成→カクつき・音声途切れ
-  useEffect(() => {
-    if (Platform.OS !== "web" || !state?.currentVideoYoutubeId) return;
-    const vid = state.currentVideoYoutubeId;
-    let cancelled = false;
-
-    function ensureYT(): Promise<any> {
-      return new Promise((resolve) => {
-        const w = window as any;
-        if (w.YT?.Player) {
-          resolve(w.YT);
-          return;
-        }
-        const prev = w.onYouTubeIframeAPIReady;
-        w.onYouTubeIframeAPIReady = () => {
-          if (prev) prev();
-          resolve(w.YT);
-        };
-        if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
-          const s = document.createElement("script");
-          s.src = "https://www.youtube.com/iframe_api";
-          document.body.appendChild(s);
-        }
-      });
-    }
-
-    ensureYT().then((YT: any) => {
-      if (cancelled) return;
-      const startSec = state.elapsedSecs && state.elapsedSecs > 0
-        ? state.elapsedSecs
-        : Math.max(0, (Date.now() - new Date(state.startedAt).getTime()) / 1000);
-      if (ytPlayerRef.current) {
-        try {
-          ytPlayerRef.current.loadVideoById({ videoId: vid, startSeconds: startSec });
-        } catch {
-          try { ytPlayerRef.current.destroy(); } catch {}
-          ytPlayerRef.current = null;
-        }
-      }
-      if (!ytPlayerRef.current) {
-        const anchor = document.getElementById("jukebox-yt-holder");
-        if (!anchor) return;
-        const rect = anchor.getBoundingClientRect();
-        const container = document.createElement("div");
-        container.id = ytContainerId;
-        container.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px;z-index:10;`;
-        document.body.appendChild(container);
-        ytContainerRef.current = container;
-
-        const syncPosition = () => {
-          const a = document.getElementById("jukebox-yt-holder");
-          if (a && container.parentNode) {
-            const r = a.getBoundingClientRect();
-            container.style.left = `${r.left}px`;
-            container.style.top = `${r.top}px`;
-            container.style.width = `${r.width}px`;
-            container.style.height = `${r.height}px`;
-          }
-        };
-        window.addEventListener("resize", syncPosition);
-        // スクロール時も位置を同期（resize だけではスクロールでずれる）
-        window.addEventListener("scroll", syncPosition, true);
-        const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(syncPosition) : null;
-        ro?.observe(anchor);
-        resizeCleanupRef.current = () => {
-          window.removeEventListener("resize", syncPosition);
-          window.removeEventListener("scroll", syncPosition, true);
-          ro?.disconnect();
-        };
-
-        ytPlayerRef.current = new YT.Player(ytContainerId, {
-          videoId: vid,
-          playerVars: {
-            autoplay: 1,
-            rel: 0,
-            controls: 1,
-            playsinline: 1,
-            start: Math.floor(startSec),
-          },
-          events: {
-            onReady: (e: any) => {
-              try {
-                e.target?.unMute?.();
-              } catch {}
-            },
-            onStateChange: (e: any) => {
-              try {
-                if (e.data === (window as any).YT?.PlayerState?.ENDED) onNextRef.current();
-              } catch {}
-            },
-          },
-        });
-      }
-    }).catch(() => {});
-
-    return () => {
-      cancelled = true;
-      resizeCleanupRef.current?.();
-      resizeCleanupRef.current = null;
-      if (ytPlayerRef.current) {
-        try { ytPlayerRef.current.destroy(); } catch {}
-        ytPlayerRef.current = null;
-      }
-      const c = ytContainerRef.current;
-      if (c && c.parentNode) c.parentNode.removeChild(c);
-      ytContainerRef.current = null;
-    };
-  }, [state?.currentVideoYoutubeId, ytContainerId]);
 
   // 表示用の経過時間を1秒ごとに更新（再生中のみ）
   useEffect(() => {
@@ -472,6 +359,7 @@ export default function JukeboxScreen() {
     let es: EventSource | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let closed = false;
+    let retryCount = 0;
 
     const connect = () => {
       if (closed) return;
@@ -479,6 +367,7 @@ export default function JukeboxScreen() {
 
       es.addEventListener("state_update", (e: MessageEvent) => {
         try {
+          retryCount = 0;
           const payload = JSON.parse(e.data) as { data: JukeboxState };
           qc.setQueryData<JukeboxData>(jukeboxKey, (prev) =>
             prev ? { ...prev, state: payload.data } : prev
@@ -488,6 +377,7 @@ export default function JukeboxScreen() {
 
       es.addEventListener("queue_update", (e: MessageEvent) => {
         try {
+          retryCount = 0;
           const payload = JSON.parse(e.data) as { data: QueueItem[] };
           qc.setQueryData<JukeboxData>(jukeboxKey, (prev) =>
             prev ? { ...prev, queue: payload.data } : prev
@@ -497,6 +387,7 @@ export default function JukeboxScreen() {
 
       es.addEventListener("chat", (e: MessageEvent) => {
         try {
+          retryCount = 0;
           const payload = JSON.parse(e.data) as { data: ChatMsg };
           qc.setQueryData<JukeboxData>(jukeboxKey, (prev) => {
             if (!prev) return prev;
@@ -510,7 +401,10 @@ export default function JukeboxScreen() {
       es.onerror = () => {
         es?.close();
         if (!closed) {
-          retryTimer = setTimeout(connect, 3000);
+          // 指数バックオフ: 1→2→4→8→16→30秒上限
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
+          retryCount++;
+          retryTimer = setTimeout(connect, delay);
         }
       };
     };
