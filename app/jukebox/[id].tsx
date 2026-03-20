@@ -356,10 +356,14 @@ function QueueRow({
   items,
   state,
   onAdd,
+  userName,
+  onDelete,
 }: {
   items: QueueItem[];
   state: JukeboxState | null;
   onAdd: () => void;
+  userName?: string | null;
+  onDelete?: (id: number) => void;
 }) {
   // 再生済みを除外し、再生中の曲もキュー表示から除外（Now Playing と重複しないように）
   const upcoming = items.filter(
@@ -382,6 +386,15 @@ function QueueRow({
       >
         {upcoming.map((item) => (
           <View key={item.id} style={styles.queueItem}>
+            {userName && item.addedBy === userName && onDelete ? (
+              <Pressable
+                onPress={() => onDelete(item.id)}
+                style={{ position: "absolute", top: 4, right: 4, zIndex: 20, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 10, padding: 2 }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={14} color="#fff" />
+              </Pressable>
+            ) : null}
             <Image
               source={{ uri: item.videoThumbnail }}
               style={styles.queueThumb}
@@ -567,6 +580,14 @@ export default function JukeboxScreen() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (itemId: number) =>
+      apiRequest("DELETE", `/api/jukebox/${communityId}/queue/${itemId}`, { addedBy: user?.name }),
+    onSuccess: () => {
+      if (Platform.OS !== "web") qc.invalidateQueries({ queryKey: jukeboxKey });
+    },
+  });
+
   const handleAddYouTube = () => {
     const url = ytUrl.trim();
     if (!url) return;
@@ -730,7 +751,7 @@ export default function JukeboxScreen() {
         <NowPlaying state={state} onNext={handleNext} />
 
         {/* Queue */}
-        <QueueRow items={queue} state={state} onAdd={() => {
+        <QueueRow items={queue} state={state} userName={user?.name} onDelete={(id) => deleteMutation.mutate(id)} onAdd={() => {
           if (!user) { router.push("/auth/login"); return; }
           setShowAddModal(true);
         }} />
@@ -899,6 +920,7 @@ export default function JukeboxScreen() {
                           key={item.videoId}
                           style={styles.modalItem}
                           onPress={() => addMutation.mutate(video)}
+                          disabled={addMutation.isPending}
                         >
                           <Image source={{ uri: item.thumbnail }} style={styles.modalThumb} contentFit="cover" />
                           <View style={styles.modalItemInfo}>
@@ -958,6 +980,7 @@ export default function JukeboxScreen() {
                         key={r.videoId}
                         style={styles.modalItem}
                         onPress={() => addMutation.mutate(video)}
+                        disabled={addMutation.isPending}
                       >
                         <Image
                           source={{ uri: r.thumbnail }}
@@ -992,6 +1015,7 @@ export default function JukeboxScreen() {
                   key={video.id}
                   style={styles.modalItem}
                   onPress={() => addMutation.mutate(video)}
+                  disabled={addMutation.isPending}
                 >
                   <Image source={{ uri: video.thumbnail }} style={styles.modalThumb} contentFit="cover" />
                   <View style={styles.modalItemInfo}>
@@ -1016,6 +1040,7 @@ export default function JukeboxScreen() {
                       key={`u-${video.id}`}
                       style={styles.modalItem}
                       onPress={() => addMutation.mutate(video)}
+                      disabled={addMutation.isPending}
                     >
                       <Image source={{ uri: video.thumbnail }} style={styles.modalThumb} contentFit="cover" />
                       <View style={styles.modalItemInfo}>
