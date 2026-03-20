@@ -61,7 +61,16 @@ export default function AuthCallbackScreen() {
         if (cancelled) return;
         const saved = getLoginReturn();
         let returnTo = saved ?? "/(tabs)/profile";
-        if (returnTo.startsWith("/auth/")) returnTo = "/(tabs)/profile";
+        // ログイン後のデフォルト遷移先として不適切なパスを除外
+        const isInvalidReturn =
+          returnTo.startsWith("/auth/") ||
+          returnTo.startsWith("/jukebox") ||
+          returnTo.startsWith("/lp") ||
+          returnTo.startsWith("/rawstock-lp") ||
+          returnTo.startsWith("/terms") ||
+          returnTo.startsWith("/privacy") ||
+          returnTo.startsWith("/tokusho");
+        if (isInvalidReturn) returnTo = "/(tabs)/profile";
         router.replace(returnTo as any);
       } catch (e) {
         console.error("[auth/callback] loginWithToken failed:", e);

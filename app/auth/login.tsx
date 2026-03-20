@@ -41,8 +41,11 @@ export default function LoginScreen() {
   // 同一タブでOAuth認証（ポップアップブロック問題を回避）
   function openAuthRedirect(path: string) {
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      const returnTo = window.location.pathname + window.location.search;
-      saveLoginReturn(returnTo);
+      // /auth/login 自身を保存しない（ログイン後にログインページに戻るのを防ぐ）
+      const currentPath = window.location.pathname + window.location.search;
+      if (!currentPath.startsWith("/auth/")) {
+        saveLoginReturn(currentPath);
+      }
       const apiBase = getApiUrl();
       const url = new URL(path, apiBase).toString();
       window.location.href = url;
