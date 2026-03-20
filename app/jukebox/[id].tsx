@@ -581,8 +581,10 @@ export default function JukeboxScreen() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (itemId: number) =>
-      apiRequest("DELETE", `/api/jukebox/${communityId}/queue/${itemId}`, { addedBy: user?.name }),
+    mutationFn: (itemId: number) => {
+      const addedBy = user?.name ? `?addedBy=${encodeURIComponent(user.name)}` : "";
+      return apiRequest("DELETE", `/api/jukebox/${communityId}/queue/${itemId}${addedBy}`);
+    },
     onSuccess: () => {
       if (Platform.OS !== "web") qc.invalidateQueries({ queryKey: jukeboxKey });
     },
@@ -667,6 +669,24 @@ export default function JukeboxScreen() {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     }
   }, [chat.length]);
+
+  // ブラウザ「戻る」ガード（Web のみ）
+  const isPlayingRef = useRef(state?.isPlaying);
+  isPlayingRef.current = state?.isPlaying;
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    // 現在のエントリを履歴に積んでおく（戻る操作を検知するため）
+    history.pushState(null, "", location.href);
+    const onPopState = () => {
+      if (isPlayingRef.current) {
+        // 遷移をキャンセルして確認モーダルを表示
+        history.pushState(null, "", location.href);
+        setShowLeaveModal(true);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // プレイリスト取得（モーダル表示時・ログイン済み）
   useEffect(() => {

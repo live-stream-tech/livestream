@@ -3557,7 +3557,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.delete("/api/jukebox/:communityId/queue/:itemId", async (req: Request, res: Response) => {
     const communityId = paramNum(req, "communityId");
     const itemId = paramNum(req, "itemId");
-    const { addedBy } = req.body;
+    const addedBy = (req.query.addedBy as string) || (req.body?.addedBy as string) || null;
 
     const [item] = await db
       .select()
