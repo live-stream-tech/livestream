@@ -54,6 +54,7 @@ import { getMonthlyRevenueRank } from "./aggregateRevenue";
 import { judgeReportContent } from "./claudeReport";
 import { createSignedUploadUrl } from "./r2";
 import { moderateContent } from "./moderation";
+import { publishJukeboxEvent, redis, jukeboxChannel } from "./redis";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
@@ -3205,7 +3206,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       .select()
       .from(jukeboxChat)
       .where(eq(jukeboxChat.communityId, communityId))
-      .orderBy(asc(jukeboxChat.createdAt));
+      .orderBy(desc(jukeboxChat.createdAt))
+      .limit(30)
+      .then((rows) => rows.reverse());
 
     // ラジオ的に「今何秒目か」を返す
     let elapsedSecs = 0;
@@ -3234,6 +3237,61 @@ export async function registerRoutes(app: Express): Promise<void> {
         : null,
       queue: queueToReturn,
       chat,
+    });
+  });
+
+  // ── Jukebox SSE ストリーム ────────────────────────────────────────────
+  // Upstash Redis の List を使ったロングポーリング型 SSE
+  // クライアントは EventSource で接続し、サーバーは 1 秒ごとに新着イベントをチェックして push する
+  app.get("/api/jukebox/:communityId/stream", async (req: Request, res: Response) => {
+    const communityId = paramNum(req, "communityId");
+    const key = jukeboxChannel(communityId);
+
+    // SSE ヘッダー設定
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    // 接続直後に ping を送信
+    res.write("event: ping\ndata: {}\n\n");
+
+    // Redis List の最後に読んだインデックスを追跡
+    // 接続時点のリスト長を取得し、それ以降の新着のみを配信する
+    let lastLen: number = await redis.llen(key).catch(() => 0);
+
+    // 1 秒ごとに新着イベントをポーリング
+    const interval = setInterval(async () => {
+      try {
+        const currentLen: number = await redis.llen(key).catch(() => 0);
+        if (currentLen > lastLen) {
+          // 新着イベントを取得（リストの先頭が最新）
+          const newCount = currentLen - lastLen;
+          const items = await redis.lrange(key, 0, newCount - 1);
+          // 古い順（末尾から先頭）に送信
+          for (let i = items.length - 1; i >= 0; i--) {
+            const raw = items[i];
+            try {
+              const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+              const eventType = parsed.type ?? "message";
+              const data = JSON.stringify(parsed);
+              res.write(`event: ${eventType}\ndata: ${data}\n\n`);
+            } catch {}
+          }
+          lastLen = currentLen;
+        } else {
+          // 新着なし → ping を送信して接続維持
+          res.write("event: ping\ndata: {}\n\n");
+        }
+      } catch (e) {
+        console.error("[SSE] poll error:", e);
+      }
+    }, 1000);
+
+    // クライアント切断時にクリーンアップ
+    req.on("close", () => {
+      clearInterval(interval);
     });
   });
 
@@ -3366,6 +3424,25 @@ export async function registerRoutes(app: Express): Promise<void> {
         });
     }
 
+    // Redis にキュー更新イベントを publish
+    const updatedQueue = await db.select().from(jukeboxQueue)
+      .where(eq(jukeboxQueue.communityId, communityId))
+      .orderBy(asc(jukeboxQueue.position));
+    await publishJukeboxEvent(communityId, {
+      type: "queue_update",
+      data: updatedQueue as unknown as Record<string, unknown>[],
+    });
+    // 自動再生が始まった場合は state_update も publish
+    if (!hasUnplayed && !isCurrentlyPlaying) {
+      const [newState] = await db.select().from(jukeboxState).where(eq(jukeboxState.communityId, communityId));
+      if (newState) {
+        await publishJukeboxEvent(communityId, {
+          type: "state_update",
+          data: newState as unknown as Record<string, unknown>,
+        });
+      }
+    }
+
     res.json(item);
   });
 
@@ -3434,6 +3511,22 @@ export async function registerRoutes(app: Express): Promise<void> {
         } as Partial<typeof jukeboxState.$inferInsert>)
         .where(eq(jukeboxState.communityId, communityId));
     }
+    // Redis に state_update + queue_update イベントを publish
+    const [latestState] = await db.select().from(jukeboxState).where(eq(jukeboxState.communityId, communityId));
+    if (latestState) {
+      await publishJukeboxEvent(communityId, {
+        type: "state_update",
+        data: latestState as unknown as Record<string, unknown>,
+      });
+    }
+    const latestQueue = await db.select().from(jukeboxQueue)
+      .where(eq(jukeboxQueue.communityId, communityId))
+      .orderBy(asc(jukeboxQueue.position));
+    await publishJukeboxEvent(communityId, {
+      type: "queue_update",
+      data: latestQueue as unknown as Record<string, unknown>[],
+    });
+
     res.json({ ok: true });
   });
 
@@ -3449,6 +3542,13 @@ export async function registerRoutes(app: Express): Promise<void> {
     const [msg] = await db.insert(jukeboxChat).values({
       communityId, username: username ?? "あなた", avatar, message,
     } as typeof jukeboxChat.$inferInsert).returning();
+
+    // Redis に chat イベントを publish
+    await publishJukeboxEvent(communityId, {
+      type: "chat",
+      data: msg as unknown as Record<string, unknown>,
+    });
+
     res.json(msg);
   });
 

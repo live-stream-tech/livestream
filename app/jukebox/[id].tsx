@@ -444,11 +444,72 @@ export default function JukeboxScreen() {
 
   const jukeboxKey = [`/api/jukebox/${communityId}`] as const;
 
+  // 初回のみ REST API でデータ取得（ポーリングなし）
   const { data } = useQuery<JukeboxData>({
     queryKey: jukeboxKey,
-    refetchInterval: (query) =>
-      (query.state.data as JukeboxData)?.state?.isPlaying ? 5000 : 10000,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
   });
+
+  // SSE ストリームでリアルタイム更新
+  useEffect(() => {
+    if (Platform.OS !== "web") return; // ネイティブはポーリングにフォールバック
+    const baseUrl = getApiUrl().replace(/\/$/, "");
+    const sseUrl = `${baseUrl}/api/jukebox/${communityId}/stream`;
+    let es: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
+
+    const connect = () => {
+      if (closed) return;
+      es = new EventSource(sseUrl);
+
+      es.addEventListener("state_update", (e: MessageEvent) => {
+        try {
+          const payload = JSON.parse(e.data) as { data: JukeboxState };
+          qc.setQueryData<JukeboxData>(jukeboxKey, (prev) =>
+            prev ? { ...prev, state: payload.data } : prev
+          );
+        } catch {}
+      });
+
+      es.addEventListener("queue_update", (e: MessageEvent) => {
+        try {
+          const payload = JSON.parse(e.data) as { data: QueueItem[] };
+          qc.setQueryData<JukeboxData>(jukeboxKey, (prev) =>
+            prev ? { ...prev, queue: payload.data } : prev
+          );
+        } catch {}
+      });
+
+      es.addEventListener("chat", (e: MessageEvent) => {
+        try {
+          const payload = JSON.parse(e.data) as { data: ChatMsg };
+          qc.setQueryData<JukeboxData>(jukeboxKey, (prev) => {
+            if (!prev) return prev;
+            const exists = prev.chat.some((c) => c.id === payload.data.id);
+            if (exists) return prev;
+            return { ...prev, chat: [...prev.chat, payload.data] };
+          });
+        } catch {}
+      });
+
+      es.onerror = () => {
+        es?.close();
+        if (!closed) {
+          retryTimer = setTimeout(connect, 3000);
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      closed = true;
+      es?.close();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [communityId]);
 
   const { data: myVideos = [] } = useQuery<Video[]>({
     queryKey: ["/api/videos/my"],
@@ -471,12 +532,18 @@ export default function JukeboxScreen() {
           "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=80&h=80&fit=crop",
         message: msg,
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: jukeboxKey }),
+    onSuccess: () => {
+      // SSE 経由でチャットが更新されるので invalidate 不要
+      // フォールバック： SSE 接続がない場合は refetch
+      if (Platform.OS !== "web") qc.invalidateQueries({ queryKey: jukeboxKey });
+    },
   });
 
   const nextMutation = useMutation({
     mutationFn: () => apiRequest("POST", `/api/jukebox/${communityId}/next`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: jukeboxKey }),
+    onSuccess: () => {
+      if (Platform.OS !== "web") qc.invalidateQueries({ queryKey: jukeboxKey });
+    },
   });
 
   const addMutation = useMutation({
@@ -495,7 +562,8 @@ export default function JukeboxScreen() {
     onSuccess: () => {
       setYtUrl("");
       setShowAddModal(false);
-      qc.invalidateQueries({ queryKey: jukeboxKey });
+      // SSE 経由でキューが更新されるので invalidate 不要
+      if (Platform.OS !== "web") qc.invalidateQueries({ queryKey: jukeboxKey });
     },
   });
 
