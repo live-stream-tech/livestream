@@ -895,7 +895,7 @@ export default function JukeboxScreen() {
                         youtubeId: item.videoId,
                       };
                       return (
-                        <Pressable
+                          <Pressable
                           key={item.videoId}
                           style={styles.modalItem}
                           onPress={() => addMutation.mutate(video)}
