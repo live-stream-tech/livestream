@@ -215,8 +215,10 @@ export function GlobalJukeboxPlayer() {
   const { data } = useQuery<JukeboxData>({
     queryKey: communityId ? [`/api/jukebox/${communityId}`] : ["jukebox:none"],
     enabled: !!communityId,
+    // ミニプレイヤーは常に最新状態を取得する（キャッシュが古いままになる問題を防止）
+    staleTime: 0,
     refetchInterval: (query) =>
-      (query.state.data as JukeboxData)?.state?.isPlaying ? 15000 : false,
+      (query.state.data as JukeboxData)?.state?.isPlaying ? 10000 : 30000,
   });
 
   const nextMutation = useMutation({
@@ -413,8 +415,8 @@ export function GlobalJukeboxPlayer() {
             youtubePlayerRef.current.mute?.();
             youtubePlayerRef.current.pauseVideo?.();
           } else {
-            youtubePlayerRef.current.unMute?.();
             youtubePlayerRef.current.setVolume?.(100);
+            youtubePlayerRef.current.unMute?.();
             youtubePlayerRef.current.playVideo?.();
           }
         } catch {
@@ -426,20 +428,20 @@ export function GlobalJukeboxPlayer() {
         youtubePlayerRef.current = new YT.Player(containerId, {
           videoId: state.currentVideoYoutubeId,
           playerVars: {
-            autoplay: onJukeboxPage ? 0 : 1,
+            autoplay: 1,
             rel: 0,
             controls: 0,
             disablekb: 1,
             playsinline: 1,
             start: Math.floor(startSec),
-            mute: onJukeboxPage ? 1 : 0,
+            mute: 0,
           },
           events: {
             onReady: (event: any) => {
               try {
                 if (!isOnJukeboxPageRef.current) {
-                  event.target?.unMute?.();
                   event.target?.setVolume?.(100);
+                  event.target?.unMute?.();
                   event.target?.playVideo?.();
                 }
               } catch { /* ignore */ }
@@ -486,14 +488,18 @@ export function GlobalJukeboxPlayer() {
   useEffect(() => {
     if (Platform.OS !== "web") return;
     updateContainerPositionRef.current();
+    if (!isOnJukeboxPage && communityId) {
+      // jukebox ページから離脱時にキャッシュを強制リフレッシュして最新状態を取得
+      qc.invalidateQueries({ queryKey: [`/api/jukebox/${communityId}`] });
+    }
     if (!isOnJukeboxPage && youtubePlayerRef.current) {
       try {
         const w = window as any;
         const ps = youtubePlayerRef.current.getPlayerState?.();
         const PAUSED = w.YT?.PlayerState?.PAUSED;
         const CUED = w.YT?.PlayerState?.VIDEO_CUED;
-        youtubePlayerRef.current.unMute?.();
         youtubePlayerRef.current.setVolume?.(100);
+        youtubePlayerRef.current.unMute?.();
         youtubePlayerRef.current.playVideo?.();
       } catch { /* ignore */ }
     } else if (isOnJukeboxPage && youtubePlayerRef.current) {
@@ -551,8 +557,8 @@ export function GlobalJukeboxPlayer() {
               // ユーザーインタラクションのタイミングで音声を確実に再開
               try {
                 if (youtubePlayerRef.current) {
-                  youtubePlayerRef.current.unMute?.();
                   youtubePlayerRef.current.setVolume?.(100);
+                  youtubePlayerRef.current.unMute?.();
                   youtubePlayerRef.current.playVideo?.();
                 }
               } catch { /* ignore */ }

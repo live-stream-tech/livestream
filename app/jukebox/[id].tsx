@@ -344,11 +344,11 @@ export default function JukeboxScreen() {
 
   const jukeboxKey = [`/api/jukebox/${communityId}`] as const;
 
-  // 初回のみ REST API でデータ取得（ポーリングなし）
+  // ページ訪問時に常に最新データを取得（staleTime:0でキャッシュが古いままになる問題を防止）
   const { data } = useQuery<JukeboxData>({
     queryKey: jukeboxKey,
     refetchOnWindowFocus: false,
-    staleTime: Infinity,
+    staleTime: 0,
   });
 
   // SSE ストリームでリアルタイム更新
