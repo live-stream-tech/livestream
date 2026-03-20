@@ -1859,18 +1859,62 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // ── Community Ads（広告申し込み・審査）────────────────────────────────
   const MIN_AD_AMOUNT = 10000;
-  const DAILY_RATE_PER_MEMBER = 10;
+  const DAILY_RATE_PER_MEMBER = 7; // コミュニティ内広告: 7円/日
+  const GENRE_DAILY_RATE_PER_MEMBER = 5; // ジャンル別広告: 5円/日
   const MAX_MONTHS_AHEAD = 3;
 
+  // 広告料金・最短日数計算API
+  app.get("/api/community-ads/pricing", async (req: Request, res: Response) => {
+    const cid = Number(queryStr(req, "communityId")) || 0;
+    if (!cid) return res.status(400).json({ error: "communityIdが必要です" });
+    const [community] = await db.select().from(communities).where(eq(communities.id, cid));
+    if (!community) return res.status(404).json({ error: "コミュニティが見つかりません" });
+    const memberCount = community.members;
+    const dailyRate = memberCount * DAILY_RATE_PER_MEMBER;
+    const minDays = dailyRate > 0 ? Math.ceil(MIN_AD_AMOUNT / dailyRate) : 0;
+    res.json({
+      memberCount,
+      dailyRate,
+      minDays,
+      minAmount: MIN_AD_AMOUNT,
+      ratePerMember: DAILY_RATE_PER_MEMBER,
+    });
+  });
+
+  // 広告空き枠確認API
+  app.get("/api/community-ads/availability", async (req: Request, res: Response) => {
+    const cid = Number(queryStr(req, "communityId")) || 0;
+    const start = queryStr(req, "start");
+    const end = queryStr(req, "end");
+    if (!cid || !start || !end) return res.status(400).json({ error: "communityId, start, endが必要です" });
+    // 指定期間と重複する承認済み広告を検索
+    const conflicts = await db
+      .select({ id: communityAds.id, startDate: communityAds.startDate, endDate: communityAds.endDate })
+      .from(communityAds)
+      .where(
+        and(
+          eq(communityAds.communityId, cid),
+          inArray(communityAds.status, ["pending", "moderator_approved", "approved"]),
+          and(
+            lte(communityAds.startDate, end),
+            gte(communityAds.endDate, start)
+          )
+        )
+      );
+    res.json({ available: conflicts.length === 0, conflicts });
+  });
+
   app.post("/api/community-ads", async (req: Request, res: Response) => {
-    const { communityId: bodyCommunityId, companyName, contactName, email, bannerUrl, startDate, endDate } = req.body as {
+    const { communityId: bodyCommunityId, companyName, contactName, email, bannerUrl, linkUrl, startDate, endDate, agreedToTerms } = req.body as {
       communityId?: number;
       companyName?: string;
       contactName?: string;
       email?: string;
       bannerUrl?: string;
+      linkUrl?: string;
       startDate?: string;
       endDate?: string;
+      agreedToTerms?: boolean;
     };
     const cid = Number(bodyCommunityId) || 0;
     const [community] = await db.select().from(communities).where(eq(communities.id, cid));
@@ -1880,13 +1924,19 @@ export async function registerRoutes(app: Express): Promise<void> {
     const contact = (contactName ?? "").trim();
     const em = (email ?? "").trim();
     const banner = (bannerUrl ?? "").trim();
+    const link = (linkUrl ?? "").trim();
     const start = (startDate ?? "").trim();
     const end = (endDate ?? "").trim();
     if (!company || !contact || !em || !banner || !start || !end) {
       return res.status(400).json({ error: "会社名・担当者名・メール・バナーURL・掲載期間を入力してください" });
     }
+    if (!agreedToTerms) {
+      return res.status(400).json({ error: "料金規約への同意が必要です" });
+    }
 
-    const dailyRate = community.members * DAILY_RATE_PER_MEMBER;
+    // 予約時点のメンバー数で料金を固定
+    const memberCount = community.members;
+    const dailyRate = memberCount * DAILY_RATE_PER_MEMBER;
     const startD = new Date(start);
     const endD = new Date(end);
     if (isNaN(startD.getTime()) || isNaN(endD.getTime()) || endD < startD) {
@@ -1902,6 +1952,20 @@ export async function registerRoutes(app: Express): Promise<void> {
     if (endD > maxEnd) {
       return res.status(400).json({ error: `掲載終了日は${MAX_MONTHS_AHEAD}ヶ月以内で指定してください` });
     }
+    // 重複チェック
+    const conflicts = await db
+      .select({ id: communityAds.id })
+      .from(communityAds)
+      .where(
+        and(
+          eq(communityAds.communityId, cid),
+          inArray(communityAds.status, ["pending", "moderator_approved", "approved"]),
+          and(lte(communityAds.startDate, end), gte(communityAds.endDate, start))
+        )
+      );
+    if (conflicts.length > 0) {
+      return res.status(409).json({ error: "指定期間は既に予約済みです。別の日程を選んでください。" });
+    }
 
     const [row] = await db
       .insert(communityAds)
@@ -1911,17 +1975,114 @@ export async function registerRoutes(app: Express): Promise<void> {
         contactName: contact,
         email: em,
         bannerUrl: banner,
+        linkUrl: link || null,
         startDate: start,
         endDate: end,
         dailyRate,
         totalAmount,
+        memberCountAtBooking: memberCount,
+        agreedToTerms: true,
         status: "pending",
       } as typeof communityAds.$inferInsert)
       .returning();
     res.status(201).json(row);
   });
 
-  app.get("/api/community-ads/review", async (req: Request, res: Response) => {
+  // 収益分配設定取得API
+  app.get("/api/community-ads/revenue-settings/:communityId", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const cid = paramNum(req, "communityId");
+    const [community] = await db.select().from(communities).where(eq(communities.id, cid));
+    if (!community) return res.status(404).json({ error: "コミュニティが見つかりません" });
+    if (community.adminId !== user.id) return res.status(403).json({ error: "管理人のみ設定できます" });
+    // モデレーター一覧と分配比率を返す
+    const mods = await db
+      .select({ userId: communityModerators.userId, displayName: users.displayName, profileImageUrl: users.profileImageUrl })
+      .from(communityModerators)
+      .leftJoin(users, eq(communityModerators.userId, users.id))
+      .where(eq(communityModerators.communityId, cid));
+    let distribution: Record<string, number> = {};
+    const rawDist = (community as any).revenueDistribution;
+    if (rawDist) {
+      try { distribution = JSON.parse(rawDist); } catch {}
+    }
+    // デフォルト: 全モデレーターに均等分配
+    if (Object.keys(distribution).length === 0 && mods.length > 0) {
+      const share = Math.floor(100 / mods.length);
+      mods.forEach((m, i) => {
+        distribution[String(m.userId)] = i === mods.length - 1 ? 100 - share * (mods.length - 1) : share;
+      });
+    }
+    res.json({
+      moderators: mods,
+      distribution,
+      // 収益分配内訳: イベント基金10% / 管理人+モデレーター70% / プラットフォーム20%
+      revenueStructure: { eventFund: 10, adminAndMods: 70, platform: 20 },
+    });
+  });
+
+  // 収益分配設定更新API
+  app.patch("/api/community-ads/revenue-settings/:communityId", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user) return res.status(401).json({ error: "ログインしてください" });
+    const cid = paramNum(req, "communityId");
+    const [community] = await db.select().from(communities).where(eq(communities.id, cid));
+    if (!community) return res.status(404).json({ error: "コミュニティが見つかりません" });
+    if (community.adminId !== user.id) return res.status(403).json({ error: "管理人のみ設定できます" });
+    const { distribution } = req.body as { distribution?: Record<string, number> };
+    if (!distribution || typeof distribution !== "object") {
+      return res.status(400).json({ error: "distributionオブジェクトが必要です" });
+    }
+    // 合計100%検証
+    const total = Object.values(distribution).reduce((s, v) => s + Number(v), 0);
+    if (Math.abs(total - 100) > 1) {
+      return res.status(400).json({ error: `分配比率の合計は100%にしてください（現在: ${total}%）` });
+    }
+    await db.update(communities)
+      .set({ revenueDistribution: JSON.stringify(distribution) } as Partial<typeof communities.$inferInsert>)
+      .where(eq(communities.id, cid));
+    res.json({ ok: true });
+  });
+
+  // ジャンル管理人自動就任バッチAPI（毎月実行想定・手動トリガーも可）
+  app.post("/api/genre-owners/assign", async (req: Request, res: Response) => {
+    const user = await getAuthUser(req);
+    if (!user || user.role !== "ADMIN") return res.status(403).json({ error: "管理者のみ実行できます" });
+    // 全ジャンルを取得し、各ジャンル内最大メンバー数コミュニティの管理人を就任させる
+    const allCommunities = await db
+      .select({ id: communities.id, category: communities.category, members: communities.members, adminId: communities.adminId })
+      .from(communities)
+      .where(sql`${communities.adminId} IS NOT NULL`);
+    // ジャンル別にグループ化
+    const byGenre = new Map<string, typeof allCommunities[0]>();
+    for (const c of allCommunities) {
+      const existing = byGenre.get(c.category);
+      if (!existing || c.members > existing.members) {
+        byGenre.set(c.category, c);
+      }
+    }
+    const results: { genreId: string; ownerUserId: number; communityId: number }[] = [];
+    for (const [genreId, topCommunity] of byGenre.entries()) {
+      if (!topCommunity.adminId) continue;
+      const existing = await db.select().from(genreOwners).where(eq(genreOwners.genreId, genreId));
+      if (existing.length > 0) {
+        await db.update(genreOwners)
+          .set({ ownerUserId: topCommunity.adminId, assignedCommunityId: topCommunity.id, updatedAt: new Date() } as Partial<typeof genreOwners.$inferInsert>)
+          .where(eq(genreOwners.genreId, genreId));
+      } else {
+        await db.insert(genreOwners).values({
+          genreId,
+          ownerUserId: topCommunity.adminId,
+          assignedCommunityId: topCommunity.id,
+        } as typeof genreOwners.$inferInsert);
+      }
+      results.push({ genreId, ownerUserId: topCommunity.adminId, communityId: topCommunity.id });
+    }
+    res.json({ ok: true, assigned: results });
+  });
+
+    app.get("/api/community-ads/review", async (req: Request, res: Response) => {
     const user = await getAuthUser(req);
     if (!user) return res.status(401).json({ error: "ログインしてください" });
 
@@ -2260,8 +2421,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.json(updated);
   });
 
-  // ── Genre Ads（ジャンルページ広告）─────────────────────────────────────
-  const GENRE_DAILY_RATE_PER_MEMBER = 5;
+  // ── Genre Ads（ジャンルページ広告）───────────────────────────────────────
   const GENRE_MIN_AMOUNT = 10_000;
   const GENRE_MAX_MONTHS_AHEAD = 3;
 

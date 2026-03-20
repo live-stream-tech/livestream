@@ -172,6 +172,20 @@ export default function CommunityDetail() {
 
       {/* Content */}
       <div className="px-4 py-4">
+        {/* Banner Ad CTA */}
+        <div className="bg-gradient-to-br from-purple-900/20 to-slate-900/40 border border-purple-700/30 rounded-2xl p-4 mb-4 flex items-center justify-between">
+          <div>
+            <div className="text-white font-bold text-sm">バナー広告を掲載する</div>
+            <div className="text-slate-400 text-xs mt-0.5">メンバー数 × 7円/日 ・ 最低¥10,000</div>
+          </div>
+          <button
+            onClick={() => navigate(`/community/${id}/ad`)}
+            className="bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-purple-500 transition-all"
+          >
+            詳細・申込
+          </button>
+        </div>
+
         {/* Video Edit Request CTA */}
         <div className="bg-gradient-to-br from-[#0891B2]/20 to-indigo-900/40 border border-[#0891B2]/30 rounded-2xl p-6 mb-8 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#0891B2]/10 rounded-full -mr-16 -mt-16 blur-3xl" />

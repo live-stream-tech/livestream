@@ -14,6 +14,7 @@ import Auth from "./pages/Auth";
 import LandingPage from "./rawstock-lp/LandingPage";
 import JukeboxPage from "./pages/Jukebox";
 import CoinSuccess from "./pages/CoinSuccess";
+import AdReservation from "./pages/AdReservation";
 
 export const router = createBrowserRouter([
   {
@@ -79,6 +80,10 @@ export const router = createBrowserRouter([
       {
         path: "coins/success",
         Component: CoinSuccess,
+      },
+      {
+        path: "community/:id/ad",
+        Component: AdReservation,
       },
     ],
   },

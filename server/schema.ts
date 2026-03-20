@@ -24,6 +24,8 @@ export const communities = pgTable("communities", {
   adminId: integer("admin_id"),
   /** 作成者＝初代管理人（users.id） */
   ownerId: integer("owner_id"),
+  /** 広告収益分配設定（JSON: { userId: 比率% }。管理人+モデレーター間の70%分配内訳） */
+  revenueDistribution: text("revenue_distribution"),
 });
 
 /** コミュニティのモデレーター（複数可）。広告収益10%の分配対象 */
@@ -105,10 +107,15 @@ export const communityAds = pgTable("community_ads", {
   contactName: text("contact_name").notNull(),
   email: text("email").notNull(),
   bannerUrl: text("banner_url").notNull(),
+  linkUrl: text("link_url"), // クリック先URL
   startDate: text("start_date").notNull(), // YYYY-MM-DD
   endDate: text("end_date").notNull(),
   dailyRate: integer("daily_rate").notNull(),
   totalAmount: integer("total_amount").notNull(),
+  /** 予約時点のメンバー数（料金固定のため記録） */
+  memberCountAtBooking: integer("member_count_at_booking").notNull().default(0),
+  /** 料金規約への同意 */
+  agreedToTerms: boolean("agreed_to_terms").notNull().default(false),
   status: text("status").notNull().default("pending"), // pending | moderator_approved | approved | rejected
   approvedByModerator: integer("approved_by_moderator"),
   approvedByOwner: integer("approved_by_owner"),
@@ -123,10 +130,15 @@ export const genreAds = pgTable("genre_ads", {
   contactName: text("contact_name").notNull(),
   email: text("email").notNull(),
   bannerUrl: text("banner_url").notNull(),
+  linkUrl: text("link_url"), // クリック先URL
   startDate: text("start_date").notNull(), // YYYY-MM-DD
   endDate: text("end_date").notNull(),
   dailyRate: integer("daily_rate").notNull(),
   totalAmount: integer("total_amount").notNull(),
+  /** 予約時点のジャンル内総メンバー数（料金固定のため記録） */
+  memberCountAtBooking: integer("member_count_at_booking").notNull().default(0),
+  /** 料金規約への同意 */
+  agreedToTerms: boolean("agreed_to_terms").notNull().default(false),
   status: text("status").notNull().default("pending"), // pending | approved | rejected
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -136,6 +148,8 @@ export const genreOwners = pgTable("genre_owners", {
   id: serial("id").primaryKey(),
   genreId: text("genre_id").notNull().unique(),
   ownerUserId: integer("owner_user_id").notNull(), // users.id
+  /** 就任の基準となったコミュニティID（最大メンバー数） */
+  assignedCommunityId: integer("assigned_community_id"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
