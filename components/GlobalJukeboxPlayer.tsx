@@ -87,8 +87,7 @@ export function GlobalJukeboxPlayer() {
   const [dismissed, setDismissed] = useState(true);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [elapsedDisplay, setElapsedDisplay] = useState(0);
-  // ミュート状態（ブラウザの自動再生ポリシー対策: 初期はミュートで再生し、ユーザータップでミュート解除）
-  const [isMuted, setIsMuted] = useState(true);
+
   const posRef = useRef({ x: 0, y: 0 });
   const dragBaseRef = useRef({ x: 0, y: 0 });
   const containerIdRef = useRef<string>(
@@ -413,12 +412,13 @@ export function GlobalJukeboxPlayer() {
             videoId: state.currentVideoYoutubeId,
             startSeconds: startSec,
           });
-          // 常にミュートで再生（ブラウザの自動再生ポリシー対策）
-          youtubePlayerRef.current.mute?.();
-          if (!onJukeboxPage) {
-            youtubePlayerRef.current.playVideo?.();
-          } else {
+          if (onJukeboxPage) {
+            youtubePlayerRef.current.mute?.();
             youtubePlayerRef.current.pauseVideo?.();
+          } else {
+            youtubePlayerRef.current.setVolume?.(100);
+            youtubePlayerRef.current.unMute?.();
+            youtubePlayerRef.current.playVideo?.();
           }
         } catch {
           try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
@@ -435,15 +435,16 @@ export function GlobalJukeboxPlayer() {
             disablekb: 1,
             playsinline: 1,
             start: Math.floor(startSec),
-            // ミュートで自動再生（ブラウザの自動再生ポリシーを回避する唯一の方法）
-            mute: 1,
+            mute: 0,
           },
           events: {
             onReady: (event: any) => {
               try {
-                // ミュートで再生開始（ブラウザはミュートなら自動再生を許可する）
-                event.target?.mute?.();
-                event.target?.playVideo?.();
+                if (!isOnJukeboxPageRef.current) {
+                  event.target?.setVolume?.(100);
+                  event.target?.unMute?.();
+                  event.target?.playVideo?.();
+                }
               } catch { /* ignore */ }
             },
             onStateChange: (event: any) => {
@@ -494,8 +495,8 @@ export function GlobalJukeboxPlayer() {
     }
     if (!isOnJukeboxPage && youtubePlayerRef.current) {
       try {
-        // ミュートのまま再生続行（音はミュート解除ボタンでユーザーが解除）
-        youtubePlayerRef.current.mute?.();
+        youtubePlayerRef.current.setVolume?.(100);
+        youtubePlayerRef.current.unMute?.();
         youtubePlayerRef.current.playVideo?.();
       } catch { /* ignore */ }
     } else if (isOnJukeboxPage && youtubePlayerRef.current) {
@@ -579,29 +580,12 @@ export function GlobalJukeboxPlayer() {
             ) : null}
           </Pressable>
 
-          {/* ミュート・ミュート解除ボタン（ブラウザの自動再生ポリシー対策） */}
+          {/* ジュークボックスページへのリンク */}
           <Pressable
-            style={[styles.barIconBtn, isMuted && styles.barMuteBtn]}
-            onPress={() => {
-              try {
-                if (youtubePlayerRef.current) {
-                  if (isMuted) {
-                    youtubePlayerRef.current.setVolume?.(100);
-                    youtubePlayerRef.current.unMute?.();
-                    setIsMuted(false);
-                  } else {
-                    youtubePlayerRef.current.mute?.();
-                    setIsMuted(true);
-                  }
-                }
-              } catch { /* ignore */ }
-            }}
+            style={styles.barIconBtn}
+            onPress={() => router.push(`/jukebox/${communityId}`)}
           >
-            <Ionicons
-              name={isMuted ? "volume-mute" : "volume-high"}
-              size={18}
-              color={isMuted ? C.accent : C.textSec}
-            />
+            <Ionicons name="musical-notes" size={18} color={C.accent} />
           </Pressable>
 
           {/* 閉じる */}
@@ -806,9 +790,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-  },
-  barMuteBtn: {
-    backgroundColor: "rgba(255,255,255,0.08)",
   },
 });
 
