@@ -117,6 +117,11 @@ function GlobalAuthGate({ children }: { children: React.ReactNode }) {
     if (loading) return;
     if (hasLineTokenInUrl) return; // LINEコールバック処理中は何もしない
     if (!pathname) return;
+    // PWAスタンドアロン起動時にログイン済みなら/profileへ
+    if (user && pathname === "/" && isPwaStandalone()) {
+      router.replace("/profile");
+      return;
+    }
     if (user) return;
     if (isPublicPath(pathname)) return;
 
