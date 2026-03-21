@@ -3594,6 +3594,31 @@ export async function registerRoutes(app: Express): Promise<void> {
     res.json({ ok: true });
   });
 
+  // クライアント側で getDuration() で取得した実際の動画長で currentVideoDurationSecs を更新
+  // videoDurationSecs が 0 または未設定の場合にのみ呼ばれる（全クライアントからの重複更新を防ぐ）
+  app.patch("/api/jukebox/:communityId/duration", async (req: Request, res: Response) => {
+    const communityId = paramNum(req, "communityId");
+    const { durationSecs } = req.body;
+    if (!durationSecs || typeof durationSecs !== "number" || durationSecs <= 0) {
+      return res.status(400).json({ error: "durationSecs は正の数値である必要があります" });
+    }
+    // 現在の状態を取得し、videoDurationSecs が 0 の場合のみ更新
+    const [current] = await db
+      .select({ currentVideoDurationSecs: jukeboxState.currentVideoDurationSecs })
+      .from(jukeboxState)
+      .where(eq(jukeboxState.communityId, communityId));
+    if (!current) return res.status(404).json({ error: "jukebox state not found" });
+    if (current.currentVideoDurationSecs && current.currentVideoDurationSecs > 0) {
+      // 既に正常な値がある場合は更新不要
+      return res.json({ ok: true, updated: false });
+    }
+    await db
+      .update(jukeboxState)
+      .set({ currentVideoDurationSecs: durationSecs })
+      .where(eq(jukeboxState.communityId, communityId));
+    res.json({ ok: true, updated: true });
+  });
+
   app.post("/api/jukebox/:communityId/chat", async (req: Request, res: Response) => {
     const communityId = paramNum(req, "communityId");
     const { username, avatar, message } = req.body;

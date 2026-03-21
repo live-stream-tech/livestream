@@ -87,8 +87,6 @@ export function GlobalJukeboxPlayer() {
   const [dismissed, setDismissed] = useState(true);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [elapsedDisplay, setElapsedDisplay] = useState(0);
-  // jukebox ページ復帰時に IFrame を強制再生成するためのキー
-  const [forceReinitKey, setForceReinitKey] = useState(0);
 
   const posRef = useRef({ x: 0, y: 0 });
   const dragBaseRef = useRef({ x: 0, y: 0 });
@@ -501,6 +499,13 @@ export function GlobalJukeboxPlayer() {
                 event.target?.setVolume?.(100);
                 event.target?.unMute?.();
                 event.target?.playVideo?.();
+                // videoDurationSecs が 0 または未設定の場合、実際の動画長をサーバーに反映
+                const actualDuration = event.target?.getDuration?.();
+                if (actualDuration && actualDuration > 0 && state.currentVideoDurationSecs <= 0) {
+                  apiRequest("PATCH", `/api/jukebox/${communityId}/duration`, {
+                    durationSecs: Math.floor(actualDuration),
+                  }).catch(() => {});
+                }
               } catch { /* ignore */ }
             },
             onStateChange: (event: any) => {
@@ -522,7 +527,7 @@ export function GlobalJukeboxPlayer() {
       })
       .catch(() => { /* ignore */ });
     return () => { cancelled = true; };
-  }, [communityId, state?.currentVideoYoutubeId, updateContainerPosition, forceReinitKey]);
+  }, [communityId, state?.currentVideoYoutubeId, updateContainerPosition]);
 
   // GlobalJukeboxPlayer アンマウント時にコンテナを破棄
   useEffect(() => {
@@ -563,24 +568,19 @@ export function GlobalJukeboxPlayer() {
       }
     } else {
       // ジュークボックスページに戻ったとき:
-      // 既存の IFrame とコンテナを完全に破棄して null にする（黒画面回避）
-      if (youtubePlayerRef.current) {
-        try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
-        youtubePlayerRef.current = null;
-      }
-      if (ytBodyContainerRef.current) {
-        ytSyncCleanupRef.current?.();
-        ytSyncCleanupRef.current = null;
-        ytBodyContainerRef.current.remove();
-        ytBodyContainerRef.current = null; // null にすることで useEffect がコンテナをゼロから再生成
-      }
-      // 新しいコンテナ ID を生成
-      containerIdRef.current = `global-jb-${Math.random().toString(36).slice(2)}`;
-      // forceReinitKey を更新して IFrame 生成 useEffect を強制再トリガー
-      // コンテナは useEffect 内で新規作成され、attachToAnchor もそこで呼ばれる
-      setForceReinitKey((k) => k + 1);
+      // IFrame を破棄せず attachToAnchor で正しい位置に戻す（autoplay 許可を引き継ぐ）
+      attachToAnchor();
     }
   }, [isOnJukeboxPage, attachToAnchor, communityId]);
+
+  // state?.currentVideoYoutubeId が確定・変更した瞬間に Jukebox ページ上で attachToAnchor を呼ぶ
+  // （state が後から来た場合でも jukebox-yt-holder が DOM に現れた後に確実にアタッチされる）
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    if (!isOnJukeboxPage) return;
+    if (!state?.currentVideoYoutubeId) return;
+    attachToAnchor();
+  }, [state?.currentVideoYoutubeId, isOnJukeboxPage, attachToAnchor]);
 
   // コミュニティ/jukebox ページ以外では何も表示しない
   if (!communityId) return null;
