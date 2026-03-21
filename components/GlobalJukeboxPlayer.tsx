@@ -429,20 +429,16 @@ export function GlobalJukeboxPlayer() {
       const startSec = state.elapsedSecs && state.elapsedSecs > 0
         ? state.elapsedSecs
         : Math.max(0, (Date.now() - new Date(state.startedAt).getTime()) / 1000);
-      if (youtubePlayerRef.current) {
+        if (youtubePlayerRef.current) {
         try {
           youtubePlayerRef.current.loadVideoById({
             videoId: state.currentVideoYoutubeId,
             startSeconds: startSec,
           });
-          if (onJukeboxPage) {
-            youtubePlayerRef.current.mute?.();
-            youtubePlayerRef.current.pauseVideo?.();
-          } else {
-            youtubePlayerRef.current.setVolume?.(100);
-            youtubePlayerRef.current.unMute?.();
-            youtubePlayerRef.current.playVideo?.();
-          }
+          // ジュークボックスページ・別ページどちらでも音声あり・再生
+          youtubePlayerRef.current.setVolume?.(100);
+          youtubePlayerRef.current.unMute?.();
+          youtubePlayerRef.current.playVideo?.();
         } catch {
           try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
           youtubePlayerRef.current = null;
@@ -463,11 +459,10 @@ export function GlobalJukeboxPlayer() {
           events: {
             onReady: (event: any) => {
               try {
-                if (!isOnJukeboxPageRef.current) {
-                  event.target?.setVolume?.(100);
-                  event.target?.unMute?.();
-                  event.target?.playVideo?.();
-                }
+                // ジュークボックスページ・別ページどちらでも音声あり・再生
+                event.target?.setVolume?.(100);
+                event.target?.unMute?.();
+                event.target?.playVideo?.();
               } catch { /* ignore */ }
             },
             onStateChange: (event: any) => {
@@ -531,10 +526,12 @@ export function GlobalJukeboxPlayer() {
     } else {
       // ジュークボックスページに戻ったとき: ポーリングで位置移動
       attachToAnchor();
+      // ジュークボックスページでも音声あり・再生継続（NowPlayingは再生制御しないため）
       if (youtubePlayerRef.current) {
         try {
-          youtubePlayerRef.current.mute?.();
-          youtubePlayerRef.current.pauseVideo?.();
+          youtubePlayerRef.current.setVolume?.(100);
+          youtubePlayerRef.current.unMute?.();
+          youtubePlayerRef.current.playVideo?.();
         } catch { /* ignore */ }
       }
     }
