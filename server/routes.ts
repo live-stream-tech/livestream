@@ -3179,7 +3179,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const queue = await db
       .select()
       .from(jukeboxQueue)
-      .where(eq(jukeboxQueue.communityId, communityId))
+      .where(and(eq(jukeboxQueue.communityId, communityId), eq(jukeboxQueue.isPlayed, false)))
       .orderBy(asc(jukeboxQueue.position));
 
     let state = stateRaw ?? null;
@@ -3262,7 +3262,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       ? await db
           .select()
           .from(jukeboxQueue)
-          .where(eq(jukeboxQueue.communityId, communityId))
+          .where(and(eq(jukeboxQueue.communityId, communityId), eq(jukeboxQueue.isPlayed, false)))
           .orderBy(asc(jukeboxQueue.position))
       : queue;
 
@@ -3490,7 +3490,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
     // Redis にキュー更新イベントを publish
     const updatedQueue = await db.select().from(jukeboxQueue)
-      .where(eq(jukeboxQueue.communityId, communityId))
+      .where(and(eq(jukeboxQueue.communityId, communityId), eq(jukeboxQueue.isPlayed, false)))
       .orderBy(asc(jukeboxQueue.position));
     await publishJukeboxEvent(communityId, {
       type: "queue_update",
@@ -3514,7 +3514,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     const communityId = paramNum(req, "communityId");
     const [stateRaw] = await db.select().from(jukeboxState).where(eq(jukeboxState.communityId, communityId));
     const queue = await db.select().from(jukeboxQueue)
-      .where(eq(jukeboxQueue.communityId, communityId))
+      .where(and(eq(jukeboxQueue.communityId, communityId), eq(jukeboxQueue.isPlayed, false)))
       .orderBy(asc(jukeboxQueue.position));
 
     // 再生中の曲を特定し isPlayed にマーク（同じ曲が「次」として選ばれるのを防ぐ）
@@ -3584,7 +3584,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
     }
     const latestQueue = await db.select().from(jukeboxQueue)
-      .where(eq(jukeboxQueue.communityId, communityId))
+      .where(and(eq(jukeboxQueue.communityId, communityId), eq(jukeboxQueue.isPlayed, false)))
       .orderBy(asc(jukeboxQueue.position));
     await publishJukeboxEvent(communityId, {
       type: "queue_update",
