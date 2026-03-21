@@ -15,7 +15,7 @@ import {
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { C } from "@/constants/colors";
@@ -340,17 +340,6 @@ export default function JukeboxScreen() {
   const qc = useQueryClient();
   const flatListRef = useRef<FlatList>(null);
   const { user } = useAuth();
-  const { setIsMuted } = usePlayingVideo();
-
-  // iOS Safari: ページを開くたびに音声タップオーバーレイを表示（isMuted=trueにリセット）
-  useFocusEffect(
-    useCallback(() => {
-      if (Platform.OS === 'web') {
-        setIsMuted(true);
-      }
-    }, [setIsMuted])
-  );
-
   const [chatInput, setChatInput] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [ytUrl, setYtUrl] = useState("");
@@ -368,7 +357,7 @@ export default function JukeboxScreen() {
   const [ytPlaylistsLoading, setYtPlaylistsLoading] = useState(false);
   const [ytPlaylistsNeedGoogle, setYtPlaylistsNeedGoogle] = useState(false);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
-  const [showLeaveModal, setShowLeaveModal] = useState(false);
+
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
@@ -606,20 +595,7 @@ export default function JukeboxScreen() {
     }
   }, [chat.length]);
 
-  // ページ退出時の離脱確認（useFocusEffect の cleanup で検知）
-  // popstate + history.pushState を廃止し、Expo Router のナビゲーションイベントで代替
-  const isPlayingRef = useRef(state?.isPlaying);
-  isPlayingRef.current = state?.isPlaying;
-  useFocusEffect(
-    useCallback(() => {
-      return () => {
-        // ページからフォーカスが外れた（離脱した）タイミングに発火
-        if (isPlayingRef.current) {
-          setShowLeaveModal(true);
-        }
-      };
-    }, [])
-  );
+
 
   // プレイリスト取得（モーダル表示時・ログイン済み）
   useEffect(() => {
@@ -686,7 +662,7 @@ export default function JukeboxScreen() {
         <View style={[styles.header, { paddingTop: topInset + 8 }]}>
           <Pressable
             style={styles.backBtn}
-            onPress={() => state?.isPlaying ? setShowLeaveModal(true) : router.back()}
+            onPress={() => router.back()}
           >
             <Ionicons name="chevron-back" size={22} color="#fff" />
           </Pressable>
@@ -1020,42 +996,7 @@ export default function JukeboxScreen() {
         </Pressable>
       </Modal>
 
-      {/* ページ離脱確認モーダル */}
-      <Modal visible={showLeaveModal} animationType="fade" transparent>
-        <View style={styles.leaveModalBg}>
-          <View style={styles.leaveModalCard}>
-            <View style={styles.leaveModalIconRow}>
-              <Ionicons name="musical-notes" size={28} color={C.accent} />
-            </View>
-            <Text style={styles.leaveModalTitle}>再生中です</Text>
-            <Text style={styles.leaveModalMsg}>
-              ページを移動しても再生を続けますか？{"\n"}
-              画面下部にミニプレイヤーが表示されます。
-            </Text>
-            <View style={styles.leaveModalBtns}>
-              <Pressable
-                style={[styles.leaveModalBtn, styles.leaveModalBtnSecondary]}
-                onPress={() => {
-                  setShowLeaveModal(false);
-                  router.back();
-                }}
-              >
-                <Text style={styles.leaveModalBtnSecondaryText}>停止して移動</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.leaveModalBtn, styles.leaveModalBtnPrimary]}
-                onPress={() => {
-                  setShowLeaveModal(false);
-                  router.back();
-                }}
-              >
-                <Ionicons name="play" size={14} color={C.bg} />
-                <Text style={styles.leaveModalBtnPrimaryText}>続けて再生</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+
     </KeyboardAvoidingView>
   );
 }
@@ -1530,75 +1471,5 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   ytPlaylistEmpty: { color: C.textMuted, fontSize: 12, paddingVertical: 8 },
-  leaveModalBg: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-  },
-  leaveModalCard: {
-    backgroundColor: C.surface2,
-    borderRadius: 20,
-    padding: 24,
-    width: "100%",
-    maxWidth: 340,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    alignItems: "center",
-    gap: 12,
-  },
-  leaveModalIconRow: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(0,255,204,0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  leaveModalTitle: {
-    color: C.text,
-    fontSize: 18,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  leaveModalMsg: {
-    color: C.textSec,
-    fontSize: 13,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  leaveModalBtns: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 4,
-    width: "100%",
-  },
-  leaveModalBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-  },
-  leaveModalBtnPrimary: {
-    backgroundColor: C.accent,
-  },
-  leaveModalBtnSecondary: {
-    backgroundColor: C.surface3,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  leaveModalBtnPrimaryText: {
-    color: C.bg,
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  leaveModalBtnSecondaryText: {
-    color: C.textSec,
-    fontSize: 14,
-    fontWeight: "600",
-  },
+
 });
