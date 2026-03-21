@@ -24,6 +24,7 @@ import { useAuth } from "@/lib/auth";
 import { Linking } from "react-native";
 import { getApiUrl } from "@/lib/query-client";
 import { saveLoginReturn } from "@/lib/login-return";
+import { usePlayingVideo } from "@/lib/playing-video-context";
 
 type JukeboxState = {
   communityId: number;
@@ -125,6 +126,7 @@ function NowPlaying({
   const [screenH, setScreenH] = useState(() => Dimensions.get("window").height);
   const onNextRef = useRef(onNext);
   onNextRef.current = onNext;
+  const { isMuted, unmutePlayer } = usePlayingVideo();
 
   // 画面サイズ変化を追跡
   useEffect(() => {
@@ -199,6 +201,19 @@ function NowPlaying({
   return (
     <View style={[styles.nowPlaying, { height: videoAreaH }]}>
       {/* GJP の fixed IFrame が重なるためのスペーサー（映像はここに表示しない） */}
+      {/* iOS Safari: ミュート解除オーバーレイ（ユーザーのタップで音声を有効化） */}
+      {isMuted && Platform.OS === "web" && (
+        <Pressable
+          style={styles.unmuteOverlay}
+          onPress={unmutePlayer}
+          accessibilityLabel="タップして音声を有効にする"
+        >
+          <View style={styles.unmuteBtn}>
+            <Ionicons name="volume-mute" size={24} color="#fff" />
+            <Text style={styles.unmuteBtnText}>タップして音声を有効にする</Text>
+          </View>
+        </Pressable>
+      )}
       {/* 下部オーバーレイ: タイトル・プログレス・スキップ */}
       <View style={styles.nowPlayingTop}>
         <View style={styles.liveChip}>
@@ -1054,6 +1069,32 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     justifyContent: "space-between",
     backgroundColor: "transparent",
+  },
+  unmuteOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  unmuteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(0,0,0,0.72)",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
+  unmuteBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
   },
   nowPlayingEmpty: {
     alignItems: "center",

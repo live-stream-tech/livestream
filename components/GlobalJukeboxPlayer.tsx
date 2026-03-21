@@ -93,7 +93,7 @@ function useIsLandscape() {
 export function GlobalJukeboxPlayer() {
   const { width: SCREEN_W, height: SCREEN_H } = useScreenSize();
   const pathname = usePathname();
-  const { setJukeboxIsActive, ytPlayerRef: youtubePlayerRef } = usePlayingVideo();
+  const { setJukeboxIsActive, ytPlayerRef: youtubePlayerRef, setIsMuted } = usePlayingVideo();
   const [communityId, setCommunityId] = useState<number | null>(() =>
     parseCommunityId(pathname)
   );
@@ -389,9 +389,10 @@ export function GlobalJukeboxPlayer() {
             videoId: state.currentVideoYoutubeId,
             startSeconds: startSec,
           });
-          youtubePlayerRef.current.setVolume?.(100);
-          youtubePlayerRef.current.unMute?.();
+          // iOS Safari: ミュート状態で再生開始（ユーザーのタップでミュート解除）
+          youtubePlayerRef.current.mute?.();
           youtubePlayerRef.current.playVideo?.();
+          setIsMuted(true);
         } catch {
           try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
           youtubePlayerRef.current = null;
@@ -415,14 +416,15 @@ export function GlobalJukeboxPlayer() {
             disablekb: 1,
             playsinline: 1,
             start: Math.floor(startSec),
-            mute: 0,
+            mute: 1, // iOS Safari: ミュート状態で自動再生（ユーザーのタップでミュート解除）
           },
           events: {
             onReady: (event: any) => {
               try {
-                event.target?.setVolume?.(100);
-                event.target?.unMute?.();
+                // iOS Safari: ミュート状態で再生開始
+                event.target?.mute?.();
                 event.target?.playVideo?.();
+                setIsMuted(true);
                 // コンテナの実際サイズで setSize を再適用
                 const el = ytBodyContainerRef.current;
                 if (el) {

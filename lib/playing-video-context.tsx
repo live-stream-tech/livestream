@@ -19,6 +19,11 @@ const PlayingVideoContext = createContext<{
   ytPlayerRef: React.MutableRefObject<any>;
   /** IFrame を格納する DOM コンテナ（React ツリー外に配置） */
   ytContainerRef: React.MutableRefObject<HTMLDivElement | null>;
+  /** iOS Safari 対応: ミュート状態（初期は true、ユーザーのタップでミュート解除） */
+  isMuted: boolean;
+  setIsMuted: (v: boolean) => void;
+  /** ユーザーのタップでミュート解除 */
+  unmutePlayer: () => void;
 }>({
   playing: null,
   setPlaying: () => {},
@@ -28,11 +33,15 @@ const PlayingVideoContext = createContext<{
   setJukeboxIsActive: () => {},
   ytPlayerRef: { current: null },
   ytContainerRef: { current: null },
+  isMuted: true,
+  setIsMuted: () => {},
+  unmutePlayer: () => {},
 });
 
 export function PlayingVideoProvider({ children }: { children: React.ReactNode }) {
   const [playing, setPlaying] = useState<PlayingVideo>(null);
   const [jukeboxIsActive, setJukeboxIsActive] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   const ytPlayerRef = useRef<any>(null);
   const ytContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -47,8 +56,18 @@ export function PlayingVideoProvider({ children }: { children: React.ReactNode }
 
   const stopPlaying = useCallback(() => setPlaying(null), []);
 
+  const unmutePlayer = useCallback(() => {
+    if (ytPlayerRef.current) {
+      try {
+        ytPlayerRef.current.unMute?.();
+        ytPlayerRef.current.setVolume?.(100);
+      } catch { /* ignore */ }
+    }
+    setIsMuted(false);
+  }, []);
+
   return (
-    <PlayingVideoContext.Provider value={{ playing, setPlaying, playVideo, stopPlaying, jukeboxIsActive, setJukeboxIsActive, ytPlayerRef, ytContainerRef }}>
+    <PlayingVideoContext.Provider value={{ playing, setPlaying, playVideo, stopPlaying, jukeboxIsActive, setJukeboxIsActive, ytPlayerRef, ytContainerRef, isMuted, setIsMuted, unmutePlayer }}>
       {children}
     </PlayingVideoContext.Provider>
   );
