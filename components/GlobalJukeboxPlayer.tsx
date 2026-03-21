@@ -307,9 +307,9 @@ export function GlobalJukeboxPlayer() {
   const RETREAT_STYLE = {
     left: "-9999px",
     top: "0px",
-    width: "320px",
-    height: "180px",
-    opacity: "1",
+    width: "1px",                 // iOS Safari: left:-9999pxだけでは画面内に描画されることがあるためサイズも縮小
+    height: "1px",
+    opacity: "0",                 // 念のため透明化
     pointerEvents: "none",       // クリック/タッチ完全遮断
     transform: "translateZ(0)",  // iOS 合成レイヤー安定化
     zIndex: "0",
@@ -378,6 +378,12 @@ export function GlobalJukeboxPlayer() {
       container.style.top = `${r.top}px`;
       container.style.width = `${r.width}px`;
       container.style.height = `${r.height}px`;
+      // IFrame のサイズも同期（退避中に 1x1 になっているため必須）
+      try {
+        if (youtubePlayerRef.current?.setSize) {
+          youtubePlayerRef.current.setSize(r.width, r.height);
+        }
+      } catch { /* ignore */ }
       return true;
     };
     if (!tryAttach()) {
@@ -440,7 +446,7 @@ export function GlobalJukeboxPlayer() {
       const container = document.createElement("div");
       container.id = containerIdRef.current;
       // Fix 2: overflow:hidden でIFrameのはみ出しを物理的に封じる
-      container.style.cssText = "position:fixed;left:-9999px;top:0;width:320px;height:180px;z-index:0;overflow:hidden;pointer-events:none;opacity:1;transform:translateZ(0);";
+      container.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;height:1px;z-index:0;overflow:hidden;pointer-events:none;opacity:0;transform:translateZ(0);";
       document.body.appendChild(container);
       ytBodyContainerRef.current = container;
       // コンテナ作成直後に attachToAnchor を呼ぶ（null でないことが保証される）
@@ -524,11 +530,14 @@ export function GlobalJukeboxPlayer() {
                 event.target?.unMute?.();
                 event.target?.playVideo?.();
                 // Fix 3: onReady でコンテナの実際のピクセル値で setSize を再適用
-                // （YouTube API がコンテナサイズを無視するケースへの保険、offsetWidth=0の場合はフォールバック値を使用）
+                // 退避中（1x1px）の場合はフォールバック値を使用（退避中に setSize(1,1) を呼ぶと IFrame が永久に小さくなる）
                 const containerEl = ytBodyContainerRef.current;
                 if (containerEl) {
-                  const w = containerEl.offsetWidth > 0 ? containerEl.offsetWidth : 320;
-                  const h = containerEl.offsetHeight > 0 ? containerEl.offsetHeight : 180;
+                  const cw = containerEl.offsetWidth;
+                  const ch = containerEl.offsetHeight;
+                  // 退避中（1x1）または未アタッチ時はフォールバック値を使用
+                  const w = cw > 2 ? cw : 320;
+                  const h = ch > 2 ? ch : 180;
                   event.target?.setSize?.(w, h);
                 }
                 // videoDurationSecs が 0 または未設定の場合、実際の動画長をサーバーに反映
