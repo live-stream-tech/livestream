@@ -11,6 +11,7 @@ import {
   Platform,
   Animated,
   Dimensions,
+  useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -174,10 +175,13 @@ function NowPlaying({
   // 縦向き: 16:9 の高さ。横向き: 全画面
   const isLandscape = screenW > screenH;
   const videoAreaH = isLandscape ? screenH : Math.round(screenW * 9 / 16);
+  const videoStyle = isLandscape
+    ? StyleSheet.absoluteFillObject
+    : { height: videoAreaH };
 
   if (!state) {
     return (
-      <View style={[styles.nowPlayingEmpty, { height: videoAreaH }]}>
+      <View style={[styles.nowPlayingEmpty, videoStyle]}>
         <Ionicons name="musical-notes-outline" size={40} color={C.textMuted} />
         <Text style={styles.emptyText}>再生中の動画はありません</Text>
       </View>
@@ -198,7 +202,7 @@ function NowPlaying({
       : 0;
 
   return (
-    <View style={[styles.nowPlaying, { height: videoAreaH }]}>
+    <View style={[styles.nowPlaying, videoStyle]}>
       {/* 映像専用ミュートIFrame（音声はGJPが担当） */}
       {Platform.OS === 'web' && state?.currentVideoYoutubeId ? (
         <iframe
@@ -340,6 +344,10 @@ export default function JukeboxScreen() {
   const qc = useQueryClient();
   const flatListRef = useRef<FlatList>(null);
   const { user } = useAuth();
+  const { width: winW, height: winH } = useWindowDimensions();
+  const isLandscape = winW > winH;
+  const [chatPanelOpen, setChatPanelOpen] = useState(false);
+  const chatPanelAnim = useRef(new Animated.Value(0)).current;
   const [chatInput, setChatInput] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [ytUrl, setYtUrl] = useState("");
@@ -361,6 +369,16 @@ export default function JukeboxScreen() {
 
   const topInset = Platform.OS === "web" ? 67 : insets.top;
   const bottomInset = Platform.OS === "web" ? 34 : insets.bottom;
+
+  // 横向きチャットパネルのアニメーション
+  useEffect(() => {
+    Animated.spring(chatPanelAnim, {
+      toValue: chatPanelOpen ? 1 : 0,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  }, [chatPanelOpen]);
 
   const jukeboxKey = [`/api/jukebox/${communityId}`] as const;
 
@@ -651,6 +669,16 @@ export default function JukeboxScreen() {
     };
   }, [selectedPlaylistId, user?.id]);
 
+  // 横向き: チャットパネルの translateY（0=閉じ, 1=開く）
+  const panelH = winH * 0.55;
+  const translateY = chatPanelAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [panelH, 0],
+  });
+
+  // 最新チャット1件
+  const latestChat = chat.length > 0 ? chat[chat.length - 1] : null;
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: C.bg }}
@@ -658,85 +686,194 @@ export default function JukeboxScreen() {
       keyboardVerticalOffset={0}
     >
       <View style={[styles.container]}>
-        {/* Header */}
-        <View style={[styles.header, { paddingTop: topInset + 8 }]}>
-          <Pressable
-            style={styles.backBtn}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="chevron-back" size={22} color="#fff" />
-          </Pressable>
-          <View style={styles.headerCenter}>
-            <View style={styles.jukeboxBadge}>
-              <Ionicons name="musical-notes" size={11} color="#fff" />
-              <Text style={styles.jukeboxBadgeText}>JUKEBOX</Text>
-            </View>
-            <Text style={styles.headerTitle}>コミュニティ同時視聴</Text>
-          </View>
-          <View style={{ width: 36 }} />
-        </View>
-
-        {/* Now Playing */}
-        <NowPlaying state={state} onNext={handleNext} />
-
-        {/* Queue */}
-        <QueueRow items={queue} state={state} userName={user?.name} onDelete={(id) => deleteMutation.mutate(id)} onAdd={() => {
-          if (!user) { router.push("/auth/login"); return; }
-          setShowAddModal(true);
-        }} />
-
-        {/* Chat */}
-        <View style={styles.chatSection}>
-          <View style={styles.chatHeader}>
-            <Ionicons name="chatbubbles" size={14} color={C.accent} />
-            <Text style={styles.chatHeaderText}>みんなのコメント</Text>
-          </View>
-          <FlatList
-            ref={flatListRef}
-            data={chat}
-            keyExtractor={(item) => item.id.toString()}
-            style={styles.chatList}
-            contentContainerStyle={styles.chatListContent}
-            showsVerticalScrollIndicator={false}
-            renderItem={({ item }) => (
-              <View style={[styles.chatMsg, item.username === "あなた" && styles.chatMsgMine]}>
-                {item.username !== "あなた" && (
-                  item.avatar ? (
-                    <Image source={{ uri: item.avatar }} style={styles.chatAvatar} contentFit="cover" />
-                  ) : (
-                    <View style={[styles.chatAvatar, { backgroundColor: C.surface3, alignItems: "center", justifyContent: "center" }]}>
-                      <Ionicons name="person" size={12} color={C.textMuted} />
-                    </View>
-                  )
-                )}
-                <View style={[styles.chatBubble, item.username === "あなた" && styles.chatBubbleMine]}>
-                  {item.username !== "あなた" && (
-                    <Text style={styles.chatUsername}>{item.username}</Text>
-                  )}
-                  <Text style={[styles.chatText, item.username === "あなた" && styles.chatTextMine]}>
-                    {item.message}
-                  </Text>
+        {/* ===== 縦向きレイアウト ===== */}
+        {!isLandscape && (
+          <>
+            {/* Header */}
+            <View style={[styles.header, { paddingTop: topInset + 8 }]}>
+              <Pressable style={styles.backBtn} onPress={() => router.back()}>
+                <Ionicons name="chevron-back" size={22} color="#fff" />
+              </Pressable>
+              <View style={styles.headerCenter}>
+                <View style={styles.jukeboxBadge}>
+                  <Ionicons name="musical-notes" size={11} color="#fff" />
+                  <Text style={styles.jukeboxBadgeText}>JUKEBOX</Text>
                 </View>
+                <Text style={styles.headerTitle}>コミュニティ同時視聴</Text>
               </View>
-            )}
-          />
-        </View>
+              <View style={{ width: 36 }} />
+            </View>
 
-        {/* Input */}
-        <View style={[styles.inputRow, { paddingBottom: bottomInset + 8 }]}>
-          <TextInput
-            style={styles.input}
-            placeholder="コメントを入力..."
-            placeholderTextColor={C.textMuted}
-            value={chatInput}
-            onChangeText={setChatInput}
-            onSubmitEditing={sendChat}
-            returnKeyType="send"
-          />
-          <Pressable style={[styles.sendBtn, !chatInput.trim() && styles.sendBtnDisabled]} onPress={sendChat}>
-            <Ionicons name="send" size={16} color="#fff" />
-          </Pressable>
-        </View>
+            {/* Now Playing */}
+            <NowPlaying state={state} onNext={handleNext} />
+
+            {/* Queue */}
+            <QueueRow items={queue} state={state} userName={user?.name} onDelete={(id) => deleteMutation.mutate(id)} onAdd={() => {
+              if (!user) { router.push("/auth/login"); return; }
+              setShowAddModal(true);
+            }} />
+
+            {/* Chat */}
+            <View style={styles.chatSection}>
+              <View style={styles.chatHeader}>
+                <Ionicons name="chatbubbles" size={14} color={C.accent} />
+                <Text style={styles.chatHeaderText}>みんなのコメント</Text>
+              </View>
+              <FlatList
+                ref={flatListRef}
+                data={chat}
+                keyExtractor={(item) => item.id.toString()}
+                style={styles.chatList}
+                contentContainerStyle={styles.chatListContent}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item }) => (
+                  <View style={[styles.chatMsg, item.username === "あなた" && styles.chatMsgMine]}>
+                    {item.username !== "あなた" && (
+                      item.avatar ? (
+                        <Image source={{ uri: item.avatar }} style={styles.chatAvatar} contentFit="cover" />
+                      ) : (
+                        <View style={[styles.chatAvatar, { backgroundColor: C.surface3, alignItems: "center", justifyContent: "center" }]}>
+                          <Ionicons name="person" size={12} color={C.textMuted} />
+                        </View>
+                      )
+                    )}
+                    <View style={[styles.chatBubble, item.username === "あなた" && styles.chatBubbleMine]}>
+                      {item.username !== "あなた" && (
+                        <Text style={styles.chatUsername}>{item.username}</Text>
+                      )}
+                      <Text style={[styles.chatText, item.username === "あなた" && styles.chatTextMine]}>
+                        {item.message}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              />
+            </View>
+
+            {/* Input */}
+            <View style={[styles.inputRow, { paddingBottom: bottomInset + 8 }]}>
+              <TextInput
+                style={styles.input}
+                placeholder="コメントを入力..."
+                placeholderTextColor={C.textMuted}
+                value={chatInput}
+                onChangeText={setChatInput}
+                onSubmitEditing={sendChat}
+                returnKeyType="send"
+              />
+              <Pressable style={[styles.sendBtn, !chatInput.trim() && styles.sendBtnDisabled]} onPress={sendChat}>
+                <Ionicons name="send" size={16} color="#fff" />
+              </Pressable>
+            </View>
+          </>
+        )}
+
+        {/* ===== 横向きレイアウト ===== */}
+        {isLandscape && (
+          <View style={StyleSheet.absoluteFillObject}>
+            {/* 映像全画面 */}
+            <NowPlaying state={state} onNext={handleNext} />
+
+            {/* 戻るボタン（左上） */}
+            <Pressable
+              style={[styles.landscapeBackBtn, { top: insets.top + 8, left: insets.left + 8 }]}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="chevron-back" size={22} color="#fff" />
+            </Pressable>
+
+            {/* 動画追加ボタン（右上） */}
+            <Pressable
+              style={[styles.landscapeAddBtn, { top: insets.top + 8, right: insets.right + 8 }]}
+              onPress={() => {
+                if (!user) { router.push("/auth/login"); return; }
+                setShowAddModal(true);
+              }}
+            >
+              <Ionicons name="add" size={20} color="#fff" />
+            </Pressable>
+
+            {/* チャット1ライン（下部バー） */}
+            {!chatPanelOpen && (
+              <Pressable
+                style={[styles.landscapeChatBar, { bottom: insets.bottom + 8, left: insets.left + 12, right: insets.right + 12 }]}
+                onPress={() => setChatPanelOpen(true)}
+              >
+                <Ionicons name="chatbubbles" size={13} color={C.accent} />
+                {latestChat ? (
+                  <Text style={styles.landscapeChatBarText} numberOfLines={1}>
+                    <Text style={{ color: C.accent, fontWeight: "700" }}>{latestChat.username}: </Text>
+                    {latestChat.message}
+                  </Text>
+                ) : (
+                  <Text style={styles.landscapeChatBarText}>コメントを見る</Text>
+                )}
+                <Ionicons name="chevron-up" size={13} color="rgba(255,255,255,0.5)" />
+              </Pressable>
+            )}
+
+            {/* チャットパネル（タップで展開） */}
+            {chatPanelOpen && (
+              <Animated.View
+                style={[
+                  styles.landscapeChatPanel,
+                  { bottom: 0, left: 0, right: 0, height: panelH, transform: [{ translateY }] },
+                ]}
+              >
+                <View style={styles.landscapeChatPanelHeader}>
+                  <Ionicons name="chatbubbles" size={14} color={C.accent} />
+                  <Text style={styles.chatHeaderText}>みんなのコメント</Text>
+                  <Pressable onPress={() => setChatPanelOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                    <Ionicons name="chevron-down" size={18} color={C.textMuted} />
+                  </Pressable>
+                </View>
+                <FlatList
+                  ref={flatListRef}
+                  data={chat}
+                  keyExtractor={(item) => item.id.toString()}
+                  style={{ flex: 1 }}
+                  contentContainerStyle={styles.chatListContent}
+                  showsVerticalScrollIndicator={false}
+                  renderItem={({ item }) => (
+                    <View style={[styles.chatMsg, item.username === "あなた" && styles.chatMsgMine]}>
+                      {item.username !== "あなた" && (
+                        item.avatar ? (
+                          <Image source={{ uri: item.avatar }} style={styles.chatAvatar} contentFit="cover" />
+                        ) : (
+                          <View style={[styles.chatAvatar, { backgroundColor: C.surface3, alignItems: "center", justifyContent: "center" }]}>
+                            <Ionicons name="person" size={12} color={C.textMuted} />
+                          </View>
+                        )
+                      )}
+                      <View style={[styles.chatBubble, item.username === "あなた" && styles.chatBubbleMine]}>
+                        {item.username !== "あなた" && (
+                          <Text style={styles.chatUsername}>{item.username}</Text>
+                        )}
+                        <Text style={[styles.chatText, item.username === "あなた" && styles.chatTextMine]}>
+                          {item.message}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                />
+                <View style={[styles.inputRow, { paddingBottom: bottomInset + 8 }]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="コメントを入力..."
+                    placeholderTextColor={C.textMuted}
+                    value={chatInput}
+                    onChangeText={setChatInput}
+                    onSubmitEditing={sendChat}
+                    returnKeyType="send"
+                  />
+                  <Pressable style={[styles.sendBtn, !chatInput.trim() && styles.sendBtnDisabled]} onPress={sendChat}>
+                    <Ionicons name="send" size={16} color="#fff" />
+                  </Pressable>
+                </View>
+              </Animated.View>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Add Video Modal */}
@@ -1323,6 +1460,63 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sendBtnDisabled: { backgroundColor: C.surface2 },
+
+  // 横向き専用
+  landscapeBackBtn: {
+    position: "absolute",
+    zIndex: 50,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  landscapeAddBtn: {
+    position: "absolute",
+    zIndex: 50,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  landscapeChatBar: {
+    position: "absolute",
+    zIndex: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(10,18,28,0.82)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  landscapeChatBarText: {
+    flex: 1,
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 13,
+  },
+  landscapeChatPanel: {
+    position: "absolute",
+    zIndex: 50,
+    backgroundColor: "rgba(10,18,28,0.95)",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: "hidden",
+  },
+  landscapeChatPanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
 
   modalBg: {
     flex: 1,
