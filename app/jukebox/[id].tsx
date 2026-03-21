@@ -10,6 +10,7 @@ import {
   Modal,
   Platform,
   Animated,
+  Dimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -105,6 +106,12 @@ function calcProgress(startedAt: string, durationSecs: number): number {
   return Math.min(elapsed / durationSecs, 1);
 }
 
+/**
+ * NowPlaying: GJP の fixed IFrame が重なるためのスペーサー領域。
+ * 映像は GlobalJukeboxPlayer が fixed で表示するため、ここでは表示しない。
+ * 縦向き: 16:9 の高さ分のスペースを確保
+ * 横向き: 100vh 分のスペースを確保（GJP がフルスクリーン）
+ */
 function NowPlaying({
   state,
   onNext,
@@ -113,11 +120,20 @@ function NowPlaying({
   onNext: () => void;
 }) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const ytContainerId = useRef(`jukebox-yt-${Math.random().toString(36).slice(2)}`).current;
   const [elapsedDisplay, setElapsedDisplay] = useState(0);
+  const [screenW, setScreenW] = useState(() => Dimensions.get("window").width);
+  const [screenH, setScreenH] = useState(() => Dimensions.get("window").height);
   const onNextRef = useRef(onNext);
   onNextRef.current = onNext;
 
+  // 画面サイズ変化を追跡
+  useEffect(() => {
+    const sub = Dimensions.addEventListener("change", ({ window }) => {
+      setScreenW(window.width);
+      setScreenH(window.height);
+    });
+    return () => sub?.remove();
+  }, []);
 
   // 表示用の経過時間を1秒ごとに更新（再生中のみ）
   useEffect(() => {
@@ -151,14 +167,16 @@ function NowPlaying({
       ])
     );
     pulse.start();
-    return () => {
-      pulse.stop();
-    };
+    return () => { pulse.stop(); };
   }, [pulseAnim]);
+
+  // 縦向き: 16:9 の高さ。横向き: 全画面
+  const isLandscape = screenW > screenH;
+  const videoAreaH = isLandscape ? screenH : Math.round(screenW * 9 / 16);
 
   if (!state) {
     return (
-      <View style={styles.nowPlayingEmpty}>
+      <View style={[styles.nowPlayingEmpty, { height: videoAreaH }]}>
         <Ionicons name="musical-notes-outline" size={40} color={C.textMuted} />
         <Text style={styles.emptyText}>再生中の動画はありません</Text>
       </View>
@@ -178,24 +196,10 @@ function NowPlaying({
       ? Math.min(elapsed / state.currentVideoDurationSecs, 1)
       : 0;
 
-  const hasYoutube = !!state.currentVideoYoutubeId;
-
   return (
-    <View style={styles.nowPlaying}>
-      <View style={StyleSheet.absoluteFillObject}>
-        {Platform.OS === "web" && hasYoutube ? (
-          // Webでは nativeID が id 属性にならないため、直接 div を使用
-          <div id="jukebox-yt-holder" style={{ position: "absolute", inset: 0 }} />
-        ) : state.currentVideoThumbnail ? (
-          <Image
-            source={{ uri: state.currentVideoThumbnail }}
-            style={StyleSheet.absoluteFillObject}
-            contentFit="cover"
-          />
-        ) : null}
-        {!hasYoutube && <View style={styles.nowPlayingOverlay} />}
-      </View>
-
+    <View style={[styles.nowPlaying, { height: videoAreaH }]}>
+      {/* GJP の fixed IFrame が重なるためのスペーサー（映像はここに表示しない） */}
+      {/* 下部オーバーレイ: タイトル・プログレス・スキップ */}
       <View style={styles.nowPlayingTop}>
         <View style={styles.liveChip}>
           <Animated.View style={[styles.liveChipDot, { transform: [{ scale: pulseAnim }] }]} />
@@ -208,14 +212,6 @@ function NowPlaying({
       </View>
 
       <View style={styles.nowPlayingBottom}>
-        {!hasYoutube && (
-          <View style={styles.nowPlayingCenter}>
-            <View style={styles.playIcon}>
-              <Ionicons name="play" size={28} color="rgba(255,255,255,0.9)" />
-            </View>
-          </View>
-        )}
-
         <Text style={styles.nowPlayingTitle} numberOfLines={2}>
           {state.currentVideoTitle ?? ""}
         </Text>
@@ -1054,13 +1050,12 @@ const styles = StyleSheet.create({
   headerTitle: { color: C.textSec, fontSize: 12 },
 
   nowPlaying: {
-    height: 200,
     position: "relative",
     overflow: "hidden",
     justifyContent: "space-between",
+    backgroundColor: "transparent",
   },
   nowPlayingEmpty: {
-    height: 200,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: C.surface,

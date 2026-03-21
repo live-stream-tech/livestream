@@ -1,11 +1,10 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
-  PanResponder,
   Dimensions,
 } from "react-native";
 import { usePathname, router } from "expo-router";
@@ -55,10 +54,8 @@ type JukeboxData = {
 
 function parseCommunityId(pathname: string | null): number | null {
   if (!pathname) return null;
-  // /jukebox/[id]
   const jb = pathname.match(/^\/jukebox\/(\d+)/);
   if (jb) return parseInt(jb[1], 10);
-  // /community/[id]
   const cm = pathname.match(/^\/community\/(\d+)/);
   if (cm) return parseInt(cm[1], 10);
   return null;
@@ -76,29 +73,103 @@ function useScreenSize() {
   return size;
 }
 
+// ============================================================
+// 画面向き検知（Web専用）
+// ============================================================
+function useIsLandscape() {
+  const [isLandscape, setIsLandscape] = useState(() => {
+    if (Platform.OS !== "web") return false;
+    return window.innerWidth > window.innerHeight;
+  });
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const update = () => setIsLandscape(window.innerWidth > window.innerHeight);
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return isLandscape;
+}
+
 export function GlobalJukeboxPlayer() {
   const { width: SCREEN_W, height: SCREEN_H } = useScreenSize();
   const pathname = usePathname();
-  const { setJukeboxIsActive, playing: videoPlaying, ytPlayerRef: youtubePlayerRef, ytContainerRef: globalYtContainerRef } = usePlayingVideo();
+  const { setJukeboxIsActive, ytPlayerRef: youtubePlayerRef } = usePlayingVideo();
   const [communityId, setCommunityId] = useState<number | null>(() =>
     parseCommunityId(pathname)
   );
-  const [minimized, setMinimized] = useState(false);
   const [dismissed, setDismissed] = useState(true);
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [elapsedDisplay, setElapsedDisplay] = useState(0);
+  const isLandscape = useIsLandscape();
 
-  const posRef = useRef({ x: 0, y: 0 });
-  const dragBaseRef = useRef({ x: 0, y: 0 });
   const containerIdRef = useRef<string>(
     `global-jb-${Math.random().toString(36).slice(2)}`
   );
 
-  const defaultX = SCREEN_W - CARD_W - 16;
-  const defaultY = SCREEN_H - CARD_H - 80;
-  const posX = position?.x ?? defaultX;
-  const posY = position?.y ?? defaultY;
-  posRef.current = { x: posX, y: posY };
+  // IFrame コンテナ（document.body に常駐）
+  const ytBodyContainerRef = useRef<HTMLDivElement | null>(null);
+  const ytSyncCleanupRef = useRef<(() => void) | null>(null);
+
+  // isOnJukeboxPage の ref（useEffect 内で最新値を参照するため）
+  const isOnJukeboxPage = pathname?.match(/^\/jukebox\/\d+/) != null;
+  const isOnJukeboxPageRef = useRef(isOnJukeboxPage);
+  isOnJukeboxPageRef.current = isOnJukeboxPage;
+
+  // ============================================================
+  // コンテナスタイル計算（fixed配置・ページに応じて切り替え）
+  // ============================================================
+  // ジュークボックスページのヘッダー高さ
+  // topInset(67) + paddingTop(8) + paddingBottom(8) + backBtn高さ(36) = 119px
+  const JUKEBOX_HEADER_H = 119;
+
+  const getContainerStyle = useCallback((): string => {
+    if (!isOnJukeboxPageRef.current) {
+      // 他ページ: 画面上部の外に退避（top:-9999px で音声は継続、サイズ維持で controls:0 を保持）
+      return "position:fixed;display:block;left:0;top:-9999px;width:320px;height:180px;z-index:0;pointer-events:none;";
+    }
+    // ジュークボックスページ: ヘッダーの下に固定
+    const landscape = typeof window !== "undefined" && window.innerWidth > window.innerHeight;
+    if (landscape) {
+      // 横向き: フルスクリーン（ヘッダーなし）
+      return `position:fixed;display:block;left:0;top:0;width:${window.innerWidth}px;height:${window.innerHeight}px;z-index:10;pointer-events:none;`;
+    } else {
+      // 縦向き: ヘッダーの下から 16:9 で配置
+      const w = window.innerWidth;
+      const h = Math.round(w * 9 / 16);
+      return `position:fixed;display:block;left:0;top:${JUKEBOX_HEADER_H}px;width:${w}px;height:${h}px;z-index:10;pointer-events:none;`;
+    }
+  }, [JUKEBOX_HEADER_H]);
+
+  const applyContainerStyle = useCallback(() => {
+    const container = ytBodyContainerRef.current;
+    if (!container) return;
+    container.style.cssText = getContainerStyle();
+    // IFrame サイズも同期
+    if (isOnJukeboxPageRef.current && youtubePlayerRef.current) {
+      try {
+        const landscape = typeof window !== "undefined" && window.innerWidth > window.innerHeight;
+        const w = window.innerWidth;
+        const h = landscape ? window.innerHeight : Math.round(w * 9 / 16);
+        youtubePlayerRef.current.setSize?.(w, h);
+      } catch { /* ignore */ }
+    }
+  }, [getContainerStyle, youtubePlayerRef]);
+
+  const applyContainerStyleRef = useRef(applyContainerStyle);
+  applyContainerStyleRef.current = applyContainerStyle;
+
+  // pathname 変更時にコンテナスタイルを即座に更新
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    applyContainerStyle();
+  }, [isOnJukeboxPage, applyContainerStyle]);
+
+  // resize 時にコンテナスタイルを更新
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const onResize = () => applyContainerStyleRef.current();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   useEffect(() => {
     const next = parseCommunityId(pathname);
@@ -112,7 +183,7 @@ export function GlobalJukeboxPlayer() {
             try { youtubePlayerRef.current.destroy(); } catch {}
             youtubePlayerRef.current = null;
           }
-          setDismissed(true); // ミニプレイヤーを一旦非表示
+          setDismissed(true);
           return next;
         }
         if (isJukebox) return next;
@@ -122,44 +193,7 @@ export function GlobalJukeboxPlayer() {
     }
   }, [pathname]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
-      onPanResponderGrant: () => {
-        dragBaseRef.current = { ...posRef.current };
-      },
-      onPanResponderMove: (_, g) => {
-        const minX = 16;
-        const minY = 60;
-        const maxX = SCREEN_W - CARD_W - 16;
-        const maxY = SCREEN_H - CARD_H - 80;
-        const base = dragBaseRef.current;
-        setPosition({
-          x: Math.max(minX, Math.min(maxX, base.x + g.dx)),
-          y: Math.max(minY, Math.min(maxY, base.y + g.dy)),
-        });
-      },
-      onPanResponderRelease: (_, g) => {
-        const minX = 16;
-        const minY = 60;
-        const maxX = SCREEN_W - CARD_W - 16;
-        const maxY = SCREEN_H - CARD_H - 80;
-        const base = dragBaseRef.current;
-        const next = {
-          x: Math.max(minX, Math.min(maxX, base.x + g.dx)),
-          y: Math.max(minY, Math.min(maxY, base.y + g.dy)),
-        };
-        posRef.current = next;
-        setPosition(next);
-      },
-    })
-  ).current;
-
   const qc = useQueryClient();
-
-  // YouTube IFrame プレイヤー（Webのみ）。jukebox ページでは NowPlaying が再生するため、ここでは作らない
-  const isOnJukeboxPage = pathname?.match(/^\/jukebox\/\d+/) != null;
 
   // SSE でリアルタイム更新（Web のみ、jukebox ページ以外で接続）
   useEffect(() => {
@@ -169,7 +203,7 @@ export function GlobalJukeboxPlayer() {
 
     const baseUrl = getApiUrl().replace(/\/$/, "");
     const sseUrl = `${baseUrl}/api/jukebox/${communityId}/stream`;
-     let es: EventSource | null = null;
+    let es: EventSource | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let closed = false;
     let retryCount = 0;
@@ -178,7 +212,7 @@ export function GlobalJukeboxPlayer() {
       es = new EventSource(sseUrl);
       es.addEventListener("state_update", (e: MessageEvent) => {
         try {
-          retryCount = 0; // 接続成功でリセット
+          retryCount = 0;
           const payload = JSON.parse(e.data) as { data: JukeboxState };
           qc.setQueryData<JukeboxData>([`/api/jukebox/${communityId}`], (prev) =>
             prev ? { ...prev, state: payload.data } : prev
@@ -197,7 +231,6 @@ export function GlobalJukeboxPlayer() {
       es.onerror = () => {
         es?.close();
         if (!closed) {
-          // 指数バックオフ: 1→2→4→8→16→30秒上限
           const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
           retryCount++;
           retryTimer = setTimeout(connect, delay);
@@ -216,7 +249,6 @@ export function GlobalJukeboxPlayer() {
   const { data } = useQuery<JukeboxData>({
     queryKey: communityId ? [`/api/jukebox/${communityId}`] : ["jukebox:none"],
     enabled: !!communityId,
-    // ミニプレイヤーは常に最新状態を取得する（キャッシュが古いままになる問題を防止）
     staleTime: 0,
     refetchInterval: (query) =>
       (query.state.data as JukeboxData)?.state?.isPlaying ? 10000 : 30000,
@@ -261,168 +293,37 @@ export function GlobalJukeboxPlayer() {
   const handleNextRef = useRef(handleNext);
   handleNextRef.current = handleNext;
 
-  // jukebox ページから離脱したらミニプレイヤーを自動表示（Spotify 風）
-  // 「一度でもジュークボックスページを訪問した」フラグ
+  // jukebox ページから離脱したらミニプレイヤーを自動表示
   const hasVisitedJukeboxRef = useRef(isOnJukeboxPage);
   const prevIsOnJukeboxPageRef = useRef(isOnJukeboxPage);
   useEffect(() => {
     if (isOnJukeboxPage) hasVisitedJukeboxRef.current = true;
     const wasOnJukebox = prevIsOnJukeboxPageRef.current;
     prevIsOnJukeboxPageRef.current = isOnJukeboxPage;
-    // jukebox ページから離脱 → 再生中ならミニプレイヤーを表示
     if (wasOnJukebox && !isOnJukeboxPage && state?.isPlaying) {
       setDismissed(false);
     }
   }, [isOnJukeboxPage, state?.isPlaying]);
 
-  // 再生終了（isPlaying=false かつ currentVideoTitle=null）→ 即座に非表示
+  // 再生終了 → ミニプレイヤーを隠す
   const prevIsPlayingRef = useRef(state?.isPlaying);
   useEffect(() => {
     const wasPlaying = prevIsPlayingRef.current;
     prevIsPlayingRef.current = state?.isPlaying;
-    // 再生中 → 停止 かつ 次の動画もない → ミニプレイヤーを隠す
     if (wasPlaying && !state?.isPlaying && !state?.currentVideoTitle) {
       setDismissed(true);
     }
   }, [state?.isPlaying, state?.currentVideoTitle]);
 
-  // jukeboxIsActive をコンテキストに反映（MyListPlayer との位置調整用）
+  // jukeboxIsActive をコンテキストに反映
   useEffect(() => {
     const isActive = !dismissed && !isOnJukeboxPage && !!state?.isPlaying;
     setJukeboxIsActive(isActive);
   }, [dismissed, isOnJukeboxPage, state?.isPlaying, setJukeboxIsActive]);
 
-  // isOnJukeboxPage の ref（useLayoutEffect 内で最新値を参照するため）
-  const isOnJukeboxPageRef = useRef(isOnJukeboxPage);
-  isOnJukeboxPageRef.current = isOnJukeboxPage;
-
-  // IFrame コンテナを document.body に常駐させ、状態に応じて位置を更新する
-  const ytBodyContainerRef = useRef<HTMLDivElement | null>(null);
-  const ytSyncCleanupRef = useRef<(() => void) | null>(null);
-
   // ============================================================
-  // スタイル定数化
-  // 退避戦略: IFrameのサイズは常に正常値を維持し、コンテナの clip-path で視覚的に隠す
-  // → iOS Safariで left:-9999px が効かない問題と、width:1pxで controls:0 が効かない問題を同時解決
-  // ============================================================
-  // 退避時: 画面外に移動 + clip-pathで完全非表示（IFrameサイズは変更しない）
-  const RETREAT_STYLE = {
-    left: "-9999px",
-    top: "-9999px",
-    clipPath: "inset(0 0 0 0)",  // 全領域をクリップして完全非表示
-    pointerEvents: "none",
-    zIndex: "0",
-  } as const;
-  // アクティブ時: clip-path を解除して座標を正しく設定
-  const ACTIVE_STYLE_BASE = {
-    clipPath: "none",
-    pointerEvents: "auto",
-    zIndex: "10",
-  } as const;
-
-  // reinitKey: 再入室時の明示的再初期化シグナル（dismissedを依存配列に混ぜないため専用化）
-  const [reinitKey, setReinitKey] = useState(0);
-
-  // ページ離脱時: 即座に退避（同期的）
-  const retreatContainer = useCallback(() => {
-    if (Platform.OS !== "web") return;
-    // ポーリング中なら即座にキャンセル（退避後に上書きされるのを防ぐ）
-    if (anchorPollingRef.current) {
-      clearInterval(anchorPollingRef.current);
-      anchorPollingRef.current = null;
-    }
-    const container = ytBodyContainerRef.current;
-    if (!container) return;
-    // Fix 1: Object.assign で一括適用（プロパティ残留を防ぐ）
-    Object.assign(container.style, RETREAT_STYLE);
-  }, []);
-
-  // ジュークボックスページに戻ったとき: jukebox-yt-holder が現れるまでポーリング
-  const anchorPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // アンカーの top 値が安定したかを確認するための前回値
-  const prevAnchorTopRef = useRef<number | null>(null);
-  const attachToAnchor = useCallback(() => {
-    if (Platform.OS !== "web") return;
-    if (anchorPollingRef.current) {
-      clearInterval(anchorPollingRef.current);
-      anchorPollingRef.current = null;
-    }
-    prevAnchorTopRef.current = null;
-    const tryAttach = () => {
-      const container = ytBodyContainerRef.current;
-      if (!container) return false;
-      if (!isOnJukeboxPageRef.current) {
-        // ページを離脱済みなら退避して終了
-        retreatContainer();
-        return true;
-      }
-      const anchor = document.getElementById("jukebox-yt-holder");
-      if (!anchor) return false;
-      const r = anchor.getBoundingClientRect();
-      if (r.width === 0 || r.height === 0) return false;
-      // top 値が前回と同じ（安定している）ことを確認してから適用
-      // ヘッダーのレイアウトが確定する前に座標を取得するのを防ぐ
-      const prevTop = prevAnchorTopRef.current;
-      prevAnchorTopRef.current = r.top;
-      if (prevTop !== null && Math.abs(prevTop - r.top) > 1) {
-        // まだ動いている → 次のポーリングで再確認
-        return false;
-      }
-      // 初回 or 安定: 即座にアタッチ
-      // Fix 1: ACTIVE_STYLE_BASE を一括適用してから座標を上書き
-      Object.assign(container.style, ACTIVE_STYLE_BASE);
-      container.style.left = `${r.left}px`;
-      // position:fixed なので scrollY は不要
-      container.style.top = `${r.top}px`;
-      container.style.width = `${r.width}px`;
-      container.style.height = `${r.height}px`;
-      // IFrame のサイズをアンカーに合わせて同期
-      try {
-        if (youtubePlayerRef.current?.setSize) {
-          youtubePlayerRef.current.setSize(r.width, r.height);
-        }
-      } catch { /* ignore */ }
-      return true;
-    };
-    if (!tryAttach()) {
-      // Fix 4: ポーリング開始直前に離脱チェック（競合排除ガード）
-      if (!isOnJukeboxPageRef.current) return;
-      let attempts = 0;
-      anchorPollingRef.current = setInterval(() => {
-        attempts++;
-        if (tryAttach() || attempts > 80) {
-          clearInterval(anchorPollingRef.current!);
-          anchorPollingRef.current = null;
-        }
-      }, 20);
-    }
-  }, [retreatContainer]);
-
-  const updateContainerPosition = useCallback(() => {
-    if (isOnJukeboxPageRef.current) {
-      attachToAnchor();
-    } else {
-      retreatContainer();
-    }
-  }, [attachToAnchor, retreatContainer]);
-  const updateContainerPositionRef = useRef(updateContainerPosition);
-  updateContainerPositionRef.current = updateContainerPosition;
-
-  // ============================================================
-  // useLayoutEffect: pathname 変更時に同期的に IFrame を退避する
-  // これにより、ブラウザの描画前に left:-9999px が適用される
-  // ============================================================
-  useLayoutEffect(() => {
-    if (Platform.OS !== "web") return;
-    if (!isOnJukeboxPage) {
-      // jukebox ページ以外に移動したら即座に退避（ブラウザ描画前）
-      retreatContainer();
-    }
-    // jukebox ページへの移動は useEffect 側で attachToAnchor を呼ぶ
-  }, [isOnJukeboxPage, retreatContainer]);
-
   // IFrame 生成・管理（document.body に常駐）
-  // 退避は useLayoutEffect が usePathname の変化で担当するため popstate リスナーは不要
+  // ============================================================
   useEffect(() => {
     if (Platform.OS !== "web") return;
     if (!communityId) return;
@@ -439,37 +340,26 @@ export function GlobalJukeboxPlayer() {
       }
       return;
     }
+
     // コンテナが未作成なら document.body に追加
     if (!ytBodyContainerRef.current) {
       const container = document.createElement("div");
       container.id = containerIdRef.current;
-      // Fix 2: overflow:hidden でIFrameのはみ出しを物理的に封じる
-      // IFrameは常に正しいサイズ(320x180)を維持し、clip-pathで視覚的に隠す
-      container.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:320px;height:180px;z-index:0;overflow:hidden;pointer-events:none;clip-path:inset(0 0 0 0);";
+      container.style.cssText = getContainerStyle();
       document.body.appendChild(container);
       ytBodyContainerRef.current = container;
-      // コンテナ作成直後に attachToAnchor を呼ぶ（null でないことが保証される）
-      attachToAnchor();
-      const sync = () => updateContainerPositionRef.current();
-      window.addEventListener("resize", sync);
-      window.addEventListener("scroll", sync, true);
-      const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(sync) : null;
-      const anchor = document.getElementById("jukebox-yt-holder");
-      if (anchor) ro?.observe(anchor);
-      // jukebox-yt-holder が後から追加された場合も検知する
-      const mo = typeof MutationObserver !== "undefined" ? new MutationObserver(() => {
-        const a = document.getElementById("jukebox-yt-holder");
-        if (a) { ro?.observe(a); sync(); }
-      }) : null;
-      mo?.observe(document.body, { childList: true, subtree: true });
+
+      // resize 時にスタイルを更新
+      const onResize = () => applyContainerStyleRef.current();
+      window.addEventListener("resize", onResize);
       ytSyncCleanupRef.current = () => {
-        window.removeEventListener("resize", sync);
-        window.removeEventListener("scroll", sync, true);
-        ro?.disconnect();
-        mo?.disconnect();
+        window.removeEventListener("resize", onResize);
       };
     }
-    updateContainerPositionRef.current();
+
+    // コンテナスタイルを最新状態に更新
+    applyContainerStyle();
+
     let cancelled = false;
     function ensureYouTubeApi(): Promise<any> {
       return new Promise((resolve) => {
@@ -484,6 +374,7 @@ export function GlobalJukeboxPlayer() {
         }
       });
     }
+
     const initPlayer = (YT: any) => {
       if (cancelled) return;
       const containerId = containerIdRef.current;
@@ -491,13 +382,13 @@ export function GlobalJukeboxPlayer() {
       const startSec = state.elapsedSecs && state.elapsedSecs > 0
         ? state.elapsedSecs
         : Math.max(0, (Date.now() - new Date(state.startedAt).getTime()) / 1000);
-        if (youtubePlayerRef.current) {
+
+      if (youtubePlayerRef.current) {
         try {
           youtubePlayerRef.current.loadVideoById({
             videoId: state.currentVideoYoutubeId,
             startSeconds: startSec,
           });
-          // ジュークボックスページ・別ページどちらでも音声あり・再生
           youtubePlayerRef.current.setVolume?.(100);
           youtubePlayerRef.current.unMute?.();
           youtubePlayerRef.current.playVideo?.();
@@ -506,12 +397,17 @@ export function GlobalJukeboxPlayer() {
           youtubePlayerRef.current = null;
         }
       }
+
       if (!youtubePlayerRef.current) {
+        // コンテナの現在サイズを取得
+        const containerEl = ytBodyContainerRef.current;
+        const iw = containerEl?.offsetWidth || 320;
+        const ih = containerEl?.offsetHeight || 180;
+
         youtubePlayerRef.current = new YT.Player(containerId, {
           videoId: state.currentVideoYoutubeId,
-          // Fix 3: IFrame サイズをコンテナに追従させる
-          width: "100%",
-          height: "100%",
+          width: iw,
+          height: ih,
           playerVars: {
             autoplay: 1,
             rel: 0,
@@ -524,19 +420,17 @@ export function GlobalJukeboxPlayer() {
           events: {
             onReady: (event: any) => {
               try {
-                // ジュークボックスページ・別ページどちらでも音声あり・再生
                 event.target?.setVolume?.(100);
                 event.target?.unMute?.();
                 event.target?.playVideo?.();
-                // onReady: コンテナの実際サイズで setSize を再適用
-                // コンテナは常に 320x180 以上を維持する設計なので条件チェック不要
-                const containerEl = ytBodyContainerRef.current;
-                if (containerEl) {
-                  const w = containerEl.offsetWidth || 320;
-                  const h = containerEl.offsetHeight || 180;
+                // コンテナの実際サイズで setSize を再適用
+                const el = ytBodyContainerRef.current;
+                if (el) {
+                  const w = el.offsetWidth || 320;
+                  const h = el.offsetHeight || 180;
                   event.target?.setSize?.(w, h);
                 }
-                // videoDurationSecs が 0 または未設定の場合、実際の動画長をサーバーに反映
+                // videoDurationSecs が未設定の場合、実際の動画長をサーバーに反映
                 const actualDuration = event.target?.getDuration?.();
                 if (actualDuration && actualDuration > 0 && state.currentVideoDurationSecs <= 0) {
                   apiRequest("PATCH", `/api/jukebox/${communityId}/duration`, {
@@ -557,23 +451,21 @@ export function GlobalJukeboxPlayer() {
         });
       }
     };
+
     ensureYouTubeApi()
       .then((YT: any) => {
         if (cancelled) return;
         initPlayer(YT);
       })
       .catch(() => { /* ignore */ });
+
     return () => { cancelled = true; };
-  }, [communityId, state?.currentVideoYoutubeId, updateContainerPosition, reinitKey]);
+  }, [communityId, state?.currentVideoYoutubeId]);
 
   // GlobalJukeboxPlayer アンマウント時にコンテナを破棄
   useEffect(() => {
     return () => {
       if (Platform.OS !== "web") return;
-      if (anchorPollingRef.current) {
-        clearInterval(anchorPollingRef.current);
-        anchorPollingRef.current = null;
-      }
       ytSyncCleanupRef.current?.();
       ytSyncCleanupRef.current = null;
       if (youtubePlayerRef.current) {
@@ -587,51 +479,11 @@ export function GlobalJukeboxPlayer() {
     };
   }, []);
 
-  // isOnJukeboxPage が変わったらコンテナ位置を更新し、ミュート制御
-  // ※ 退避は useLayoutEffect で同期的に行うため、ここでは attachToAnchor のみ担当
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    if (!isOnJukeboxPage) {
-      // 退避は useLayoutEffect で既に実施済み。追加でキャッシュ更新のみ行う
-      if (communityId) {
-        qc.invalidateQueries({ queryKey: [`/api/jukebox/${communityId}`] });
-      }
-      if (youtubePlayerRef.current) {
-        try {
-          youtubePlayerRef.current.setVolume?.(100);
-          youtubePlayerRef.current.unMute?.();
-          youtubePlayerRef.current.playVideo?.();
-        } catch { /* ignore */ }
-      }
-    } else {
-      // ジュークボックスページに戻ったとき:
-      // IFrame を破棄せず attachToAnchor で正しい位置に戻す（autoplay 許可を引き継ぐ）
-      attachToAnchor();
-      // ✕ボタン等でIFrameが破棄されている場合のみ再初期化をトリガー
-      // （currentVideoYoutubeIdが同じ値のためuseEffectが発火しない問題を解決）
-      if (!youtubePlayerRef.current) {
-        setReinitKey(prev => prev + 1);
-      }
-    }
-  }, [isOnJukeboxPage, attachToAnchor, communityId, youtubePlayerRef]);
-
-  // state?.currentVideoYoutubeId が確定・変更した瞬間に Jukebox ページ上で attachToAnchor を呼ぶ
-  // （state が後から来た場合でも jukebox-yt-holder が DOM に現れた後に確実にアタッチされる）
-  // reinitKey が変化したとき（再入室時）も再アタッチする
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    if (!isOnJukeboxPage) return;
-    if (!state?.currentVideoYoutubeId) return;
-    attachToAnchor();
-  }, [state?.currentVideoYoutubeId, isOnJukeboxPage, attachToAnchor, reinitKey]);
-
   // コミュニティ/jukebox ページ以外では何も表示しない
   if (!communityId) return null;
-
-  // 再生中でない場合は何も表示しない（jukebox ページで直接視聴）
   if (!state) return null;
 
-  // jukebox ページ上は表示しない（ページ自体にプレイヤーがある）
+  // jukebox ページ上は JSX を返さない（IFrame は fixed で表示中）
   if (isOnJukeboxPage) {
     return null;
   }
@@ -646,10 +498,8 @@ export function GlobalJukeboxPlayer() {
       ? Math.min(elapsed / state.currentVideoDurationSecs, 1)
       : 0;
 
-  const addedBy =
-    queue.find((q) => !q.isPlayed)?.addedBy ?? "";
+  const addedBy = queue.find((q) => !q.isPlayed)?.addedBy ?? "";
 
-  // dismissed 時: コンテナは document.body に常駐しているため JSX は不要
   if (dismissed) {
     return null;
   }
@@ -657,7 +507,6 @@ export function GlobalJukeboxPlayer() {
   // Spotify 風画面下部固定バー
   return (
     <View pointerEvents="box-none" style={[styles.root, { left: 0, right: 0, top: 0, bottom: 0 }]}>
-       {/* Spotify 風バー */}
       <View style={styles.bar}>
         {/* プログレスバー（バー上部） */}
         <View style={styles.barProgress}>
@@ -710,9 +559,7 @@ export function GlobalJukeboxPlayer() {
           <Pressable
             style={styles.barIconBtn}
             onPress={() => {
-              // IFrameを破棄して音も止める
               if (Platform.OS === "web") {
-                retreatContainer();
                 if (youtubePlayerRef.current) {
                   try { youtubePlayerRef.current.stopVideo?.(); } catch {}
                   try { youtubePlayerRef.current.destroy?.(); } catch {}
@@ -744,126 +591,11 @@ const styles = StyleSheet.create({
     left: 16,
     pointerEvents: "box-none",
   },
-  card: {
-    position: "absolute",
-    borderRadius: 16,
-    backgroundColor: "rgba(7,15,24,0.96)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    shadowColor: "#000",
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 10,
-  },
-  cardExpanded: {
-    minWidth: 260,
-    maxWidth: 360,
-  },
-  cardMinimized: {
-    minWidth: 200,
-    maxWidth: 260,
-  },
-  mainRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  thumbWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-    overflow: "hidden",
-    marginRight: 8,
-    backgroundColor: C.surface2,
-  },
-  youtubeContainer: {
-    width: "100%",
-    height: "100%",
-  },
-  thumb: {
-    width: "100%",
-    height: "100%",
-  },
-  info: {
-    flex: 1,
-    gap: 2,
-  },
-  title: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  subtitle: {
-    color: C.textMuted,
-    fontSize: 10,
-  },
-  progressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 4,
-  },
-  progressTrack: {
-    flex: 1,
-    height: 3,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: C.accent,
-  },
-  progressTime: {
-    color: C.textMuted,
-    fontSize: 9,
-  },
-  iconBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 4,
-  },
-  closeBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 4,
-  },
-  fab: {
-    position: "absolute",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(7,15,24,0.95)",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 6,
-  },
-  fabText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  // Spotify 風バースタイル
   bar: {
     position: "absolute",
     left: 8,
     right: 8,
-    bottom: 68, // タブバーの上（60px + マージン8px）
+    bottom: 68,
     backgroundColor: "rgba(18,18,18,0.97)",
     borderRadius: 12,
     borderWidth: 1,
@@ -924,6 +656,5 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
   },
 });
