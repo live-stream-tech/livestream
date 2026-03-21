@@ -307,7 +307,9 @@ export function GlobalJukeboxPlayer() {
   const RETREAT_STYLE = {
     left: "-9999px",
     top: "0px",
-    opacity: "0",
+    width: "320px",
+    height: "180px",
+    opacity: "1",
     pointerEvents: "none",       // クリック/タッチ完全遮断
     transform: "translateZ(0)",  // iOS 合成レイヤー安定化
     zIndex: "0",
@@ -364,14 +366,11 @@ export function GlobalJukeboxPlayer() {
       // ヘッダーのレイアウトが確定する前に座標を取得するのを防ぐ
       const prevTop = prevAnchorTopRef.current;
       prevAnchorTopRef.current = r.top;
-      if (prevTop === null) {
-        // 初回: 次のポーリングで安定確認
-        return false;
-      }
-      if (Math.abs(prevTop - r.top) > 1) {
+      if (prevTop !== null && Math.abs(prevTop - r.top) > 1) {
         // まだ動いている → 次のポーリングで再確認
         return false;
       }
+      // 初回 or 安定: 即座にアタッチ
       // Fix 1: ACTIVE_STYLE_BASE を一括適用してから座標を上書き
       Object.assign(container.style, ACTIVE_STYLE_BASE);
       container.style.left = `${r.left}px`;
@@ -441,7 +440,7 @@ export function GlobalJukeboxPlayer() {
       const container = document.createElement("div");
       container.id = containerIdRef.current;
       // Fix 2: overflow:hidden でIFrameのはみ出しを物理的に封じる
-      container.style.cssText = "position:fixed;left:-9999px;top:0;width:320px;height:180px;z-index:0;overflow:hidden;pointer-events:none;opacity:0;transform:translateZ(0);";
+      container.style.cssText = "position:fixed;left:-9999px;top:0;width:320px;height:180px;z-index:0;overflow:hidden;pointer-events:none;opacity:1;transform:translateZ(0);";
       document.body.appendChild(container);
       ytBodyContainerRef.current = container;
       // コンテナ作成直後に attachToAnchor を呼ぶ（null でないことが保証される）
