@@ -59,8 +59,10 @@ export function PlayingVideoProvider({ children }: { children: React.ReactNode }
   const unmutePlayer = useCallback(() => {
     if (ytPlayerRef.current) {
       try {
+        // iOS Safari: ユーザーのタップイベント内で playVideo() を呼ぶ必要がある
         ytPlayerRef.current.unMute?.();
         ytPlayerRef.current.setVolume?.(100);
+        ytPlayerRef.current.playVideo?.();
       } catch { /* ignore */ }
     }
     setIsMuted(false);

@@ -125,7 +125,7 @@ function NowPlaying({
   const [screenH, setScreenH] = useState(() => Dimensions.get("window").height);
   const onNextRef = useRef(onNext);
   onNextRef.current = onNext;
-  // usePlayingVideo は将来の拡張のため import は維持
+  const { isMuted, unmutePlayer } = usePlayingVideo();
 
   // 画面サイズ変化を追跡
   useEffect(() => {
@@ -202,12 +202,26 @@ function NowPlaying({
       {/* 映像専用ミュートIFrame（音声はGJPが担当） */}
       {Platform.OS === 'web' && state?.currentVideoYoutubeId ? (
         <iframe
-          src={`https://www.youtube.com/embed/${state.currentVideoYoutubeId}?autoplay=1&mute=1&controls=0&rel=0&playsinline=1`}
+          key={state.currentVideoYoutubeId}
+          src={`https://www.youtube.com/embed/${state.currentVideoYoutubeId}?autoplay=1&mute=1&controls=0&rel=0&playsinline=1&start=${Math.max(0, Math.floor(elapsed))}`}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' } as any}
           allow="autoplay"
         />
       ) : state?.currentVideoThumbnail ? (
         <Image source={{ uri: state.currentVideoThumbnail }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+      ) : null}
+      {/* iOS Safari 音声有効化オーバーレイ: ユーザーのタップで GJP の音声をアンミュート */}
+      {Platform.OS === 'web' && isMuted && state?.currentVideoYoutubeId ? (
+        <Pressable
+          style={styles.audioOverlay}
+          onPress={unmutePlayer}
+          accessibilityLabel="タップして音声を有効にする"
+        >
+          <View style={styles.audioOverlayInner}>
+            <Ionicons name="volume-mute" size={22} color="#fff" />
+            <Text style={styles.audioOverlayText}>タップして音声を有効にする</Text>
+          </View>
+        </Pressable>
       ) : null}
       {/* 下部オーバーレイ: タイトル・プログレス・スキップ */}
       <View style={styles.nowPlayingTop}>
@@ -326,6 +340,16 @@ export default function JukeboxScreen() {
   const qc = useQueryClient();
   const flatListRef = useRef<FlatList>(null);
   const { user } = useAuth();
+  const { setIsMuted } = usePlayingVideo();
+
+  // iOS Safari: ページを開くたびに音声タップオーバーレイを表示（isMuted=trueにリセット）
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS === 'web') {
+        setIsMuted(true);
+      }
+    }, [setIsMuted])
+  );
 
   const [chatInput, setChatInput] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -1089,6 +1113,34 @@ const styles = StyleSheet.create({
   unmuteBtnText: {
     color: "#fff",
     fontSize: 15,
+    fontWeight: "600",
+  },
+  // iOS Safari 音声有効化オーバーレイ
+  audioOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  audioOverlayInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  audioOverlayText: {
+    color: "#fff",
+    fontSize: 14,
     fontWeight: "600",
   },
   nowPlayingEmpty: {
