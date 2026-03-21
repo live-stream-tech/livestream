@@ -301,24 +301,22 @@ export function GlobalJukeboxPlayer() {
   const ytSyncCleanupRef = useRef<(() => void) | null>(null);
 
   // ============================================================
-  // Fix 1: スタイル定数化（プロパティ残留・設定漏れを防ぐ）
+  // スタイル定数化
+  // 退避戦略: IFrameのサイズは常に正常値を維持し、コンテナの clip-path で視覚的に隠す
+  // → iOS Safariで left:-9999px が効かない問題と、width:1pxで controls:0 が効かない問題を同時解決
   // ============================================================
-  // 退避時: 全プロパティを一括上書き
+  // 退避時: 画面外に移動 + clip-pathで完全非表示（IFrameサイズは変更しない）
   const RETREAT_STYLE = {
     left: "-9999px",
-    top: "0px",
-    width: "1px",                 // iOS Safari: left:-9999pxだけでは画面内に描画されることがあるためサイズも縮小
-    height: "1px",
-    opacity: "0",                 // 念のため透明化
-    pointerEvents: "none",       // クリック/タッチ完全遮断
-    transform: "translateZ(0)",  // iOS 合成レイヤー安定化
+    top: "-9999px",
+    clipPath: "inset(0 0 0 0)",  // 全領域をクリップして完全非表示
+    pointerEvents: "none",
     zIndex: "0",
   } as const;
-  // アクティブ時: opacity/pointerEvents/transform のみ定数化（座標は動的に設定）
+  // アクティブ時: clip-path を解除して座標を正しく設定
   const ACTIVE_STYLE_BASE = {
-    opacity: "1",
-    pointerEvents: "auto",       // 復帰時に必ず auto に戻す（操作不能防止）
-    transform: "translateZ(0)",
+    clipPath: "none",
+    pointerEvents: "auto",
     zIndex: "10",
   } as const;
 
@@ -378,7 +376,7 @@ export function GlobalJukeboxPlayer() {
       container.style.top = `${r.top}px`;
       container.style.width = `${r.width}px`;
       container.style.height = `${r.height}px`;
-      // IFrame のサイズも同期（退避中に 1x1 になっているため必須）
+      // IFrame のサイズをアンカーに合わせて同期
       try {
         if (youtubePlayerRef.current?.setSize) {
           youtubePlayerRef.current.setSize(r.width, r.height);
@@ -446,7 +444,8 @@ export function GlobalJukeboxPlayer() {
       const container = document.createElement("div");
       container.id = containerIdRef.current;
       // Fix 2: overflow:hidden でIFrameのはみ出しを物理的に封じる
-      container.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;height:1px;z-index:0;overflow:hidden;pointer-events:none;opacity:0;transform:translateZ(0);";
+      // IFrameは常に正しいサイズ(320x180)を維持し、clip-pathで視覚的に隠す
+      container.style.cssText = "position:fixed;left:-9999px;top:-9999px;width:320px;height:180px;z-index:0;overflow:hidden;pointer-events:none;clip-path:inset(0 0 0 0);";
       document.body.appendChild(container);
       ytBodyContainerRef.current = container;
       // コンテナ作成直後に attachToAnchor を呼ぶ（null でないことが保証される）
@@ -529,15 +528,12 @@ export function GlobalJukeboxPlayer() {
                 event.target?.setVolume?.(100);
                 event.target?.unMute?.();
                 event.target?.playVideo?.();
-                // Fix 3: onReady でコンテナの実際のピクセル値で setSize を再適用
-                // 退避中（1x1px）の場合はフォールバック値を使用（退避中に setSize(1,1) を呼ぶと IFrame が永久に小さくなる）
+                // onReady: コンテナの実際サイズで setSize を再適用
+                // コンテナは常に 320x180 以上を維持する設計なので条件チェック不要
                 const containerEl = ytBodyContainerRef.current;
                 if (containerEl) {
-                  const cw = containerEl.offsetWidth;
-                  const ch = containerEl.offsetHeight;
-                  // 退避中（1x1）または未アタッチ時はフォールバック値を使用
-                  const w = cw > 2 ? cw : 320;
-                  const h = ch > 2 ? ch : 180;
+                  const w = containerEl.offsetWidth || 320;
+                  const h = containerEl.offsetHeight || 180;
                   event.target?.setSize?.(w, h);
                 }
                 // videoDurationSecs が 0 または未設定の場合、実際の動画長をサーバーに反映
