@@ -25,7 +25,6 @@ import { useAuth } from "@/lib/auth";
 import { Linking } from "react-native";
 import { getApiUrl } from "@/lib/query-client";
 import { saveLoginReturn } from "@/lib/login-return";
-import { usePlayingVideo } from "@/lib/playing-video-context";
 
 type JukeboxState = {
   communityId: number;
@@ -109,8 +108,9 @@ function calcProgress(startedAt: string, durationSecs: number): number {
 }
 
 /**
- * NowPlaying: 映像専用ミュートIFrame + 情報オーバーレイ。
- * 音声は GlobalJukeboxPlayer（常に left:-9999px）が担当。
+ * NowPlaying: YouTube IFrame API 統合プレイヤー（音声＋映像、mute=0）
+ * 曲変更時は loadVideoById() で切り替え（音声途切れなし）
+ * iOS Safari: 初回1回だけタップオーバーレイを表示
  * 縦向き: 16:9 の高さ。横向き: 全画面
  */
 function NowPlaying({
@@ -126,7 +126,11 @@ function NowPlaying({
   const [screenH, setScreenH] = useState(() => Dimensions.get("window").height);
   const onNextRef = useRef(onNext);
   onNextRef.current = onNext;
-  const { isMuted, unmutePlayer } = usePlayingVideo();
+  // iOS Safari: 初回のみタップが必要（その後は曲変更でも音声継続）
+  const [needsTap, setNeedsTap] = useState(true);
+  // IFrame API プレイヤーの参照
+  const ytPlayerRef = useRef<any>(null);
+  const ytContainerIdRef = useRef<string>(`jb-yt-${Math.random().toString(36).slice(2)}`);
 
   // 画面サイズ変化を追跡
   useEffect(() => {
@@ -172,6 +176,114 @@ function NowPlaying({
     return () => { pulse.stop(); };
   }, [pulseAnim]);
 
+  // YouTube IFrame API プレイヤーの初期化・曲切り替え
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    if (!state?.currentVideoYoutubeId) return;
+
+    const startSec = state.elapsedSecs && state.elapsedSecs > 0
+      ? state.elapsedSecs
+      : Math.max(0, (Date.now() - new Date(state.startedAt).getTime()) / 1000);
+
+    function ensureYouTubeApi(): Promise<any> {
+      return new Promise((resolve) => {
+        const w = window as any;
+        if (w.YT && w.YT.Player) { resolve(w.YT); return; }
+        const prev = w.onYouTubeIframeAPIReady;
+        w.onYouTubeIframeAPIReady = () => { if (prev) prev(); resolve(w.YT); };
+        if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+          const tag = document.createElement('script');
+          tag.src = 'https://www.youtube.com/iframe_api';
+          document.body.appendChild(tag);
+        }
+      });
+    }
+
+    let cancelled = false;
+    ensureYouTubeApi().then((YT: any) => {
+      if (cancelled) return;
+      if (ytPlayerRef.current) {
+        // 曲切り替え: プレイヤーを破棄せず loadVideoById で切り替え（音声途切れなし）
+        try {
+          ytPlayerRef.current.loadVideoById({
+            videoId: state.currentVideoYoutubeId,
+            startSeconds: Math.floor(startSec),
+          });
+          ytPlayerRef.current.unMute?.();
+          ytPlayerRef.current.setVolume?.(100);
+        } catch {
+          try { ytPlayerRef.current.destroy(); } catch {}
+          ytPlayerRef.current = null;
+        }
+      }
+      if (!ytPlayerRef.current) {
+        // プレイヤー新規作成
+        const containerId = ytContainerIdRef.current;
+        ytPlayerRef.current = new YT.Player(containerId, {
+          videoId: state.currentVideoYoutubeId,
+          width: '100%',
+          height: '100%',
+          playerVars: {
+            autoplay: 1,
+            mute: 0,
+            controls: 0,
+            rel: 0,
+            disablekb: 1,
+            playsinline: 1,
+            start: Math.floor(startSec),
+          },
+          events: {
+            onReady: (event: any) => {
+              if (cancelled) return;
+              try {
+                event.target?.unMute?.();
+                event.target?.setVolume?.(100);
+                event.target?.playVideo?.();
+                setNeedsTap(false); // 自動再生成功（Android/PC）
+              } catch {}
+            },
+            onStateChange: (event: any) => {
+              try {
+                const w = window as any;
+                if (event.data === w.YT?.PlayerState?.ENDED) {
+                  onNextRef.current();
+                }
+                // 再生開始でオーバーレイを消す
+                if (event.data === w.YT?.PlayerState?.PLAYING) {
+                  setNeedsTap(false);
+                }
+              } catch {}
+            },
+          },
+        });
+      }
+    }).catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [state?.currentVideoYoutubeId]);
+
+  // アンマウント時にプレイヤーを破棄
+  useEffect(() => {
+    return () => {
+      if (ytPlayerRef.current) {
+        try { ytPlayerRef.current.destroy(); } catch {}
+        ytPlayerRef.current = null;
+      }
+    };
+  }, []);
+
+  // iOS Safari タップで音声有効化
+  const handleTapToUnmute = useCallback(() => {
+    if (ytPlayerRef.current) {
+      try {
+        ytPlayerRef.current.unMute?.();
+        ytPlayerRef.current.setVolume?.(100);
+        ytPlayerRef.current.playVideo?.();
+      } catch {}
+    }
+    setNeedsTap(false);
+  }, []);
+
   // 縦向き: 16:9 の高さ。横向き: 全画面
   const isLandscape = screenW > screenH;
   const videoAreaH = isLandscape ? screenH : Math.round(screenW * 9 / 16);
@@ -203,22 +315,20 @@ function NowPlaying({
 
   return (
     <View style={[styles.nowPlaying, videoStyle]}>
-      {/* 映像専用ミュートIFrame（音声はGJPが担当） */}
+      {/* YouTube IFrame API プレイヤーコンテナ（音声＋映像） */}
       {Platform.OS === 'web' && state?.currentVideoYoutubeId ? (
-        <iframe
-          key={state.currentVideoYoutubeId}
-          src={`https://www.youtube.com/embed/${state.currentVideoYoutubeId}?autoplay=1&mute=1&controls=0&rel=0&playsinline=1&start=${Math.max(0, Math.floor(elapsed))}`}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' } as any}
-          allow="autoplay"
+        <div
+          id={ytContainerIdRef.current}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' } as any}
         />
       ) : state?.currentVideoThumbnail ? (
         <Image source={{ uri: state.currentVideoThumbnail }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
       ) : null}
-      {/* iOS Safari 音声有効化オーバーレイ: ユーザーのタップで GJP の音声をアンミュート */}
-      {Platform.OS === 'web' && isMuted && state?.currentVideoYoutubeId ? (
+      {/* iOS Safari 音声有効化オーバーレイ（初回1回のみ） */}
+      {Platform.OS === 'web' && needsTap && state?.currentVideoYoutubeId ? (
         <Pressable
           style={styles.audioOverlay}
-          onPress={unmutePlayer}
+          onPress={handleTapToUnmute}
           accessibilityLabel="タップして音声を有効にする"
         >
           <View style={styles.audioOverlayInner}>

@@ -14,6 +14,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { C } from "@/constants/colors";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
 import { usePlayingVideo } from "@/lib/playing-video-context";
+// NOTE: 音声再生は jukebox/[id].tsx の NowPlaying 内の IFrame API プレイヤーが担当。
+// GJP はミニプレイヤー UI のみを担当する。
 
 type JukeboxState = {
   communityId: number;
@@ -75,33 +77,19 @@ function useScreenSize() {
 
 // ============================================================
 // GlobalJukeboxPlayer
-// 役割: 音声マスター（常に left:-9999px に固定）
-// 映像表示は jukebox/[id].tsx の映像専用IFrameが担当
+// 役割: ミニプレイヤー UI のみ（音声再生は jukebox/[id].tsx の NowPlaying が担当）
 // ============================================================
 export function GlobalJukeboxPlayer() {
   const { width: SCREEN_W, height: SCREEN_H } = useScreenSize();
   const pathname = usePathname();
-  const { setJukeboxIsActive, ytPlayerRef: youtubePlayerRef } = usePlayingVideo();
+  const { setJukeboxIsActive } = usePlayingVideo();
   const [communityId, setCommunityId] = useState<number | null>(() =>
     parseCommunityId(pathname)
   );
   const [dismissed, setDismissed] = useState(true);
   const [elapsedDisplay, setElapsedDisplay] = useState(0);
 
-  // IFrame コンテナ（document.body に常駐・常に left:-9999px 固定）
-  const containerIdRef = useRef<string>(
-    `global-jb-${Math.random().toString(36).slice(2)}`
-  );
-  const ytBodyContainerRef = useRef<HTMLDivElement | null>(null);
-  const ytSyncCleanupRef = useRef<(() => void) | null>(null);
-
   const isOnJukeboxPage = pathname?.match(/^\/jukebox\/\d+/) != null;
-
-  // ============================================================
-  // IFrame コンテナは常に left:-9999px 固定（音声専用・画面外）
-  // ============================================================
-  const AUDIO_CONTAINER_STYLE =
-    "position:fixed;display:block;left:-9999px;top:0;width:320px;height:180px;z-index:0;pointer-events:none;";
 
   useEffect(() => {
     const next = parseCommunityId(pathname);
@@ -109,12 +97,6 @@ export function GlobalJukeboxPlayer() {
       const isJukebox = pathname?.match(/^\/jukebox\/\d+/) != null;
       setCommunityId((prev) => {
         if (isJukebox && prev !== null && prev !== next) {
-          // 別の部屋に入室 → 前の部屋のYouTubeプレイヤーを停止して切り替え
-          if (Platform.OS === 'web' && youtubePlayerRef.current) {
-            try { youtubePlayerRef.current.stopVideo(); } catch {}
-            try { youtubePlayerRef.current.destroy(); } catch {}
-            youtubePlayerRef.current = null;
-          }
           setDismissed(true);
           return next;
         }
@@ -253,147 +235,11 @@ export function GlobalJukeboxPlayer() {
     setJukeboxIsActive(isActive);
   }, [dismissed, isOnJukeboxPage, state?.isPlaying, setJukeboxIsActive]);
 
-  // ============================================================
-  // 音声専用 IFrame 生成・管理（document.body に常駐・常に left:-9999px）
-  // ============================================================
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    if (!communityId) return;
-    if (!state?.currentVideoYoutubeId) {
-      if (youtubePlayerRef.current) {
-        try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
-        youtubePlayerRef.current = null;
-      }
-      if (ytBodyContainerRef.current) {
-        ytSyncCleanupRef.current?.();
-        ytSyncCleanupRef.current = null;
-        ytBodyContainerRef.current.remove();
-        ytBodyContainerRef.current = null;
-      }
-      return;
-    }
-
-    // コンテナが未作成なら document.body に追加（常に left:-9999px 固定）
-    if (!ytBodyContainerRef.current) {
-      const container = document.createElement("div");
-      container.id = containerIdRef.current;
-      container.style.cssText = AUDIO_CONTAINER_STYLE;
-      document.body.appendChild(container);
-      ytBodyContainerRef.current = container;
-    }
-
-    let cancelled = false;
-    function ensureYouTubeApi(): Promise<any> {
-      return new Promise((resolve) => {
-        const w = window as any;
-        if (w.YT && w.YT.Player) { resolve(w.YT); return; }
-        const prev = w.onYouTubeIframeAPIReady;
-        w.onYouTubeIframeAPIReady = () => { if (prev) prev(); resolve(w.YT); };
-        if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
-          const tag = document.createElement("script");
-          tag.src = "https://www.youtube.com/iframe_api";
-          document.body.appendChild(tag);
-        }
-      });
-    }
-
-    const initPlayer = (YT: any) => {
-      if (cancelled) return;
-      const containerId = containerIdRef.current;
-      if (!containerId) return;
-      const startSec = state.elapsedSecs && state.elapsedSecs > 0
-        ? state.elapsedSecs
-        : Math.max(0, (Date.now() - new Date(state.startedAt).getTime()) / 1000);
-
-      if (youtubePlayerRef.current) {
-        try {
-          youtubePlayerRef.current.loadVideoById({
-            videoId: state.currentVideoYoutubeId,
-            startSeconds: startSec,
-          });
-          youtubePlayerRef.current.unMute?.();
-          youtubePlayerRef.current.setVolume?.(100);
-          youtubePlayerRef.current.playVideo?.();
-        } catch {
-          try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
-          youtubePlayerRef.current = null;
-        }
-      }
-
-      if (!youtubePlayerRef.current) {
-        youtubePlayerRef.current = new YT.Player(containerId, {
-          videoId: state.currentVideoYoutubeId,
-          width: 320,
-          height: 180,
-          playerVars: {
-            autoplay: 1,
-            rel: 0,
-            controls: 0,
-            disablekb: 1,
-            playsinline: 1,
-            start: Math.floor(startSec),
-            mute: 0, // 音声マスター: ミュートなし
-          },
-          events: {
-            onReady: (event: any) => {
-              try {
-                event.target?.unMute?.();
-                event.target?.setVolume?.(100);
-                event.target?.playVideo?.();
-                // videoDurationSecs が未設定の場合、実際の動画長をサーバーに反映
-                const actualDuration = event.target?.getDuration?.();
-                if (actualDuration && actualDuration > 0 && state.currentVideoDurationSecs <= 0) {
-                  apiRequest("PATCH", `/api/jukebox/${communityId}/duration`, {
-                    durationSecs: Math.floor(actualDuration),
-                  }).catch(() => {});
-                }
-              } catch { /* ignore */ }
-            },
-            onStateChange: (event: any) => {
-              try {
-                const w = window as any;
-                if (event.data === w.YT?.PlayerState?.ENDED) {
-                  handleNextRef.current();
-                }
-              } catch { /* ignore */ }
-            },
-          },
-        });
-      }
-    };
-
-    ensureYouTubeApi()
-      .then((YT: any) => {
-        if (cancelled) return;
-        initPlayer(YT);
-      })
-      .catch(() => { /* ignore */ });
-
-    return () => { cancelled = true; };
-  }, [communityId, state?.currentVideoYoutubeId]);
-
-  // GlobalJukeboxPlayer アンマウント時にコンテナを破棄
-  useEffect(() => {
-    return () => {
-      if (Platform.OS !== "web") return;
-      ytSyncCleanupRef.current?.();
-      ytSyncCleanupRef.current = null;
-      if (youtubePlayerRef.current) {
-        try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
-        youtubePlayerRef.current = null;
-      }
-      if (ytBodyContainerRef.current) {
-        ytBodyContainerRef.current.remove();
-        ytBodyContainerRef.current = null;
-      }
-    };
-  }, []);
-
   // コミュニティ/jukebox ページ以外では何も表示しない
   if (!communityId) return null;
   if (!state) return null;
 
-  // jukebox ページ上は JSX を返さない（映像は jukebox/[id].tsx の専用IFrameが担当）
+  // jukebox ページ上はミニプレイヤーを表示しない
   if (isOnJukeboxPage) {
     return null;
   }
@@ -469,19 +315,6 @@ export function GlobalJukeboxPlayer() {
           <Pressable
             style={styles.barIconBtn}
             onPress={() => {
-              if (Platform.OS === "web") {
-                if (youtubePlayerRef.current) {
-                  try { youtubePlayerRef.current.stopVideo?.(); } catch {}
-                  try { youtubePlayerRef.current.destroy?.(); } catch {}
-                  youtubePlayerRef.current = null;
-                }
-                if (ytBodyContainerRef.current) {
-                  ytSyncCleanupRef.current?.();
-                  ytSyncCleanupRef.current = null;
-                  ytBodyContainerRef.current.remove();
-                  ytBodyContainerRef.current = null;
-                }
-              }
               setDismissed(true);
             }}
           >

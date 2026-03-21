@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useCallback } from "react";
 
 export type PlayingVideo = {
   videoId: number;
@@ -15,15 +15,6 @@ const PlayingVideoContext = createContext<{
   stopPlaying: () => void;
   jukeboxIsActive: boolean;
   setJukeboxIsActive: (v: boolean) => void;
-  /** GlobalJukeboxPlayer が保持する YouTube IFrame インスタンス（全体で共有） */
-  ytPlayerRef: React.MutableRefObject<any>;
-  /** IFrame を格納する DOM コンテナ（React ツリー外に配置） */
-  ytContainerRef: React.MutableRefObject<HTMLDivElement | null>;
-  /** iOS Safari 対応: ミュート状態（初期は true、ユーザーのタップでミュート解除） */
-  isMuted: boolean;
-  setIsMuted: (v: boolean) => void;
-  /** ユーザーのタップでミュート解除 */
-  unmutePlayer: () => void;
 }>({
   playing: null,
   setPlaying: () => {},
@@ -31,19 +22,11 @@ const PlayingVideoContext = createContext<{
   stopPlaying: () => {},
   jukeboxIsActive: false,
   setJukeboxIsActive: () => {},
-  ytPlayerRef: { current: null },
-  ytContainerRef: { current: null },
-  isMuted: true,
-  setIsMuted: () => {},
-  unmutePlayer: () => {},
 });
 
 export function PlayingVideoProvider({ children }: { children: React.ReactNode }) {
   const [playing, setPlaying] = useState<PlayingVideo>(null);
   const [jukeboxIsActive, setJukeboxIsActive] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
-  const ytPlayerRef = useRef<any>(null);
-  const ytContainerRef = useRef<HTMLDivElement | null>(null);
 
   const playVideo = useCallback((v: Omit<NonNullable<PlayingVideo>, "videoId"> & { videoId: number }) => {
     setPlaying((prev) => {
@@ -56,20 +39,8 @@ export function PlayingVideoProvider({ children }: { children: React.ReactNode }
 
   const stopPlaying = useCallback(() => setPlaying(null), []);
 
-  const unmutePlayer = useCallback(() => {
-    if (ytPlayerRef.current) {
-      try {
-        // iOS Safari: ユーザーのタップイベント内で playVideo() を呼ぶ必要がある
-        ytPlayerRef.current.unMute?.();
-        ytPlayerRef.current.setVolume?.(100);
-        ytPlayerRef.current.playVideo?.();
-      } catch { /* ignore */ }
-    }
-    setIsMuted(false);
-  }, []);
-
   return (
-    <PlayingVideoContext.Provider value={{ playing, setPlaying, playVideo, stopPlaying, jukeboxIsActive, setJukeboxIsActive, ytPlayerRef, ytContainerRef, isMuted, setIsMuted, unmutePlayer }}>
+    <PlayingVideoContext.Provider value={{ playing, setPlaying, playVideo, stopPlaying, jukeboxIsActive, setJukeboxIsActive }}>
       {children}
     </PlayingVideoContext.Provider>
   );
