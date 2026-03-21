@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -87,6 +87,8 @@ export function GlobalJukeboxPlayer() {
   const [dismissed, setDismissed] = useState(true);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [elapsedDisplay, setElapsedDisplay] = useState(0);
+  // jukebox ページ復帰時に IFrame を強制再生成するためのキー
+  const [forceReinitKey, setForceReinitKey] = useState(0);
 
   const posRef = useRef({ x: 0, y: 0 });
   const dragBaseRef = useRef({ x: 0, y: 0 });
@@ -292,7 +294,7 @@ export function GlobalJukeboxPlayer() {
     setJukeboxIsActive(isActive);
   }, [dismissed, isOnJukeboxPage, state?.isPlaying, setJukeboxIsActive]);
 
-  // isOnJukeboxPage の ref（useEffect 内で最新値を参照するため）
+  // isOnJukeboxPage の ref（useLayoutEffect 内で最新値を参照するため）
   const isOnJukeboxPageRef = useRef(isOnJukeboxPage);
   isOnJukeboxPageRef.current = isOnJukeboxPage;
 
@@ -303,6 +305,11 @@ export function GlobalJukeboxPlayer() {
   // ページ離脱時: 即座に退避（同期的）
   const retreatContainer = useCallback(() => {
     if (Platform.OS !== "web") return;
+    // ポーリング中なら即座にキャンセル（退避後に上書きされるのを防ぐ）
+    if (anchorPollingRef.current) {
+      clearInterval(anchorPollingRef.current);
+      anchorPollingRef.current = null;
+    }
     const container = ytBodyContainerRef.current;
     if (!container) return;
     container.style.left = "-9999px";
@@ -334,7 +341,8 @@ export function GlobalJukeboxPlayer() {
       const r = anchor.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) return false;
       container.style.left = `${r.left}px`;
-      container.style.top = `${r.top + window.scrollY}px`;
+      // position:fixed なので scrollY は不要
+      container.style.top = `${r.top}px`;
       container.style.width = `${r.width}px`;
       container.style.height = `${r.height}px`;
       container.style.opacity = "1";
@@ -362,6 +370,19 @@ export function GlobalJukeboxPlayer() {
   }, [attachToAnchor, retreatContainer]);
   const updateContainerPositionRef = useRef(updateContainerPosition);
   updateContainerPositionRef.current = updateContainerPosition;
+
+  // ============================================================
+  // useLayoutEffect: pathname 変更時に同期的に IFrame を退避する
+  // これにより、ブラウザの描画前に left:-9999px が適用される
+  // ============================================================
+  useLayoutEffect(() => {
+    if (Platform.OS !== "web") return;
+    if (!isOnJukeboxPage) {
+      // jukebox ページ以外に移動したら即座に退避（ブラウザ描画前）
+      retreatContainer();
+    }
+    // jukebox ページへの移動は useEffect 側で attachToAnchor を呼ぶ
+  }, [isOnJukeboxPage, retreatContainer]);
 
   // IFrame 生成・管理（document.body に常駐）
   useEffect(() => {
@@ -425,7 +446,6 @@ export function GlobalJukeboxPlayer() {
       if (cancelled) return;
       const containerId = containerIdRef.current;
       if (!containerId) return;
-      const onJukeboxPage = isOnJukeboxPageRef.current;
       const startSec = state.elapsedSecs && state.elapsedSecs > 0
         ? state.elapsedSecs
         : Math.max(0, (Date.now() - new Date(state.startedAt).getTime()) / 1000);
@@ -484,7 +504,7 @@ export function GlobalJukeboxPlayer() {
       })
       .catch(() => { /* ignore */ });
     return () => { cancelled = true; };
-  }, [communityId, state?.currentVideoYoutubeId, updateContainerPosition]);
+  }, [communityId, state?.currentVideoYoutubeId, updateContainerPosition, forceReinitKey]);
 
   // GlobalJukeboxPlayer アンマウント時にコンテナを破棄
   useEffect(() => {
@@ -508,11 +528,11 @@ export function GlobalJukeboxPlayer() {
   }, []);
 
   // isOnJukeboxPage が変わったらコンテナ位置を更新し、ミュート制御
+  // ※ 退避は useLayoutEffect で同期的に行うため、ここでは attachToAnchor のみ担当
   useEffect(() => {
     if (Platform.OS !== "web") return;
     if (!isOnJukeboxPage) {
-      // ページ離脱時: 即座に退避（同期的）
-      retreatContainer();
+      // 退避は useLayoutEffect で既に実施済み。追加でキャッシュ更新のみ行う
       if (communityId) {
         qc.invalidateQueries({ queryKey: [`/api/jukebox/${communityId}`] });
       }
@@ -524,18 +544,26 @@ export function GlobalJukeboxPlayer() {
         } catch { /* ignore */ }
       }
     } else {
-      // ジュークボックスページに戻ったとき: ポーリングで位置移動
-      attachToAnchor();
-      // ジュークボックスページでも音声あり・再生継続（NowPlayingは再生制御しないため）
+      // ジュークボックスページに戻ったとき:
+      // 既存の IFrame を破棄して新規作成（黒画面を回避）
       if (youtubePlayerRef.current) {
-        try {
-          youtubePlayerRef.current.setVolume?.(100);
-          youtubePlayerRef.current.unMute?.();
-          youtubePlayerRef.current.playVideo?.();
-        } catch { /* ignore */ }
+        try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
+        youtubePlayerRef.current = null;
       }
+      if (ytBodyContainerRef.current) {
+        // コンテナの中身（iframe）をクリアして再利用
+        ytBodyContainerRef.current.innerHTML = "";
+        // コンテナ ID を更新して useEffect が再トリガーされるようにする
+        const newId = `global-jb-${Math.random().toString(36).slice(2)}`;
+        containerIdRef.current = newId;
+        ytBodyContainerRef.current.id = newId;
+      }
+      // ポーリングで位置移動
+      attachToAnchor();
+      // forceReinitKey を更新して IFrame 生成 useEffect を強制再トリガー
+      setForceReinitKey((k) => k + 1);
     }
-  }, [isOnJukeboxPage, retreatContainer, attachToAnchor]);
+  }, [isOnJukeboxPage, attachToAnchor, communityId]);
 
   // コミュニティ/jukebox ページ以外では何も表示しない
   if (!communityId) return null;
@@ -839,4 +867,3 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
 });
-

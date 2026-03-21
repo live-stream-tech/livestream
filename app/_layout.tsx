@@ -212,14 +212,7 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#070F18" }}>
-            {/* PC表示時は最大幅430pxでセンタリング */}
-            <View style={Platform.OS === "web" ? {
-              flex: 1,
-              maxWidth: 430,
-              width: "100%",
-              alignSelf: "center",
-              overflow: "hidden",
-            } : { flex: 1 }}>
+            <View style={{ flex: 1 }}>
             <KeyboardProvider>
               <LineTokenHandler>
                 <GlobalAuthGate>
