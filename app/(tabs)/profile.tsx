@@ -469,13 +469,7 @@ export default function ProfileScreen() {
                 styles.logoutBtn,
                 pressed && styles.headerBtnPressed,
               ]}
-              onPress={() => {
-                // iOS Safari PWA では window.confirm が動作しないため Alert.alert に統一
-                Alert.alert("ログアウト", "ログアウトしますか？", [
-                  { text: "キャンセル", style: "cancel" },
-                  { text: "ログアウト", style: "destructive", onPress: logout },
-                ]);
-              }}
+              onPress={() => logout()}
             >
               <Ionicons name="log-out-outline" size={18} color={C.live} />
             </Pressable>
