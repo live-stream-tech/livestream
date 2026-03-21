@@ -470,13 +470,7 @@ export default function ProfileScreen() {
                 pressed && styles.headerBtnPressed,
               ]}
               onPress={() => {
-                if (Platform.OS === "web" && typeof window !== "undefined") {
-                  const ok = window.confirm("ログアウトしますか？");
-                  if (ok) {
-                    logout();
-                  }
-                  return;
-                }
+                // iOS Safari PWA では window.confirm が動作しないため Alert.alert に統一
                 Alert.alert("ログアウト", "ログアウトしますか？", [
                   { text: "キャンセル", style: "cancel" },
                   { text: "ログアウト", style: "destructive", onPress: logout },

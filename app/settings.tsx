@@ -76,22 +76,15 @@ export default function SettingsScreen() {
         Alert.alert("エラー", errMsg);
       }
     };
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      if (window.confirm(msg)) doDelete();
-    } else {
-      Alert.alert("アカウント削除", msg, [
-        { text: "キャンセル", style: "cancel" },
-        { text: "削除する", style: "destructive", onPress: doDelete },
-      ]);
-    }
+    // iOS Safari PWA では window.confirm が動作しないため Alert.alert に統一
+    Alert.alert("アカウント削除", msg, [
+      { text: "キャンセル", style: "cancel" },
+      { text: "削除する", style: "destructive", onPress: doDelete },
+    ]);
   }
 
   function handleLogout() {
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      const ok = window.confirm("ログアウトしますか？");
-      if (ok) logout();
-      return;
-    }
+    // iOS Safari PWA では window.confirm が動作しないため Alert.alert に統一
     Alert.alert("ログアウト", "ログアウトしますか？", [
       { text: "キャンセル", style: "cancel" },
       { text: "ログアウト", style: "destructive", onPress: logout },
