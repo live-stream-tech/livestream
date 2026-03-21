@@ -399,29 +399,8 @@ export function GlobalJukeboxPlayer() {
     // jukebox ページへの移動は useEffect 側で attachToAnchor を呼ぶ
   }, [isOnJukeboxPage, retreatContainer]);
 
-  // ============================================================
-  // popState リスナー: 「戻る」ボタンによる遷移時に React 外から直接退避
-  // useLayoutEffect は React の再レンダリング時にしか発火しないため、
-  // popState 経由の遷移では IFrame が一瞬見えてしまう。
-  // このリスナーで同期的に退避する。
-  // ============================================================
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const onPopState = () => {
-      // popState 発火時点で jukebox ページにいる場合は退避（退出先は別ページのはず）
-      if (isOnJukeboxPageRef.current) {
-        const container = ytBodyContainerRef.current;
-        if (container) {
-          container.style.left = "-9999px";
-          container.style.opacity = "0";
-        }
-      }
-    };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
-
   // IFrame 生成・管理（document.body に常駐）
+  // 退避は useLayoutEffect が usePathname の変化で担当するため popstate リスナーは不要
   useEffect(() => {
     if (Platform.OS !== "web") return;
     if (!communityId) return;
@@ -445,6 +424,8 @@ export function GlobalJukeboxPlayer() {
       container.style.cssText = "position:fixed;left:-9999px;top:0;width:320px;height:180px;z-index:10;";
       document.body.appendChild(container);
       ytBodyContainerRef.current = container;
+      // コンテナ作成直後に attachToAnchor を呼ぶ（null でないことが保証される）
+      attachToAnchor();
       const sync = () => updateContainerPositionRef.current();
       window.addEventListener("resize", sync);
       window.addEventListener("scroll", sync, true);

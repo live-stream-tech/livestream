@@ -14,7 +14,7 @@ import {
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { C } from "@/constants/colors";
@@ -576,23 +576,20 @@ export default function JukeboxScreen() {
     }
   }, [chat.length]);
 
-  // ブラウザ「戻る」ガード（Web のみ）
+  // ページ退出時の離脱確認（useFocusEffect の cleanup で検知）
+  // popstate + history.pushState を廃止し、Expo Router のナビゲーションイベントで代替
   const isPlayingRef = useRef(state?.isPlaying);
   isPlayingRef.current = state?.isPlaying;
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    // 現在のエントリを履歴に積んでおく（戻る操作を検知するため）
-    history.pushState(null, "", location.href);
-    const onPopState = () => {
-      if (isPlayingRef.current) {
-        // 遷移をキャンセルして確認モーダルを表示
-        history.pushState(null, "", location.href);
-        setShowLeaveModal(true);
-      }
-    };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        // ページからフォーカスが外れた（離脱した）タイミングに発火
+        if (isPlayingRef.current) {
+          setShowLeaveModal(true);
+        }
+      };
+    }, [])
+  );
 
   // プレイリスト取得（モーダル表示時・ログイン済み）
   useEffect(() => {
