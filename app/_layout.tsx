@@ -22,26 +22,43 @@ if (Platform.OS === "web" && typeof window !== "undefined" && "serviceWorker" in
   });
 }
 
-/** URL に line_token / auth/callback?token があるか（web のみ）。初回から正しく検知してフラッシュを防ぐ */
+/** URL に line_token / auth/callback?token / ?token があるか（web のみ）。初回から正しく検知してフラッシュを防ぐ */
 function useHasLineTokenInUrl(): boolean {
   const [hasToken] = useState(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") return false;
     // 旧方式: /?line_token=xxx
     if (new URLSearchParams(window.location.search).get("line_token")) return true;
-    // 新方式: /auth/callback?token=xxx
+    // 旧方式2: /auth/callback?token=xxx
     if (window.location.pathname === "/auth/callback" && new URLSearchParams(window.location.search).get("token")) return true;
+    // 新方式: /?token=xxx（iOS Safari PWA対応）
+    if (window.location.pathname === "/" && new URLSearchParams(window.location.search).get("token")) return true;
     return false;
   });
   return hasToken;
 }
 
 /**
- * 同一タブリダイレクト方式の認証ハンドラ。
- * /auth/callback ページでトークン処理するため、ここでは何もしない。
+ * 認証トークンハンドラ。
+ * - /?token=xxx（iOS Safari PWA対応）: ルートで直接トークン処理
+ * - ネイティブ: line_token パラメータを処理
  */
 function LineTokenHandler({ children }: { children: React.ReactNode }) {
   const { line_token } = useLocalSearchParams<{ line_token?: string }>();
   const { loginWithToken } = useAuth();
+
+  // Web: /?token=xxx パターン（iOS Safari PWA対応）
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (!token || window.location.pathname !== "/") return;
+    // URLからtokenを除去してからログイン処理
+    const newUrl = window.location.pathname;
+    window.history.replaceState({}, "", newUrl);
+    loginWithToken(token)
+      .then(() => router.replace("/(tabs)/profile"))
+      .catch(() => router.replace("/auth/login?line_error=me_failed"));
+  }, [loginWithToken]);
 
   // ネイティブ: line_token パラメータを処理（ネイティブアプリ用）
   useEffect(() => {
@@ -67,8 +84,11 @@ function isPwaStandalone(): boolean {
 
 function isPublicPath(pathname: string): boolean {
   if (!pathname) return false;
-  // PWA スタンドアロン起動時はホームも認証必須にする
-  if (pathname === "/" && !isPwaStandalone()) return true; // /(tabs)/index（ブラウザのみ公開）
+  // PWA スタンドアロン起動時はホームも認証必須にする（ただしtokenパラメータがある場合は公開）
+  if (pathname === "/") {
+    if (!isPwaStandalone()) return true; // ブラウザは公開
+    if (Platform.OS === "web" && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("token")) return true; // トークン処理中は公開
+  }
   if (pathname === "/auth/login") return true;
   if (pathname === "/auth/callback") return true; // OAuthリダイレクトコールバック
   if (pathname === "/community" || pathname.startsWith("/community/")) return true; // /(tabs)/community + 詳細 + members

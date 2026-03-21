@@ -727,7 +727,8 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
 
       const jwtToken = makeToken(existing.id);
-      res.redirect(lineRedirect(`/auth/callback?token=${encodeURIComponent(jwtToken)}`));
+      // iOS Safari PWA対応: PWAのstartUrl(/)にリダイレクトしてPWA内でトークン処理
+      res.redirect(lineRedirect(`/?token=${encodeURIComponent(jwtToken)}`));
     } catch (err) {
       console.error("Google callback error:", err);
       res.redirect(lineRedirect("/auth/login?line_error=server_error"));
@@ -984,7 +985,8 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
 
       const jwtToken = makeToken(existing.id);
-      res.redirect(lineRedirect(`/auth/callback?token=${encodeURIComponent(jwtToken)}`));
+      // iOS Safari PWA対応: PWAのstartUrl(/)にリダイレクトしてPWA内でトークン処理
+      res.redirect(lineRedirect(`/?token=${encodeURIComponent(jwtToken)}`));
     } catch (err) {
       console.error("LINE callback error:", err);
       res.redirect(lineRedirect("/auth/login?line_error=server_error"));
@@ -1053,7 +1055,8 @@ export async function registerRoutes(app: Express): Promise<void> {
 
       const jwtToken = makeToken(existing.id);
       console.log("[LINE callback] success", { userId: existing.id });
-      res.redirect(lineRedirect(`/auth/callback?token=${encodeURIComponent(jwtToken)}`));
+      // iOS Safari PWA対応: PWAのstartUrl(/)にリダイレクトしてPWA内でトークン処理
+      res.redirect(lineRedirect(`/?token=${encodeURIComponent(jwtToken)}`));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[LINE callback] server_error", err);
