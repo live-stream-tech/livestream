@@ -184,7 +184,8 @@ function NowPlaying({
     <View style={styles.nowPlaying}>
       <View style={StyleSheet.absoluteFillObject}>
         {Platform.OS === "web" && hasYoutube ? (
-          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#000" }]} nativeID="jukebox-yt-holder" />
+          // Webでは nativeID が id 属性にならないため、直接 div を使用
+          <div id="jukebox-yt-holder" style={{ position: "absolute", inset: 0, backgroundColor: "#000" }} />
         ) : state.currentVideoThumbnail ? (
           <Image
             source={{ uri: state.currentVideoThumbnail }}
