@@ -308,6 +308,7 @@ export function GlobalJukeboxPlayer() {
     left: "-9999px",
     top: "0px",
     opacity: "0",
+    visibility: "hidden",        // 座標確定前の一瞬表示を物理的に防止（iOS Safari対策）
     pointerEvents: "none",       // クリック/タッチ完全遮断
     transform: "translateZ(0)",  // iOS 合成レイヤー安定化
     zIndex: "0",
@@ -315,10 +316,14 @@ export function GlobalJukeboxPlayer() {
   // アクティブ時: opacity/pointerEvents/transform のみ定数化（座標は動的に設定）
   const ACTIVE_STYLE_BASE = {
     opacity: "1",
+    visibility: "visible",       // アッチ後に必ず visible に戻す
     pointerEvents: "auto",       // 復帰時に必ず auto に戻す（操作不能防止）
     transform: "translateZ(0)",
     zIndex: "10",
   } as const;
+
+  // reinitKey: 再入室時の明示的再初期化シグナル（dismissedを依存配列に混ぜないため専用化）
+  const [reinitKey, setReinitKey] = useState(0);
 
   // ページ離脱時: 即座に退避（同期的）
   const retreatContainer = useCallback(() => {
@@ -438,7 +443,7 @@ export function GlobalJukeboxPlayer() {
       const container = document.createElement("div");
       container.id = containerIdRef.current;
       // Fix 2: overflow:hidden でIFrameのはみ出しを物理的に封じる
-      container.style.cssText = "position:fixed;left:-9999px;top:0;width:320px;height:180px;z-index:0;overflow:hidden;pointer-events:none;opacity:0;transform:translateZ(0);";
+      container.style.cssText = "position:fixed;left:-9999px;top:0;width:320px;height:180px;z-index:0;overflow:hidden;pointer-events:none;opacity:0;visibility:hidden;transform:translateZ(0);";
       document.body.appendChild(container);
       ytBodyContainerRef.current = container;
       // コンテナ作成直後に attachToAnchor を呼ぶ（null でないことが保証される）
@@ -557,7 +562,7 @@ export function GlobalJukeboxPlayer() {
       })
       .catch(() => { /* ignore */ });
     return () => { cancelled = true; };
-  }, [communityId, state?.currentVideoYoutubeId, updateContainerPosition]);
+  }, [communityId, state?.currentVideoYoutubeId, updateContainerPosition, reinitKey]);
 
   // GlobalJukeboxPlayer アンマウント時にコンテナを破棄
   useEffect(() => {
@@ -600,17 +605,23 @@ export function GlobalJukeboxPlayer() {
       // ジュークボックスページに戻ったとき:
       // IFrame を破棄せず attachToAnchor で正しい位置に戻す（autoplay 許可を引き継ぐ）
       attachToAnchor();
+      // ✕ボタン等でIFrameが破棄されている場合のみ再初期化をトリガー
+      // （currentVideoYoutubeIdが同じ値のためuseEffectが発火しない問題を解決）
+      if (!youtubePlayerRef.current) {
+        setReinitKey(prev => prev + 1);
+      }
     }
-  }, [isOnJukeboxPage, attachToAnchor, communityId]);
+  }, [isOnJukeboxPage, attachToAnchor, communityId, youtubePlayerRef]);
 
   // state?.currentVideoYoutubeId が確定・変更した瞬間に Jukebox ページ上で attachToAnchor を呼ぶ
   // （state が後から来た場合でも jukebox-yt-holder が DOM に現れた後に確実にアタッチされる）
+  // reinitKey が変化したとき（再入室時）も再アタッチする
   useEffect(() => {
     if (Platform.OS !== "web") return;
     if (!isOnJukeboxPage) return;
     if (!state?.currentVideoYoutubeId) return;
     attachToAnchor();
-  }, [state?.currentVideoYoutubeId, isOnJukeboxPage, attachToAnchor]);
+  }, [state?.currentVideoYoutubeId, isOnJukeboxPage, attachToAnchor, reinitKey]);
 
   // コミュニティ/jukebox ページ以外では何も表示しない
   if (!communityId) return null;
