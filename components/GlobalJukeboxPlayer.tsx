@@ -300,6 +300,26 @@ export function GlobalJukeboxPlayer() {
   const ytBodyContainerRef = useRef<HTMLDivElement | null>(null);
   const ytSyncCleanupRef = useRef<(() => void) | null>(null);
 
+  // ============================================================
+  // Fix 1: スタイル定数化（プロパティ残留・設定漏れを防ぐ）
+  // ============================================================
+  // 退避時: 全プロパティを一括上書き
+  const RETREAT_STYLE = {
+    left: "-9999px",
+    top: "0px",
+    opacity: "0",
+    pointerEvents: "none",       // クリック/タッチ完全遮断
+    transform: "translateZ(0)",  // iOS 合成レイヤー安定化
+    zIndex: "0",
+  } as const;
+  // アクティブ時: opacity/pointerEvents/transform のみ定数化（座標は動的に設定）
+  const ACTIVE_STYLE_BASE = {
+    opacity: "1",
+    pointerEvents: "auto",       // 復帰時に必ず auto に戻す（操作不能防止）
+    transform: "translateZ(0)",
+    zIndex: "10",
+  } as const;
+
   // ページ離脱時: 即座に退避（同期的）
   const retreatContainer = useCallback(() => {
     if (Platform.OS !== "web") return;
@@ -310,12 +330,8 @@ export function GlobalJukeboxPlayer() {
     }
     const container = ytBodyContainerRef.current;
     if (!container) return;
-    container.style.left = "-9999px";
-    container.style.top = "0px";
-    container.style.width = "320px";
-    container.style.height = "180px";
-    container.style.opacity = "0";
-    container.style.zIndex = "0";
+    // Fix 1: Object.assign で一括適用（プロパティ残留を防ぐ）
+    Object.assign(container.style, RETREAT_STYLE);
   }, []);
 
   // ジュークボックスページに戻ったとき: jukebox-yt-holder が現れるまでポーリング
@@ -353,16 +369,18 @@ export function GlobalJukeboxPlayer() {
         // まだ動いている → 次のポーリングで再確認
         return false;
       }
+      // Fix 1: ACTIVE_STYLE_BASE を一括適用してから座標を上書き
+      Object.assign(container.style, ACTIVE_STYLE_BASE);
       container.style.left = `${r.left}px`;
       // position:fixed なので scrollY は不要
       container.style.top = `${r.top}px`;
       container.style.width = `${r.width}px`;
       container.style.height = `${r.height}px`;
-      container.style.opacity = "1";
-      container.style.zIndex = "10";
       return true;
     };
     if (!tryAttach()) {
+      // Fix 4: ポーリング開始直前に離脱チェック（競合排除ガード）
+      if (!isOnJukeboxPageRef.current) return;
       let attempts = 0;
       anchorPollingRef.current = setInterval(() => {
         attempts++;
@@ -419,7 +437,8 @@ export function GlobalJukeboxPlayer() {
     if (!ytBodyContainerRef.current) {
       const container = document.createElement("div");
       container.id = containerIdRef.current;
-      container.style.cssText = "position:fixed;left:-9999px;top:0;width:320px;height:180px;z-index:10;";
+      // Fix 2: overflow:hidden でIFrameのはみ出しを物理的に封じる
+      container.style.cssText = "position:fixed;left:-9999px;top:0;width:320px;height:180px;z-index:0;overflow:hidden;pointer-events:none;opacity:0;transform:translateZ(0);";
       document.body.appendChild(container);
       ytBodyContainerRef.current = container;
       // コンテナ作成直後に attachToAnchor を呼ぶ（null でないことが保証される）
@@ -483,6 +502,9 @@ export function GlobalJukeboxPlayer() {
       if (!youtubePlayerRef.current) {
         youtubePlayerRef.current = new YT.Player(containerId, {
           videoId: state.currentVideoYoutubeId,
+          // Fix 3: IFrame サイズをコンテナに追従させる
+          width: "100%",
+          height: "100%",
           playerVars: {
             autoplay: 1,
             rel: 0,
@@ -499,6 +521,14 @@ export function GlobalJukeboxPlayer() {
                 event.target?.setVolume?.(100);
                 event.target?.unMute?.();
                 event.target?.playVideo?.();
+                // Fix 3: onReady でコンテナの実際のピクセル値で setSize を再適用
+                // （YouTube API がコンテナサイズを無視するケースへの保険、offsetWidth=0の場合はフォールバック値を使用）
+                const containerEl = ytBodyContainerRef.current;
+                if (containerEl) {
+                  const w = containerEl.offsetWidth > 0 ? containerEl.offsetWidth : 320;
+                  const h = containerEl.offsetHeight > 0 ? containerEl.offsetHeight : 180;
+                  event.target?.setSize?.(w, h);
+                }
                 // videoDurationSecs が 0 または未設定の場合、実際の動画長をサーバーに反映
                 const actualDuration = event.target?.getDuration?.();
                 if (actualDuration && actualDuration > 0 && state.currentVideoDurationSecs <= 0) {
