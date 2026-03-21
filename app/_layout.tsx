@@ -109,9 +109,11 @@ function ProfileSetupGuard({ children }: { children: React.ReactNode }) {
 
 /** ルートレベルの認証ガード。指定のパス以外はすべてログイン必須にする。 */
 function GlobalAuthGate({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, token, loading } = useAuth();
   const pathname = usePathname();
   const hasLineTokenInUrl = useHasLineTokenInUrl();
+  // ログイン済み判定: userがあるか、ネットワークエラー時に tokenだけ復元された場合も含む
+  const isLoggedIn = !!user || !!token;
 
   useEffect(() => {
     if (loading) return;
@@ -122,7 +124,7 @@ function GlobalAuthGate({ children }: { children: React.ReactNode }) {
       router.replace("/profile");
       return;
     }
-    if (user) return;
+    if (isLoggedIn) return;
     if (isPublicPath(pathname)) return;
 
     if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -130,10 +132,10 @@ function GlobalAuthGate({ children }: { children: React.ReactNode }) {
       saveLoginReturn(full);
     }
     router.replace("/auth/login");
-  }, [user, loading, pathname, hasLineTokenInUrl]);
+  }, [user, token, loading, pathname, hasLineTokenInUrl, isLoggedIn]);
 
   // 未ログインかつ保護ページの場合は何も描画しない（リダイレクト待ち）
-  if (!user && !loading && !hasLineTokenInUrl && pathname && !isPublicPath(pathname)) {
+  if (!isLoggedIn && !loading && !hasLineTokenInUrl && pathname && !isPublicPath(pathname)) {
     return null;
   }
 

@@ -58,7 +58,11 @@ async function apiFetch(path: string, options?: RequestInit) {
     ...options,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "エラーが発生しました");
+  if (!res.ok) {
+    const err: Error & { status?: number } = new Error(data.error ?? "エラーが発生しました");
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
@@ -97,8 +101,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
           setToken(t);
           setUser(normalizeMe(me));
-        } catch {
-          await AsyncStorage.removeItem(TOKEN_KEY);
+        } catch (e: unknown) {
+          // 401/403 など認証エラーのみトークンを削除。
+          // ネットワークエラー・タイムアウトの場合はトークンを残してログイン状態を維持する。
+          const status = (e as Error & { status?: number }).status;
+          const isAuthError = status === 401 || status === 403;
+          if (isAuthError) {
+            await AsyncStorage.removeItem(TOKEN_KEY);
+          } else {
+            // ネットワークエラー時: トークンだけ保持してローディングを終わらせる。
+            // GlobalAuthGate は token があれば保護ページへのリダイレクトをしない。
+            setToken(t);
+          }
         }
       }
       setLoading(false);
