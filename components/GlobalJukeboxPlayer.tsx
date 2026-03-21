@@ -74,102 +74,34 @@ function useScreenSize() {
 }
 
 // ============================================================
-// 画面向き検知（Web専用）
+// GlobalJukeboxPlayer
+// 役割: 音声マスター（常に left:-9999px に固定）
+// 映像表示は jukebox/[id].tsx の映像専用IFrameが担当
 // ============================================================
-function useIsLandscape() {
-  const [isLandscape, setIsLandscape] = useState(() => {
-    if (Platform.OS !== "web") return false;
-    return window.innerWidth > window.innerHeight;
-  });
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const update = () => setIsLandscape(window.innerWidth > window.innerHeight);
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-  return isLandscape;
-}
-
 export function GlobalJukeboxPlayer() {
   const { width: SCREEN_W, height: SCREEN_H } = useScreenSize();
   const pathname = usePathname();
-  const { setJukeboxIsActive, ytPlayerRef: youtubePlayerRef, setIsMuted } = usePlayingVideo();
+  const { setJukeboxIsActive, ytPlayerRef: youtubePlayerRef } = usePlayingVideo();
   const [communityId, setCommunityId] = useState<number | null>(() =>
     parseCommunityId(pathname)
   );
   const [dismissed, setDismissed] = useState(true);
   const [elapsedDisplay, setElapsedDisplay] = useState(0);
-  const isLandscape = useIsLandscape();
 
+  // IFrame コンテナ（document.body に常駐・常に left:-9999px 固定）
   const containerIdRef = useRef<string>(
     `global-jb-${Math.random().toString(36).slice(2)}`
   );
-
-  // IFrame コンテナ（document.body に常駐）
   const ytBodyContainerRef = useRef<HTMLDivElement | null>(null);
   const ytSyncCleanupRef = useRef<(() => void) | null>(null);
 
-  // isOnJukeboxPage の ref（useEffect 内で最新値を参照するため）
   const isOnJukeboxPage = pathname?.match(/^\/jukebox\/\d+/) != null;
-  const isOnJukeboxPageRef = useRef(isOnJukeboxPage);
-  isOnJukeboxPageRef.current = isOnJukeboxPage;
 
   // ============================================================
-  // コンテナスタイル計算（fixed配置・ページに応じて切り替え）
+  // IFrame コンテナは常に left:-9999px 固定（音声専用・画面外）
   // ============================================================
-  // ジュークボックスページのヘッダー高さ
-  // topInset(67) + paddingTop(8) + paddingBottom(8) + backBtn高さ(36) = 119px
-  const JUKEBOX_HEADER_H = 119;
-
-  const getContainerStyle = useCallback((): string => {
-    if (!isOnJukeboxPageRef.current) {
-      // 他ページ: 画面上部の外に退避（top:-9999px で音声は継続、サイズ維持で controls:0 を保持）
-      return "position:fixed;display:block;left:0;top:-9999px;width:320px;height:180px;z-index:0;pointer-events:none;";
-    }
-    // ジュークボックスページ: ヘッダーの下に固定
-    const landscape = typeof window !== "undefined" && window.innerWidth > window.innerHeight;
-    if (landscape) {
-      // 横向き: フルスクリーン（ヘッダーなし）
-      return `position:fixed;display:block;left:0;top:0;width:${window.innerWidth}px;height:${window.innerHeight}px;z-index:10;pointer-events:none;`;
-    } else {
-      // 縦向き: ヘッダーの下から 16:9 で配置
-      const w = window.innerWidth;
-      const h = Math.round(w * 9 / 16);
-      return `position:fixed;display:block;left:0;top:${JUKEBOX_HEADER_H}px;width:${w}px;height:${h}px;z-index:10;pointer-events:none;`;
-    }
-  }, [JUKEBOX_HEADER_H]);
-
-  const applyContainerStyle = useCallback(() => {
-    const container = ytBodyContainerRef.current;
-    if (!container) return;
-    container.style.cssText = getContainerStyle();
-    // IFrame サイズも同期
-    if (isOnJukeboxPageRef.current && youtubePlayerRef.current) {
-      try {
-        const landscape = typeof window !== "undefined" && window.innerWidth > window.innerHeight;
-        const w = window.innerWidth;
-        const h = landscape ? window.innerHeight : Math.round(w * 9 / 16);
-        youtubePlayerRef.current.setSize?.(w, h);
-      } catch { /* ignore */ }
-    }
-  }, [getContainerStyle, youtubePlayerRef]);
-
-  const applyContainerStyleRef = useRef(applyContainerStyle);
-  applyContainerStyleRef.current = applyContainerStyle;
-
-  // pathname 変更時にコンテナスタイルを即座に更新
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    applyContainerStyle();
-  }, [isOnJukeboxPage, applyContainerStyle]);
-
-  // resize 時にコンテナスタイルを更新
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const onResize = () => applyContainerStyleRef.current();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+  const AUDIO_CONTAINER_STYLE =
+    "position:fixed;display:block;left:-9999px;top:0;width:320px;height:180px;z-index:0;pointer-events:none;";
 
   useEffect(() => {
     const next = parseCommunityId(pathname);
@@ -322,7 +254,7 @@ export function GlobalJukeboxPlayer() {
   }, [dismissed, isOnJukeboxPage, state?.isPlaying, setJukeboxIsActive]);
 
   // ============================================================
-  // IFrame 生成・管理（document.body に常駐）
+  // 音声専用 IFrame 生成・管理（document.body に常駐・常に left:-9999px）
   // ============================================================
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -341,24 +273,14 @@ export function GlobalJukeboxPlayer() {
       return;
     }
 
-    // コンテナが未作成なら document.body に追加
+    // コンテナが未作成なら document.body に追加（常に left:-9999px 固定）
     if (!ytBodyContainerRef.current) {
       const container = document.createElement("div");
       container.id = containerIdRef.current;
-      container.style.cssText = getContainerStyle();
+      container.style.cssText = AUDIO_CONTAINER_STYLE;
       document.body.appendChild(container);
       ytBodyContainerRef.current = container;
-
-      // resize 時にスタイルを更新
-      const onResize = () => applyContainerStyleRef.current();
-      window.addEventListener("resize", onResize);
-      ytSyncCleanupRef.current = () => {
-        window.removeEventListener("resize", onResize);
-      };
     }
-
-    // コンテナスタイルを最新状態に更新
-    applyContainerStyle();
 
     let cancelled = false;
     function ensureYouTubeApi(): Promise<any> {
@@ -389,10 +311,9 @@ export function GlobalJukeboxPlayer() {
             videoId: state.currentVideoYoutubeId,
             startSeconds: startSec,
           });
-          // iOS Safari: ミュート状態で再生開始（ユーザーのタップでミュート解除）
-          youtubePlayerRef.current.mute?.();
+          youtubePlayerRef.current.unMute?.();
+          youtubePlayerRef.current.setVolume?.(100);
           youtubePlayerRef.current.playVideo?.();
-          setIsMuted(true);
         } catch {
           try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
           youtubePlayerRef.current = null;
@@ -400,15 +321,10 @@ export function GlobalJukeboxPlayer() {
       }
 
       if (!youtubePlayerRef.current) {
-        // コンテナの現在サイズを取得
-        const containerEl = ytBodyContainerRef.current;
-        const iw = containerEl?.offsetWidth || 320;
-        const ih = containerEl?.offsetHeight || 180;
-
         youtubePlayerRef.current = new YT.Player(containerId, {
           videoId: state.currentVideoYoutubeId,
-          width: iw,
-          height: ih,
+          width: 320,
+          height: 180,
           playerVars: {
             autoplay: 1,
             rel: 0,
@@ -416,22 +332,14 @@ export function GlobalJukeboxPlayer() {
             disablekb: 1,
             playsinline: 1,
             start: Math.floor(startSec),
-            mute: 1, // iOS Safari: ミュート状態で自動再生（ユーザーのタップでミュート解除）
+            mute: 0, // 音声マスター: ミュートなし
           },
           events: {
             onReady: (event: any) => {
               try {
-                // iOS Safari: ミュート状態で再生開始
-                event.target?.mute?.();
+                event.target?.unMute?.();
+                event.target?.setVolume?.(100);
                 event.target?.playVideo?.();
-                setIsMuted(true);
-                // コンテナの実際サイズで setSize を再適用
-                const el = ytBodyContainerRef.current;
-                if (el) {
-                  const w = el.offsetWidth || 320;
-                  const h = el.offsetHeight || 180;
-                  event.target?.setSize?.(w, h);
-                }
                 // videoDurationSecs が未設定の場合、実際の動画長をサーバーに反映
                 const actualDuration = event.target?.getDuration?.();
                 if (actualDuration && actualDuration > 0 && state.currentVideoDurationSecs <= 0) {
@@ -485,7 +393,7 @@ export function GlobalJukeboxPlayer() {
   if (!communityId) return null;
   if (!state) return null;
 
-  // jukebox ページ上は JSX を返さない（IFrame は fixed で表示中）
+  // jukebox ページ上は JSX を返さない（映像は jukebox/[id].tsx の専用IFrameが担当）
   if (isOnJukeboxPage) {
     return null;
   }

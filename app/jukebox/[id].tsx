@@ -108,10 +108,9 @@ function calcProgress(startedAt: string, durationSecs: number): number {
 }
 
 /**
- * NowPlaying: GJP の fixed IFrame が重なるためのスペーサー領域。
- * 映像は GlobalJukeboxPlayer が fixed で表示するため、ここでは表示しない。
- * 縦向き: 16:9 の高さ分のスペースを確保
- * 横向き: 100vh 分のスペースを確保（GJP がフルスクリーン）
+ * NowPlaying: 映像専用ミュートIFrame + 情報オーバーレイ。
+ * 音声は GlobalJukeboxPlayer（常に left:-9999px）が担当。
+ * 縦向き: 16:9 の高さ。横向き: 全画面
  */
 function NowPlaying({
   state,
@@ -126,7 +125,7 @@ function NowPlaying({
   const [screenH, setScreenH] = useState(() => Dimensions.get("window").height);
   const onNextRef = useRef(onNext);
   onNextRef.current = onNext;
-  const { isMuted, unmutePlayer } = usePlayingVideo();
+  // usePlayingVideo は将来の拡張のため import は維持
 
   // 画面サイズ変化を追跡
   useEffect(() => {
@@ -200,20 +199,16 @@ function NowPlaying({
 
   return (
     <View style={[styles.nowPlaying, { height: videoAreaH }]}>
-      {/* GJP の fixed IFrame が重なるためのスペーサー（映像はここに表示しない） */}
-      {/* iOS Safari: ミュート解除オーバーレイ（ユーザーのタップで音声を有効化） */}
-      {isMuted && Platform.OS === "web" && (
-        <Pressable
-          style={styles.unmuteOverlay}
-          onPress={unmutePlayer}
-          accessibilityLabel="タップして音声を有効にする"
-        >
-          <View style={styles.unmuteBtn}>
-            <Ionicons name="volume-mute" size={24} color="#fff" />
-            <Text style={styles.unmuteBtnText}>タップして音声を有効にする</Text>
-          </View>
-        </Pressable>
-      )}
+      {/* 映像専用ミュートIFrame（音声はGJPが担当） */}
+      {Platform.OS === 'web' && state?.currentVideoYoutubeId ? (
+        <iframe
+          src={`https://www.youtube.com/embed/${state.currentVideoYoutubeId}?autoplay=1&mute=1&controls=0&rel=0&playsinline=1`}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' } as any}
+          allow="autoplay"
+        />
+      ) : state?.currentVideoThumbnail ? (
+        <Image source={{ uri: state.currentVideoThumbnail }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+      ) : null}
       {/* 下部オーバーレイ: タイトル・プログレス・スキップ */}
       <View style={styles.nowPlayingTop}>
         <View style={styles.liveChip}>
