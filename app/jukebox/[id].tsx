@@ -326,7 +326,7 @@ export default function JukeboxScreen() {
   const [ytUrl, setYtUrl] = useState("");
   const [ytQuery, setYtQuery] = useState("");
   const [ytResults, setYtResults] = useState<
-    { videoId: string; title: string; thumbnail: string }[]
+    { videoId: string; title: string; thumbnail: string; durationSecs?: number }[]
   >([]);
   const [ytSearching, setYtSearching] = useState(false);
   const [ytPlaylists, setYtPlaylists] = useState<
@@ -460,7 +460,8 @@ export default function JukeboxScreen() {
         videoId: video.id,
         videoTitle: video.title,
         videoThumbnail: video.thumbnail,
-        videoDurationSecs: 900,
+        // durationSecs が video に付いていればそれを使用、なければ 0（サーバー側で YouTube API から取得）
+        videoDurationSecs: (video as any).durationSecs ?? 0,
         youtubeId: (video as any).youtubeId ?? null,
         addedBy: user?.name ?? "ゲスト",
         addedByAvatar:
@@ -485,7 +486,7 @@ export default function JukeboxScreen() {
     },
   });
 
-  const handleAddYouTube = () => {
+  const handleAddYouTube = async () => {
     const url = ytUrl.trim();
     if (!url) return;
     const idPart = extractYouTubeId(url);
@@ -493,7 +494,15 @@ export default function JukeboxScreen() {
       alert("有効なYouTubeのURLを入力してください");
       return;
     }
-    const video: Video & { youtubeId: string } = {
+    // YouTube search API で duration を取得（URL 直接追加時）
+    let durationSecs = 0;
+    try {
+      const res = await apiRequest("GET", `/api/youtube/search?q=${encodeURIComponent(idPart)}`);
+      const results = (await res.json()) as { videoId: string; durationSecs?: number }[];
+      const match = results.find((r) => r.videoId === idPart);
+      if (match?.durationSecs) durationSecs = match.durationSecs;
+    } catch { /* duration 取得失敗は無視 */ }
+    const video: Video & { youtubeId: string; durationSecs: number } = {
       id: Math.floor(Math.random() * 2000000),
       title: "YouTube リクエスト",
       thumbnail: `https://img.youtube.com/vi/${idPart}/hqdefault.jpg`,
@@ -501,6 +510,7 @@ export default function JukeboxScreen() {
       category: "YouTube",
       price: null,
       youtubeId: idPart,
+      durationSecs,
     };
     addMutation.mutate(video);
   };
@@ -518,6 +528,7 @@ export default function JukeboxScreen() {
         videoId: string;
         title: string;
         thumbnail: string;
+        durationSecs?: number;
       }[];
       setYtResults(data);
     } catch (e: any) {
@@ -823,7 +834,7 @@ export default function JukeboxScreen() {
                     </Pressable>
                     <ScrollView style={styles.ytPlaylistItemsScroll} showsVerticalScrollIndicator={false}>
                     {ytPlaylistItems.map((item) => {
-                      const video: Video & { youtubeId: string } = {
+                      const video: Video & { youtubeId: string; durationSecs: number } = {
                         id: Math.floor(Math.random() * 2000000),
                         title: item.title,
                         thumbnail: item.thumbnail,
@@ -831,6 +842,7 @@ export default function JukeboxScreen() {
                         category: "YouTube",
                         price: null,
                         youtubeId: item.videoId,
+                        durationSecs: (item as any).durationSecs ?? 0,
                       };
                       return (
                           <Pressable
@@ -883,7 +895,7 @@ export default function JukeboxScreen() {
                 <>
                   <Text style={styles.modalSubtitle}>YouTube 検索結果</Text>
                   {ytResults.map((r) => {
-                    const video: Video & { youtubeId: string } = {
+                    const video: Video & { youtubeId: string; durationSecs: number } = {
                       id: Math.floor(Math.random() * 2000000),
                       title: r.title,
                       thumbnail: r.thumbnail,
@@ -891,6 +903,7 @@ export default function JukeboxScreen() {
                       category: "YouTube",
                       price: null,
                       youtubeId: r.videoId,
+                      durationSecs: r.durationSecs ?? 0,
                     };
                     return (
                       <Pressable

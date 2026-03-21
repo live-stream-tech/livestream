@@ -322,12 +322,15 @@ export function GlobalJukeboxPlayer() {
 
   // ジュークボックスページに戻ったとき: jukebox-yt-holder が現れるまでポーリング
   const anchorPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // アンカーの top 値が安定したかを確認するための前回値
+  const prevAnchorTopRef = useRef<number | null>(null);
   const attachToAnchor = useCallback(() => {
     if (Platform.OS !== "web") return;
     if (anchorPollingRef.current) {
       clearInterval(anchorPollingRef.current);
       anchorPollingRef.current = null;
     }
+    prevAnchorTopRef.current = null;
     const tryAttach = () => {
       const container = ytBodyContainerRef.current;
       if (!container) return false;
@@ -340,6 +343,18 @@ export function GlobalJukeboxPlayer() {
       if (!anchor) return false;
       const r = anchor.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) return false;
+      // top 値が前回と同じ（安定している）ことを確認してから適用
+      // ヘッダーのレイアウトが確定する前に座標を取得するのを防ぐ
+      const prevTop = prevAnchorTopRef.current;
+      prevAnchorTopRef.current = r.top;
+      if (prevTop === null) {
+        // 初回: 次のポーリングで安定確認
+        return false;
+      }
+      if (Math.abs(prevTop - r.top) > 1) {
+        // まだ動いている → 次のポーリングで再確認
+        return false;
+      }
       container.style.left = `${r.left}px`;
       // position:fixed なので scrollY は不要
       container.style.top = `${r.top}px`;
@@ -353,7 +368,7 @@ export function GlobalJukeboxPlayer() {
       let attempts = 0;
       anchorPollingRef.current = setInterval(() => {
         attempts++;
-        if (tryAttach() || attempts > 50) {
+        if (tryAttach() || attempts > 80) {
           clearInterval(anchorPollingRef.current!);
           anchorPollingRef.current = null;
         }
@@ -383,6 +398,28 @@ export function GlobalJukeboxPlayer() {
     }
     // jukebox ページへの移動は useEffect 側で attachToAnchor を呼ぶ
   }, [isOnJukeboxPage, retreatContainer]);
+
+  // ============================================================
+  // popState リスナー: 「戻る」ボタンによる遷移時に React 外から直接退避
+  // useLayoutEffect は React の再レンダリング時にしか発火しないため、
+  // popState 経由の遷移では IFrame が一瞬見えてしまう。
+  // このリスナーで同期的に退避する。
+  // ============================================================
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const onPopState = () => {
+      // popState 発火時点で jukebox ページにいる場合は退避（退出先は別ページのはず）
+      if (isOnJukeboxPageRef.current) {
+        const container = ytBodyContainerRef.current;
+        if (container) {
+          container.style.left = "-9999px";
+          container.style.opacity = "0";
+        }
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // IFrame 生成・管理（document.body に常駐）
   useEffect(() => {
@@ -545,22 +582,21 @@ export function GlobalJukeboxPlayer() {
       }
     } else {
       // ジュークボックスページに戻ったとき:
-      // 既存の IFrame を破棄して新規作成（黒画面を回避）
+      // 既存の IFrame とコンテナを完全に破棄して null にする（黒画面回避）
       if (youtubePlayerRef.current) {
         try { youtubePlayerRef.current.destroy(); } catch { /* ignore */ }
         youtubePlayerRef.current = null;
       }
       if (ytBodyContainerRef.current) {
-        // コンテナの中身（iframe）をクリアして再利用
-        ytBodyContainerRef.current.innerHTML = "";
-        // コンテナ ID を更新して useEffect が再トリガーされるようにする
-        const newId = `global-jb-${Math.random().toString(36).slice(2)}`;
-        containerIdRef.current = newId;
-        ytBodyContainerRef.current.id = newId;
+        ytSyncCleanupRef.current?.();
+        ytSyncCleanupRef.current = null;
+        ytBodyContainerRef.current.remove();
+        ytBodyContainerRef.current = null; // null にすることで useEffect がコンテナをゼロから再生成
       }
-      // ポーリングで位置移動
-      attachToAnchor();
+      // 新しいコンテナ ID を生成
+      containerIdRef.current = `global-jb-${Math.random().toString(36).slice(2)}`;
       // forceReinitKey を更新して IFrame 生成 useEffect を強制再トリガー
+      // コンテナは useEffect 内で新規作成され、attachToAnchor もそこで呼ばれる
       setForceReinitKey((k) => k + 1);
     }
   }, [isOnJukeboxPage, attachToAnchor, communityId]);

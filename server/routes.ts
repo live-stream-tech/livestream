@@ -762,7 +762,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         items?: { id?: { videoId?: string }; snippet?: { title?: string; thumbnails?: { default?: { url?: string }; medium?: { url?: string }; high?: { url?: string } } } }[];
       };
       const items = json.items ?? [];
-      const results = items
+      const baseResults = items
         .map((item) => {
           const videoId = item.id?.videoId;
           const title = item.snippet?.title ?? "";
@@ -772,7 +772,41 @@ export async function registerRoutes(app: Express): Promise<void> {
           if (!videoId || !thumbUrl) return null;
           return { videoId, title, thumbnail: thumbUrl };
         })
-        .filter(Boolean);
+        .filter(Boolean) as { videoId: string; title: string; thumbnail: string }[];
+
+      // videos.list で実際の動画時間（ISO 8601 duration）を取得
+      const videoIds = baseResults.map((r) => r.videoId).join(",");
+      let durationMap: Record<string, number> = {};
+      if (videoIds) {
+        try {
+          const vParams = new URLSearchParams({
+            key: YOUTUBE_API_KEY,
+            part: "contentDetails",
+            id: videoIds,
+          });
+          const vRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?${vParams.toString()}`);
+          if (vRes.ok) {
+            const vJson = (await vRes.json()) as {
+              items?: { id?: string; contentDetails?: { duration?: string } }[];
+            };
+            for (const v of vJson.items ?? []) {
+              if (v.id && v.contentDetails?.duration) {
+                // ISO 8601 duration (PT#H#M#S) → seconds
+                const m = v.contentDetails.duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+                if (m) {
+                  const secs = (parseInt(m[1] ?? "0") * 3600) + (parseInt(m[2] ?? "0") * 60) + parseInt(m[3] ?? "0");
+                  durationMap[v.id] = secs;
+                }
+              }
+            }
+          }
+        } catch { /* duration 取得失敗は無視 */ }
+      }
+
+      const results = baseResults.map((r) => ({
+        ...r,
+        durationSecs: durationMap[r.videoId] ?? 0,
+      }));
       res.json(results);
     } catch (e: any) {
       console.error("YouTube search exception:", e);
@@ -905,7 +939,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           contentDetails?: { videoId?: string };
         }[];
       };
-      const items = (json.items ?? [])
+      const baseItems = (json.items ?? [])
         .map((item) => {
           const videoId = item.contentDetails?.videoId ?? item.snippet?.resourceId?.videoId;
           const thumbs = item.snippet?.thumbnails;
@@ -917,7 +951,27 @@ export async function registerRoutes(app: Express): Promise<void> {
             thumbnail: thumbUrl,
           };
         })
-        .filter(Boolean);
+        .filter(Boolean) as { videoId: string; title: string; thumbnail: string }[];
+
+      // videos.list で実際の動画時間を取得
+      let durationMap: Record<string, number> = {};
+      const videoIds = baseItems.map((i) => i.videoId).join(",");
+      if (videoIds && YOUTUBE_API_KEY) {
+        try {
+          const vParams = new URLSearchParams({ key: YOUTUBE_API_KEY, part: "contentDetails", id: videoIds });
+          const vRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?${vParams.toString()}`);
+          if (vRes.ok) {
+            const vJson = (await vRes.json()) as { items?: { id?: string; contentDetails?: { duration?: string } }[] };
+            for (const v of vJson.items ?? []) {
+              if (v.id && v.contentDetails?.duration) {
+                const m = v.contentDetails.duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+                if (m) durationMap[v.id] = (parseInt(m[1] ?? "0") * 3600) + (parseInt(m[2] ?? "0") * 60) + parseInt(m[3] ?? "0");
+              }
+            }
+          }
+        } catch { /* 無視 */ }
+      }
+      const items = baseItems.map((i) => ({ ...i, durationSecs: durationMap[i.videoId] ?? 0 }));
       res.json(items);
     } catch (e: any) {
       console.error("YouTube playlistItems exception:", e);
