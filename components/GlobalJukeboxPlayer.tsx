@@ -308,7 +308,6 @@ export function GlobalJukeboxPlayer() {
     left: "-9999px",
     top: "0px",
     opacity: "0",
-    visibility: "hidden",        // 座標確定前の一瞬表示を物理的に防止（iOS Safari対策）
     pointerEvents: "none",       // クリック/タッチ完全遮断
     transform: "translateZ(0)",  // iOS 合成レイヤー安定化
     zIndex: "0",
@@ -316,7 +315,6 @@ export function GlobalJukeboxPlayer() {
   // アクティブ時: opacity/pointerEvents/transform のみ定数化（座標は動的に設定）
   const ACTIVE_STYLE_BASE = {
     opacity: "1",
-    visibility: "visible",       // アッチ後に必ず visible に戻す
     pointerEvents: "auto",       // 復帰時に必ず auto に戻す（操作不能防止）
     transform: "translateZ(0)",
     zIndex: "10",
@@ -443,7 +441,7 @@ export function GlobalJukeboxPlayer() {
       const container = document.createElement("div");
       container.id = containerIdRef.current;
       // Fix 2: overflow:hidden でIFrameのはみ出しを物理的に封じる
-      container.style.cssText = "position:fixed;left:-9999px;top:0;width:320px;height:180px;z-index:0;overflow:hidden;pointer-events:none;opacity:0;visibility:hidden;transform:translateZ(0);";
+      container.style.cssText = "position:fixed;left:-9999px;top:0;width:320px;height:180px;z-index:0;overflow:hidden;pointer-events:none;opacity:0;transform:translateZ(0);";
       document.body.appendChild(container);
       ytBodyContainerRef.current = container;
       // コンテナ作成直後に attachToAnchor を呼ぶ（null でないことが保証される）
