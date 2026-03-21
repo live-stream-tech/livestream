@@ -1850,7 +1850,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         .insert(communities)
         .values({
           name: trimmedName,
-          members: 0,
+          members: 1,
           thumbnail: banner,
           online: false,
           category: primaryCategory,
@@ -1858,6 +1858,12 @@ export async function registerRoutes(app: Express): Promise<void> {
           ownerId: user.id,
         } as typeof communities.$inferInsert)
         .returning();
+
+      // 作成者を自動でメンバーに追加
+      await db.insert(communityMembers).values({
+        communityId: row.id,
+        userId: user.id,
+      } as typeof communityMembers.$inferInsert);
 
       res.status(201).json({
         ...row,
