@@ -13,6 +13,7 @@ import {
   Linking,
 } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -547,17 +548,13 @@ export default function ProfileScreen() {
 
         {/* Creator / Twoshot registration */}
         <View style={styles.roleCard}>
-          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
-            <View style={{ flex: 1, marginRight: 10 }}>
+          <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+            <View style={{ flex: 1 }}>
               <Text style={styles.roleTitle}>クリエイター登録</Text>
               <Text style={styles.roleSub}>
                 動画編集クリエイター / メンターライバーとして、検索一覧などに表示できるようにします。
               </Text>
             </View>
-            <Pressable style={styles.startInlineBtn}>
-              <Ionicons name="radio" size={14} color="#050505" />
-              <Text style={styles.startInlineBtnText}>START</Text>
-            </Pressable>
           </View>
           <View style={styles.roleButtonsRow}>
             <Pressable
@@ -812,6 +809,19 @@ export default function ProfileScreen() {
 
 
 
+      {/* START FAB */}
+      <Pressable style={[styles.startFab, { bottom: bottomInset + 80 }]} onPress={() => router.push("/live" as any)}>
+        <LinearGradient
+          colors={["rgba(255,255,255,0.45)", "rgba(255,255,255,0)"]}
+          start={{ x: 0.2, y: 0 }}
+          end={{ x: 0.8, y: 1 }}
+          style={styles.startFabGradient}
+        >
+          <Ionicons name="radio" size={16} color="#050505" />
+          <Text style={styles.startFabText}>START</Text>
+        </LinearGradient>
+      </Pressable>
+
       {/* PWA ホーム画面に追加 FAB（右下固定）＋ポップアップ */}
       {Platform.OS === "web" && pwaBanner.showBanner && (
         <>
@@ -819,7 +829,14 @@ export default function ProfileScreen() {
             style={[styles.pwaFab, { bottom: bottomInset + 140 }]}
             onPress={pwaBanner.onFabPress}
           >
-            <Ionicons name="phone-portrait-outline" size={22} color="#fff" />
+            <LinearGradient
+              colors={["rgba(255,255,255,0.35)", "rgba(255,255,255,0)"]}
+              start={{ x: 0.2, y: 0 }}
+              end={{ x: 0.8, y: 1 }}
+              style={styles.pwaFabGradient}
+            >
+              <Ionicons name="phone-portrait-outline" size={22} color="#fff" />
+            </LinearGradient>
           </Pressable>
           <Modal visible={pwaBanner.showPopup} transparent animationType="fade">
             <Pressable style={styles.pwaPopupOverlay} onPress={pwaBanner.onDismiss}>
@@ -1417,18 +1434,22 @@ const styles = StyleSheet.create({
   startFab: {
     position: "absolute",
     right: 16,
+    borderRadius: 24,
+    overflow: "hidden",
+    backgroundColor: C.accent,
+    // 外光（グロー）
+    shadowColor: C.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.85,
+    shadowRadius: 18,
+    elevation: 16,
+  },
+  startFabGradient: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: C.accent,
-    borderRadius: 3,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    shadowColor: C.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
   },
   startFabText: { color: "#050505", fontSize: 13, fontWeight: "800", letterSpacing: 0.5 },
   startInlineBtn: {
@@ -1605,19 +1626,23 @@ const styles = StyleSheet.create({
   pwaFab: {
     position: "absolute",
     right: 16,
-    width: 48,
-    height: 48,
-    borderRadius: 3,
-    backgroundColor: C.bg,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    overflow: "hidden",
+    // ジェルボディ：深いティールグリーン
+    backgroundColor: "#0d3d3a",
+    // 外光（グロー）
+    shadowColor: C.accent,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 16,
+    elevation: 14,
+  },
+  pwaFabGradient: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: C.accent,
   },
   pwaPopupOverlay: {
     flex: 1,
