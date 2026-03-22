@@ -106,7 +106,7 @@ export default function LoginScreen() {
         </Pressable>
       </View>
 
-      <Pressable style={styles.guestLink} onPress={() => router.replace("/(tabs)")}>
+      <Pressable style={styles.guestLink} onPress={() => router.replace("/community")}>
         <Text style={styles.guestLinkText}>ログインせずに閲覧する</Text>
       </Pressable>
 

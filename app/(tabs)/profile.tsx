@@ -547,10 +547,18 @@ export default function ProfileScreen() {
 
         {/* Creator / Twoshot registration */}
         <View style={styles.roleCard}>
-          <Text style={styles.roleTitle}>クリエイター登録</Text>
-          <Text style={styles.roleSub}>
-            動画編集クリエイター / メンターライバーとして、検索一覧などに表示できるようにします。
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Text style={styles.roleTitle}>クリエイター登録</Text>
+              <Text style={styles.roleSub}>
+                動画編集クリエイター / メンターライバーとして、検索一覧などに表示できるようにします。
+              </Text>
+            </View>
+            <Pressable style={styles.startInlineBtn}>
+              <Ionicons name="radio" size={14} color="#050505" />
+              <Text style={styles.startInlineBtnText}>START</Text>
+            </Pressable>
+          </View>
           <View style={styles.roleButtonsRow}>
             <Pressable
               style={[
@@ -802,10 +810,7 @@ export default function ProfileScreen() {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      <Pressable style={[styles.startFab, { bottom: bottomInset + 80 }]}>
-        <Ionicons name="radio" size={16} color="#050505" />
-        <Text style={styles.startFabText}>START</Text>
-      </Pressable>
+
 
       {/* PWA ホーム画面に追加 FAB（右下固定）＋ポップアップ */}
       {Platform.OS === "web" && pwaBanner.showBanner && (
@@ -1426,6 +1431,21 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   startFabText: { color: "#050505", fontSize: 13, fontWeight: "800", letterSpacing: 0.5 },
+  startInlineBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: C.accent,
+    borderRadius: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    shadowColor: C.accent,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  startInlineBtnText: { color: "#050505", fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
 
   modalBg: {
     flex: 1,

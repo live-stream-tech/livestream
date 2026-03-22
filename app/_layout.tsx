@@ -10,7 +10,6 @@ import { queryClient } from "@/lib/query-client";
 import { DemoModeProvider } from "@/lib/demo-mode";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { getLoginReturn, saveLoginReturn } from "@/lib/login-return";
-import { GlobalJukeboxPlayer } from "@/components/GlobalJukeboxPlayer";
 import { GlobalMyListPlayer } from "@/components/GlobalMyListPlayer";
 import { PlayingVideoProvider } from "@/lib/playing-video-context";
 
@@ -84,11 +83,8 @@ function isPwaStandalone(): boolean {
 
 function isPublicPath(pathname: string): boolean {
   if (!pathname) return false;
-  // PWA スタンドアロン起動時はホームも認証必須にする（ただしtokenパラメータがある場合は公開）
-  if (pathname === "/") {
-    if (!isPwaStandalone()) return true; // ブラウザは公開
-    if (Platform.OS === "web" && typeof window !== "undefined" && new URLSearchParams(window.location.search).get("token")) return true; // トークン処理中は公開
-  }
+  // "/" は常に公開（PWAスタンドアロン包む）。ログイン済み時のマイページ遷移はindex.tsx内のuseEffectが担当
+  if (pathname === "/") return true;
   if (pathname === "/auth/login") return true;
   if (pathname === "/auth/callback") return true; // OAuthリダイレクトコールバック
   if (pathname === "/community" || pathname.startsWith("/community/")) return true; // /(tabs)/community + 詳細 + members
@@ -139,11 +135,6 @@ function GlobalAuthGate({ children }: { children: React.ReactNode }) {
     if (loading) return;
     if (hasLineTokenInUrl) return; // LINEコールバック処理中は何もしない
     if (!pathname) return;
-    // PWAスタンドアロン起動時にログイン済み（user または token があれば）なら/profileへ
-    if ((user || token) && pathname === "/" && isPwaStandalone()) {
-      router.replace("/profile");
-      return;
-    }
     if (isLoggedIn) return;
     if (isPublicPath(pathname)) return;
 
@@ -221,7 +212,6 @@ export default function RootLayout() {
                     <PlayingVideoProvider>
                       <View style={{ flex: 1 }}>
                         <RootLayoutNav />
-                        <GlobalJukeboxPlayer />
                         <GlobalMyListPlayer />
                       </View>
                     </PlayingVideoProvider>
